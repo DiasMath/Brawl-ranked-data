@@ -1,6 +1,11 @@
 # Brawl Ranked Data
 
-Painel privado do Ranqueado de Brawl Stars. A Vercel hospeda o Next.js, o Render executa o FastAPI e o PostgreSQL conserva o histórico.
+Painel privado do Ranqueado de Brawl Stars. Use Next.js, FastAPI e PostgreSQL no Windows para desenvolver. Em produção, a Vercel hospeda o Next.js, o Render executa o FastAPI e o Supabase conserva o histórico.
+
+| Ambiente | Frontend | Backend | Banco | Chave da Supercell |
+| --- | --- | --- | --- | --- |
+| Desenvolvimento | `http://127.0.0.1:3000` | `http://127.0.0.1:8787` | PostgreSQL local, banco `brawl_ranked_dev` | Autorizada para o IPv4 público da sua conexão |
+| Produção | Vercel | Render | PostgreSQL do Supabase | Autorizada para o IPv4 de saída usado pelo backend |
 
 ## Estrutura
 
@@ -12,25 +17,76 @@ Painel privado do Ranqueado de Brawl Stars. A Vercel hospeda o Next.js, o Render
 | `render.cron.yaml` | Blueprint opcional para criar o Cron Job pago separadamente |
 | `Preparar-Ambiente.ps1` | Gera as credenciais próprias do painel e preenche os arquivos locais de ambiente |
 
-## Preparar no Windows
+## Desenvolvimento no Windows
 
-Extraia o ZIP em `D:\PROJETOS\BRAWL RANKED DATA` e abra o PowerShell nessa pasta. Execute:
+Use Python 3.12, Node.js 20.9 ou superior e [PostgreSQL para Windows](https://www.postgresql.org/download/windows/). Abra o PowerShell em `D:\PROJETOS\BRAWL RANKED DATA`.
 
-```powershell
-.\Preparar-Ambiente.ps1
+### Banco de desenvolvimento
+
+No pgAdmin, conecte-se ao PostgreSQL local e execute as duas instruções separadamente. Substitua `SUA_SENHA_LOCAL` por uma senha própria para esse usuário.
+
+```sql
+CREATE ROLE brawl_dev LOGIN PASSWORD 'SUA_SENHA_LOCAL';
 ```
 
-Se recebeu os dois arquivos de ambiente preenchidos, copie-os para as pastas correspondentes e pule o script.
+```sql
+CREATE DATABASE brawl_ranked_dev OWNER brawl_dev;
+```
 
-O script cria `frontend/.env.local` e `backend/.env`. O token de serviço tem o mesmo valor nos dois arquivos. A senha de acesso ao painel fica somente no frontend. Você pode preencher a chave oficial e a URL do banco depois. Os arquivos de ambiente preenchidos ficam fora do Git.
+Use a URL `postgresql://brawl_dev:SUA_SENHA_LOCAL@127.0.0.1:5432/brawl_ranked_dev`. Se a senha contiver caracteres reservados de URL, como `@` ou `#`, codifique-os na URL. O FastAPI cria as tabelas na primeira execução.
 
-## 1. PostgreSQL
+### Credenciais locais
+
+No [portal da Supercell](https://developer.brawlstars.com/), gere uma chave para o IPv4 público que a máquina Windows usa para acessar a internet. Se esse endereço mudar, atualize a autorização da chave. Use uma chave própria de dev e um banco separado para que as coletas locais gravem no ambiente de desenvolvimento.
+
+```powershell
+.\Preparar-Ambiente.ps1 -Dev
+```
+
+Informe a chave de dev e a URL do PostgreSQL local. O script cria `frontend/.env.development.local` e `backend/.env.development.local`, gera um token de serviço compartilhado e uma senha para o painel local. Os arquivos preenchidos ficam fora do Git. Se deixar a chave vazia, você pode abrir o painel e cadastrar as contas. Preencha `BRAWL_API_TOKEN` e reinicie o FastAPI para sincronizar.
+
+### Iniciar o painel
+
+Abra dois terminais na raiz. A criação do ambiente virtual e a instalação dos pacotes são necessárias na primeira execução ou quando as dependências mudarem.
+
+**Terminal 1 · FastAPI**
+
+```powershell
+cd backend
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --env-file .env.development.local --host 127.0.0.1 --port 8787 --reload
+```
+
+**Terminal 2 · Next.js**
+
+```powershell
+cd frontend
+npm.cmd ci
+npm.cmd run dev -- --hostname 127.0.0.1
+```
+
+Abra `http://127.0.0.1:3000` e entre com `BRAWL_SITE_USER` e `BRAWL_SITE_PASSWORD` de `frontend/.env.development.local`. Em **Contas e dados**, adicione cada jogador pela tag e clique em **Sincronizar agora**. Se precisar confirmar que o FastAPI subiu, acesse `http://127.0.0.1:8787/health`.
+
+O ambiente local começa em modo manual. Para coletar todas as contas de uma vez, execute a partir de `backend/`:
+
+```powershell
+.\.venv\Scripts\python.exe -m dotenv -f .env.development.local run -- .\.venv\Scripts\python.exe -m app.jobs.collect
+```
+
+Esse comando também pode ser agendado pelo Agendador de Tarefas do Windows enquanto a máquina estiver ligada. Nesse caso, ajuste `BRAWL_COLLECTION_INTERVAL_SECONDS` para o intervalo programado e reinicie o FastAPI.
+
+## Produção na Vercel e no Render
+
+Configure os valores de produção diretamente nos painéis, com senha e token de serviço próprios de produção. Se precisar gerar esses valores, execute `Preparar-Ambiente.ps1 -RenderUrl https://SEU-SERVICO.onrender.com` sem `-Dev` e use os arquivos gerados `frontend/.env.local` e `backend/.env` como referência para os painéis.
+
+### 1. PostgreSQL
 
 Crie um banco persistente no Supabase ou no Render. Use a URL de conexão do PostgreSQL como `DATABASE_URL` no backend. Se usar Supabase com conexão IPv4, abra **Connect** e copie a URL do **Session pooler** (porta 5432). Na produção, use uma conexão TLS. Para o Supabase, inclua `sslmode=require` na URL. A API e o coletor criam o esquema `brawl_lab` no primeiro início. O usuário do banco precisa ter permissão para criá-lo.
 
-## 2. Render Web Service e Cron Job
+### 2. Render Web Service e Cron Job
 
-Envie as duas pastas a um repositório privado e conecte o repositório ao Render. Crie um **Web Service** com runtime **Python**. O Web Service atende o painel e a sincronização manual. Um Cron Job separado consulta a API da Supercell e grava no PostgreSQL, mesmo com o Web Service em repouso. O plano gratuito da API pode demorar para responder após inatividade. O Cron Job tem cobrança mínima de US$ 1 por mês.
+Conecte o repositório ao Render e crie um **Web Service** com runtime **Python**. O Web Service atende o painel e a sincronização manual. Um Cron Job separado pode consultar a API da Supercell e gravar no PostgreSQL, mesmo com o Web Service em repouso. O plano gratuito do Render pode demorar para responder após inatividade. O Cron Job do Render tem cobrança mínima de US$ 1 por mês.
 
 | Campo | Valor |
 | --- | --- |
@@ -48,7 +104,7 @@ Envie as duas pastas a um repositório privado e conecte o repositório ao Rende
 | `DATABASE_URL` | URL do banco com suas credenciais |
 | `BRAWL_API_TOKEN` | Chave da Supercell autorizada para a saída do Render |
 
-### Coleta agendada
+#### Coleta agendada opcional no Render
 
 Crie um **Cron Job** no mesmo repositório. Use a mesma `DATABASE_URL` no Cron Job e no Web Service. O cron lê desse banco a lista de jogadores cadastrados em **Contas e dados**. Configure a chave `BRAWL_API_TOKEN` em cada serviço com autorização para a saída correspondente. O token `BRAWL_SERVICE_TOKEN` é usado somente na Vercel e no Web Service.
 
@@ -65,7 +121,7 @@ Se a API já existe, crie somente o Cron Job. O comando antigo da API ainda func
 
 Em **Connect → Outbound**, confira os endereços de saída de ambos os serviços. Autorize os endereços aceitos pelo portal da Supercell na chave configurada. A API pode subir antes da chave para você consultar os IPs. Depois de configurá-la, use **Runs → Trigger Run** no Cron Job e confirme a última coleta em **Contas e dados**. A coleta agendada e o botão manual compartilham o bloqueio no banco e respeitam o intervalo de espera após HTTP 429.
 
-## 3. Vercel
+### 3. Vercel
 
 Crie um projeto Next.js no mesmo repositório com **Root Directory** em `frontend`. Use as configurações de build padrão do Next.js. Cadastre as variáveis abaixo em **Settings → Environment Variables** para Production e, se desejar, Preview. Faça deploy depois de salvar as variáveis.
 
@@ -78,30 +134,10 @@ Crie um projeto Next.js no mesmo repositório com **Root Directory** em `fronten
 
 O navegador pede usuário e senha ao abrir a Vercel. A chave da Supercell e a conexão do banco ficam no Render. O navegador consulta a API da Vercel na mesma origem, e a Vercel chama o Render com o token de serviço.
 
-## Rodar localmente
-
-Abra dois terminais na raiz. Use as credenciais geradas e uma URL PostgreSQL acessível.
-
-```powershell
-cd backend
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --env-file .env --host 127.0.0.1 --port 8787
-```
-
-```powershell
-cd frontend
-npm ci
-npm run dev
-```
-
-Abra `http://localhost:3000` e use o usuário e a senha de `frontend/.env.local`.
-
 ## Organização do código
 
 - `frontend/src/app/` contém rotas, layout e handlers do Next.js. As telas ficam em `src/features/`, componentes compartilhados em `src/components/` e dados, catálogo e persistência local em `src/lib/`.
 - `backend/app/main.py` inicializa o FastAPI. `app/routers/` define as rotas, `app/services/` contém a coleta e a análise, `app/repositories/` concentra a leitura do histórico e `app/jobs/` contém a execução agendada. O processo Web e o Cron Job compartilham os serviços Python.
-- Para executar a coleta uma vez no Windows a partir de `backend/`, rode `.\.venv\Scripts\python.exe -m dotenv -f .env run -- .\.venv\Scripts\python.exe -m app.jobs.collect`. As credenciais vêm do mesmo `.env` local.
 
 ## Recursos da interface
 

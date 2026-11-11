@@ -18,15 +18,17 @@ export function CollectorPanel({ battles, onSync, syncing, server, serverError, 
 }) {
   const delay=observedDelay(battles);
   if(server){
+    const automatic=server.interval_seconds>0;
     const retrying=server.retry_until&&Date.parse(server.retry_until)>Date.now();
     const attempt=server.last_attempt;
-    const delayed=Boolean(server.last_success && server.interval_seconds &&
+    const delayed=Boolean(server.last_success && automatic &&
       Date.now()-Date.parse(server.last_success)>server.interval_seconds*3000);
     const failed=attempt?.status==='error';
-    const status=failed?'Falha na última coleta':delayed?'Coleta atrasada':server.last_success?'Coleta em dia':'Aguardando coleta';
+    const status=failed?'Falha na última coleta':delayed?'Coleta atrasada':
+      server.last_success?(automatic?'Coleta em dia':'Última coleta concluída'):'Aguardando coleta';
     return <section className="card collector-panel">
-      <div className="card-head"><div><h2><Activity size={17}/> Coleta automática</h2>
-        <p>Servidor · {server.player_tag}{server.interval_seconds?' · intervalo esperado '+number(server.interval_seconds/60)+' min':''}</p></div>
+      <div className="card-head"><div><h2><Activity size={17}/> {automatic?'Coleta automática':'Coleta manual'}</h2>
+        <p>Servidor · {server.player_tag}{automatic?' · intervalo esperado '+number(server.interval_seconds/60)+' min':''}</p></div>
         <span className={`tag ${server.last_success&&!delayed&&!failed?'confirmed':'hypothesis'}`}>{status}</span></div>
       <div className="collector-controls">
         <button className="button primary" onClick={onSync} disabled={syncing||!server.configured||!!retrying} aria-busy={syncing}>
@@ -40,7 +42,7 @@ export function CollectorPanel({ battles, onSync, syncing, server, serverError, 
           {delay.count>0&&<small>P90 {delay.p90} min · {number(delay.count)} registros</small>}</div>
       </div>
       {!server.configured&&<p className="section-note">Configure a chave da Supercell nas variáveis do servidor.</p>}
-      {delayed&&<p className="section-note">A última coleta está atrasada. Confira as execuções do Cron Job no Render.</p>}
+      {delayed&&<p className="section-note">A última coleta está atrasada. Confira as execuções do agendamento.</p>}
       {failed&&<p className="section-note error">{attempt.message}</p>}
       {retrying&&<p className="section-note">Consulta pausada até {dateTime(server.retry_until)} por limite da Supercell.</p>}
       {server.last_possible_gap&&<p className="section-note">Possível lacuna detectada em {dateTime(server.last_possible_gap)}.</p>}
@@ -48,7 +50,7 @@ export function CollectorPanel({ battles, onSync, syncing, server, serverError, 
     </section>;
   }
   return <section className="card collector-panel">
-    <div className="card-head"><div><h2><Activity size={17}/> Coleta automática</h2>
+    <div className="card-head"><div><h2><Activity size={17}/> Coleta</h2>
       <p>{serverError?'Conexão com o servidor indisponível.':hasAccount?'Consultando o servidor de coleta…':'Cadastre uma conta para começar.'}</p></div></div>
     {serverError&&<p className="feedback" role="status">{serverError}</p>}
   </section>;

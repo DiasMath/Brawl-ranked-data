@@ -23,6 +23,6 @@ def initial_account():
 
 def collection_interval():
     seconds = int(os.getenv("BRAWL_COLLECTION_INTERVAL_SECONDS", "300"))
-    if seconds < 60:
-        raise ValueError("BRAWL_COLLECTION_INTERVAL_SECONDS deve ser de pelo menos 60 segundos.")
+    if seconds != 0 and seconds < 60:
+        raise ValueError("BRAWL_COLLECTION_INTERVAL_SECONDS deve ser 0 ou de pelo menos 60 segundos.")
     return seconds

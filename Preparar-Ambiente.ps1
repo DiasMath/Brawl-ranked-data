@@ -1,9 +1,19 @@
-﻿param([string]$RenderUrl = 'http://127.0.0.1:8787', [string]$PlayerTag = '')
+﻿param(
+    [string]$RenderUrl = 'http://127.0.0.1:8787',
+    [string]$PlayerTag = '',
+    [switch]$Dev
+)
 $ErrorActionPreference = 'Stop'
-$front = Join-Path $PSScriptRoot 'frontend/.env.local'
-$back = Join-Path $PSScriptRoot 'backend/.env'
+if ($Dev) {
+    $RenderUrl = 'http://127.0.0.1:8787'
+    $front = Join-Path $PSScriptRoot 'frontend/.env.development.local'
+    $back = Join-Path $PSScriptRoot 'backend/.env.development.local'
+} else {
+    $front = Join-Path $PSScriptRoot 'frontend/.env.local'
+    $back = Join-Path $PSScriptRoot 'backend/.env'
+}
 if ((Test-Path -LiteralPath $front) -or (Test-Path -LiteralPath $back)) {
-    throw 'Já existe um arquivo de ambiente. Edite os arquivos existentes para manter as credenciais.'
+    throw "Já existe um arquivo de ambiente de destino. Confira $front e $back."
 }
 $parsed = $null
 if (!( [Uri]::TryCreate($RenderUrl, [UriKind]::Absolute, [ref]$parsed) ) -or
@@ -23,11 +33,18 @@ function Read-SecretValue([string]$Prompt) {
     try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer).Trim() }
     finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer) }
 }
-if (!$PlayerTag) { $PlayerTag = Read-Host 'Tag do jogador' }
+if (!$Dev -and !$PlayerTag) { $PlayerTag = Read-Host 'Tag do jogador' }
 $PlayerTag = $PlayerTag.Trim().TrimStart('#').ToUpperInvariant()
-if ($PlayerTag -notmatch '^[0289PYLQGRJCUV]{3,16}$') { throw 'Tag inválida.' }
-$token = Read-SecretValue 'Chave da Supercell (Enter para preencher depois)'
-$database = Read-SecretValue 'DATABASE_URL do PostgreSQL (Enter para preencher depois)'
+if ((!$Dev -or $PlayerTag) -and $PlayerTag -notmatch '^[0289PYLQGRJCUV]{3,16}$') { throw 'Tag inválida.' }
+if ($Dev) {
+    $token = Read-SecretValue 'Chave da Supercell autorizada para o seu IPv4 público (Enter para preencher depois)'
+    $database = Read-SecretValue 'DATABASE_URL do PostgreSQL de desenvolvimento (Enter para preencher depois)'
+    $interval = 0
+} else {
+    $token = Read-SecretValue 'Chave da Supercell (Enter para preencher depois)'
+    $database = Read-SecretValue 'DATABASE_URL do PostgreSQL (Enter para preencher depois)'
+    $interval = 300
+}
 if ($token -match '[\r\n]' -or $database -match '[\r\n]') { throw 'Informe valores de uma linha.' }
 $shared = New-RandomSecret
 $password = New-RandomSecret
@@ -37,7 +54,11 @@ $utf8 = New-Object System.Text.UTF8Encoding($false)
     "BRAWL_SITE_PASSWORD=$password", "BRAWL_SERVICE_TOKEN=$shared"
 ), $utf8)
 [IO.File]::WriteAllLines($back, @(
-    'PYTHON_VERSION=3.12.12', "BRAWL_PLAYER_TAG=$PlayerTag", 'BRAWL_COLLECTION_INTERVAL_SECONDS=300',
+    'PYTHON_VERSION=3.12.12', "BRAWL_PLAYER_TAG=$PlayerTag", "BRAWL_COLLECTION_INTERVAL_SECONDS=$interval",
     "BRAWL_SERVICE_TOKEN=$shared", "BRAWL_API_TOKEN=$token", "DATABASE_URL=$database"
 ), $utf8)
-Write-Host 'Arquivos frontend/.env.local e backend/.env gerados. Use os valores nos painéis da Vercel e do Render.'
+if ($Dev) {
+    Write-Host 'Arquivos frontend/.env.development.local e backend/.env.development.local gerados.'
+} else {
+    Write-Host 'Arquivos frontend/.env.local e backend/.env gerados. Use os valores nos painéis da Vercel e do Render.'
+}

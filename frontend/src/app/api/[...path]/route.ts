@@ -35,7 +35,7 @@ async function forward(request: NextRequest) {
   const base = process.env.BRAWL_BACKEND_URL?.trim();
   const secret = process.env.BRAWL_SERVICE_TOKEN?.trim();
   if (!base || !secret || secret.length < 32) {
-    return Response.json({ detail: 'Configure a conexão privada com o Render na Vercel.' }, { status: 503, headers });
+    return Response.json({ detail: 'Configure a URL do backend e o token de serviço no Next.js.' }, { status: 503, headers });
   }
 
   let body: string | undefined;
@@ -70,7 +70,7 @@ async function forward(request: NextRequest) {
       cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(50000),
     });
     if (upstream.status === 401) {
-      return Response.json({ detail: 'Os tokens de serviço da Vercel e do Render precisam coincidir.' }, { status: 502, headers });
+      return Response.json({ detail: 'Use o mesmo BRAWL_SERVICE_TOKEN no Next.js e no FastAPI.' }, { status: 502, headers });
     }
     if (!upstream.headers.get('content-type')?.includes('application/json')) throw new Error('Resposta inválida.');
     const output = new Headers(headers);
@@ -79,7 +79,7 @@ async function forward(request: NextRequest) {
     if (retry) output.set('Retry-After', retry);
     return new Response(upstream.body, { status: upstream.status, headers: output });
   } catch {
-    return Response.json({ detail: 'O Render está iniciando ou temporariamente indisponível.' }, { status: 502, headers });
+    return Response.json({ detail: 'O backend está iniciando ou temporariamente indisponível.' }, { status: 502, headers });
   }
 }
 

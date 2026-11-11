@@ -52,4 +52,4 @@ async def collection_error(_request, error):
 
 @app.exception_handler(psycopg.Error)
 async def db_error(_request, _exception):
-    return JSONResponse({"detail": "PostgreSQL indisponível. Confira a conexão do Render."}, 503)
+    return JSONResponse({"detail": "PostgreSQL indisponível. Confira a conexão do backend com o banco de dados."}, 503)

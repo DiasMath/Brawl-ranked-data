@@ -1,4 +1,4 @@
-"""Collect registered players and exit. Render supplies the schedule."""
+"""Collect registered players and exit."""
 import logging
 
 import psycopg
@@ -15,7 +15,7 @@ LOG = logging.getLogger("brawl.cron")
 
 def main():
     if not api_token():
-        LOG.error("Configure BRAWL_API_TOKEN no cron.")
+        LOG.error("Configure BRAWL_API_TOKEN no ambiente de coleta.")
         return 1
     try:
         prepare_collection()
