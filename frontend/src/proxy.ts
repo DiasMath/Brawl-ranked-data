@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { privateAccess } from './lib/access';
+import { privateAccess } from '@/lib/access';
 
 export function proxy(request: Request) {
   return privateAccess(request) ?? NextResponse.next({

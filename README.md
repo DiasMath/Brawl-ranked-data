@@ -8,7 +8,8 @@ Painel privado do Ranqueado de Brawl Stars. A Vercel hospeda o Next.js, o Render
 | --- | --- |
 | `frontend/` | Next.js App Router, autenticação de acesso e conexão privada com o backend |
 | `backend/` | FastAPI, coleta oficial, esquema PostgreSQL e histórico persistente |
-| `render.yaml` | Configuração nativa opcional para um Blueprint do Render, com plano Starter pago |
+| `render.yaml` | Blueprint opcional para a API do Render |
+| `render.cron.yaml` | Blueprint opcional para criar o Cron Job pago separadamente |
 | `Preparar-Ambiente.ps1` | Gera as credenciais próprias do painel e preenche os arquivos locais de ambiente |
 
 ## Preparar no Windows
@@ -25,31 +26,44 @@ O script cria `frontend/.env.local` e `backend/.env`. O token de serviço tem o 
 
 ## 1. PostgreSQL
 
-Crie um banco persistente no Supabase ou no Render. Use a URL de conexão do PostgreSQL como `DATABASE_URL` no backend. Se usar Supabase com conexão IPv4, abra **Connect** e copie a URL do **Session pooler** (porta 5432). Na produção, use uma conexão TLS. Para o Supabase, inclua `sslmode=require` na URL. O FastAPI cria o esquema `brawl_lab` no primeiro início. O usuário do banco precisa ter permissão para criá-lo.
+Crie um banco persistente no Supabase ou no Render. Use a URL de conexão do PostgreSQL como `DATABASE_URL` no backend. Se usar Supabase com conexão IPv4, abra **Connect** e copie a URL do **Session pooler** (porta 5432). Na produção, use uma conexão TLS. Para o Supabase, inclua `sslmode=require` na URL. A API e o coletor criam o esquema `brawl_lab` no primeiro início. O usuário do banco precisa ter permissão para criá-lo.
 
-## 2. Render
+## 2. Render Web Service e Cron Job
 
-Envie as duas pastas a um repositório privado e conecte o repositório ao Render. Crie um **Web Service** com runtime **Python**. Escolha o plano na criação. O serviço gratuito suspende a execução após inatividade, portanto a coleta de cinco em cinco minutos exige uma instância que permaneça ligada.
+Envie as duas pastas a um repositório privado e conecte o repositório ao Render. Crie um **Web Service** com runtime **Python**. O Web Service atende o painel e a sincronização manual. Um Cron Job separado consulta a API da Supercell e grava no PostgreSQL, mesmo com o Web Service em repouso. O plano gratuito da API pode demorar para responder após inatividade. O Cron Job tem cobrança mínima de US$ 1 por mês.
 
 | Campo | Valor |
 | --- | --- |
 | Root Directory | `backend` |
 | Build Command | `pip install -r requirements.txt` |
-| Start Command | `uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1` |
+| Start Command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1` |
 | Health Check Path | `/health` |
 
 | Variável | Valor |
 | --- | --- |
 | `PYTHON_VERSION` | `3.12.12` |
 | `BRAWL_PLAYER_TAG` | Sua tag de jogador, com ou sem `#` |
-| `BRAWL_POLL_SECONDS` | `300` |
+| `BRAWL_COLLECTION_INTERVAL_SECONDS` | `300` para exibir o intervalo no painel |
 | `BRAWL_SERVICE_TOKEN` | Valor gerado em `backend/.env` |
 | `DATABASE_URL` | URL do banco com suas credenciais |
 | `BRAWL_API_TOKEN` | Chave da Supercell autorizada para a saída do Render |
 
-Em **Connect → Outbound**, confira os IPs ou intervalos de saída do serviço e autorize-os ao criar a chave no portal da Supercell. Valide com **Sincronizar agora**. O conjunto de saída do Render pode conter vários endereços. Se o portal não aceitar os intervalos disponíveis, será necessário configurar uma saída com endereços que ele aceite. A chave usada anteriormente para outra rede pode retornar 403.
+### Coleta agendada
 
-O serviço pode iniciar com `BRAWL_API_TOKEN` vazio enquanto você configura o IP. Depois de preencher a chave, abra o painel e confirme se a última coleta aparece como concluída.
+Crie um **Cron Job** no mesmo repositório. Use a mesma `DATABASE_URL`, `BRAWL_PLAYER_TAG` e `BRAWL_API_TOKEN` no Cron Job e no Web Service. O token `BRAWL_SERVICE_TOKEN` é usado somente na Vercel e no Web Service.
+
+| Campo | Valor |
+| --- | --- |
+| Runtime | Python |
+| Root Directory | `backend` |
+| Build Command | `pip install -r requirements-collector.txt` |
+| Command | `python -m app.jobs.collect` |
+| Schedule | `*/5 * * * *` (UTC) |
+| `PYTHON_VERSION` | `3.12.12` |
+
+Se a API já existe, crie somente o Cron Job. O comando antigo da API ainda funciona. Para uma instalação nova, use `render.yaml` para a API e selecione `render.cron.yaml` como caminho do Blueprint quando quiser criar o Cron Job. A antiga variável `BRAWL_POLL_SECONDS` pode ser removida do Web Service. A frequência real é configurada no agendamento do Cron Job.
+
+Em **Connect → Outbound**, confira os endereços de saída de ambos os serviços. Autorize os endereços aceitos pelo portal da Supercell na chave configurada. A API pode subir antes da chave para você consultar os IPs. Depois de configurá-la, use **Runs → Trigger Run** no Cron Job e confirme a última coleta em **Contas e dados**. A coleta agendada e o botão manual compartilham o bloqueio no banco e respeitam o intervalo de espera após HTTP 429.
 
 ## 3. Vercel
 
@@ -72,7 +86,7 @@ Abra dois terminais na raiz. Use as credenciais geradas e uma URL PostgreSQL ace
 cd backend
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m uvicorn main:app --env-file .env --host 127.0.0.1 --port 8787
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --env-file .env --host 127.0.0.1 --port 8787
 ```
 
 ```powershell
@@ -82,6 +96,12 @@ npm run dev
 ```
 
 Abra `http://localhost:3000` e use o usuário e a senha de `frontend/.env.local`.
+
+## Organização do código
+
+- `frontend/src/app/` contém rotas, layout e handlers do Next.js. As telas ficam em `src/features/`, componentes compartilhados em `src/components/` e dados, catálogo e persistência local em `src/lib/`.
+- `backend/app/main.py` inicializa o FastAPI. `app/routers/` define as rotas, `app/services/` contém a coleta e a análise, `app/repositories/` concentra a leitura do histórico e `app/jobs/` contém a execução agendada. O processo Web e o Cron Job compartilham os serviços Python.
+- Para executar a coleta uma vez no Windows a partir de `backend/`, rode `.\.venv\Scripts\python.exe -m dotenv -f .env run -- .\.venv\Scripts\python.exe -m app.jobs.collect`. As credenciais vêm do mesmo `.env` local.
 
 ## Recursos da interface
 
@@ -95,6 +115,7 @@ Leituras manuais de rank, pontos e evidências continuam no navegador onde foram
 
 ## Referências
 
+- [Cron Jobs do Render](https://render.com/docs/cronjobs)
 - [Deploy FastAPI no Render](https://render.com/docs/deploy-fastapi)
 - [IPs de saída do Render](https://render.com/docs/outbound-ip-addresses)
 - [Limitações do plano gratuito do Render](https://render.com/docs/free)

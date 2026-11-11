@@ -1,6 +1,6 @@
 import { ArrowDownToLine, History, UserRound } from 'lucide-react';
-import type { LocalData } from './browser-store';
-import { dateTime, number } from './data';
+import type { LocalData } from '@/lib/browser-store';
+import { dateTime, number } from '@/lib/data';
 
 export function Accounts({ tag, data, busy, feedback, onExport }: {
   tag:string; data:LocalData; busy:boolean; feedback:string; onExport:()=>void;

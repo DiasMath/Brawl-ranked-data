@@ -37,7 +37,7 @@ $utf8 = New-Object System.Text.UTF8Encoding($false)
     "BRAWL_SITE_PASSWORD=$password", "BRAWL_SERVICE_TOKEN=$shared"
 ), $utf8)
 [IO.File]::WriteAllLines($back, @(
-    'PYTHON_VERSION=3.12.12', "BRAWL_PLAYER_TAG=$PlayerTag", 'BRAWL_POLL_SECONDS=300',
+    'PYTHON_VERSION=3.12.12', "BRAWL_PLAYER_TAG=$PlayerTag", 'BRAWL_COLLECTION_INTERVAL_SECONDS=300',
     "BRAWL_SERVICE_TOKEN=$shared", "BRAWL_API_TOKEN=$token", "DATABASE_URL=$database"
 ), $utf8)
 Write-Host 'Arquivos frontend/.env.local e backend/.env gerados. Use os valores nos painéis da Vercel e do Render.'

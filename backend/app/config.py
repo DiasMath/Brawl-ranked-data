@@ -1,0 +1,25 @@
+import os
+
+from .domain import tag
+
+
+def service_token():
+    return os.getenv("BRAWL_SERVICE_TOKEN", "").strip()
+
+
+def api_token():
+    return os.getenv("BRAWL_API_TOKEN", "").strip()
+
+
+def account():
+    try:
+        return tag(os.getenv("BRAWL_PLAYER_TAG", ""))
+    except ValueError as exc:
+        raise RuntimeError("Configure BRAWL_PLAYER_TAG com uma tag válida.") from exc
+
+
+def collection_interval():
+    seconds = int(os.getenv("BRAWL_COLLECTION_INTERVAL_SECONDS", "300"))
+    if seconds < 60:
+        raise ValueError("BRAWL_COLLECTION_INTERVAL_SECONDS deve ser de pelo menos 60 segundos.")
+    return seconds

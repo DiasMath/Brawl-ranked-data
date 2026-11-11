@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { ArrowDownRight, ArrowRight, ArrowUpRight, CalendarClock, Flag, Gauge, Plus, Target, TrendingUp, Trophy } from 'lucide-react';
-import type { LocalData, Progress } from './browser-store';
-import { dateTime, localDay, normalize, number, percent, stats } from './data';
-import type { Battle, Filters } from './data';
-import { gameRank, nextRank, RankArt, referenceRank, TrophyArt } from './game';
+import type { LocalData, Progress } from '@/lib/browser-store';
+import { dateTime, localDay, normalize, number, percent, stats } from '@/lib/data';
+import type { Battle, Filters } from '@/lib/data';
+import { gameRank, nextRank, RankArt, referenceRank, TrophyArt } from '@/components/game';
 
 export function progressSeries(local: LocalData) {
   const rows = [...local.progress];

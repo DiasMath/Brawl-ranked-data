@@ -1,8 +1,8 @@
 import { useContext, useEffect, useState } from 'react';
-import type { Battle, Filters } from './data';
-import { groupStats, localDay, normalize, stats } from './data';
-import { brawlers } from './game';
-import { LiveMeta } from './live';
+import type { Battle, Filters } from '@/lib/data';
+import { groupStats, localDay, normalize, stats } from '@/lib/data';
+import { brawlers } from '@/components/game';
+import { LiveMeta } from '@/lib/live';
 
 export type PublicContext = { key: string; mode: string | null; map: string | null; sets: number; decisive?: number; latest?: string|null };
 export type PublicIndex = {

@@ -1,6 +1,6 @@
-import type { Battle, Dataset, Meta } from './data';
-import { emptyData, normalize, parseSnapshot } from './data';
-import rankTable from './catalog/ranks.json';
+import type { Battle, Dataset, Meta } from '@/lib/data';
+import { emptyData, normalize, parseSnapshot } from '@/lib/data';
+import rankTable from '@/lib/catalog/ranks.json';
 
 export type Account = { tag: string; name: string; hasKey: boolean };
 export type Progress = {

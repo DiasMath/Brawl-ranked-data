@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Map as MapIcon, Shield, Swords } from 'lucide-react';
-import catalog from './catalog/game.json';
-import rankData from './catalog/ranks.json';
-import { modeName, normalize } from './data';
+import catalog from '@/lib/catalog/game.json';
+import rankData from '@/lib/catalog/ranks.json';
+import { modeName, normalize } from '@/lib/data';
 
 export const { brawlers, modes, maps } = catalog;
 export const byBrawlerName = new Map(brawlers.map(b => [normalize(b.name), b]));

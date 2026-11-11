@@ -1,6 +1,6 @@
 import { createContext } from 'react';
-import type { PublicStats } from './scouting';
-import type { Update } from './data';
+import type { PublicStats } from '@/lib/scouting';
+import type { Update } from '@/lib/data';
 
 export type LivePeriod = 'today' | 'week' | 'patch' | 'reference';
 export type LiveMap = { map: string | null; mode: string | null; sets: number; decisive: number; latest?: string|null; sample: PublicStats };

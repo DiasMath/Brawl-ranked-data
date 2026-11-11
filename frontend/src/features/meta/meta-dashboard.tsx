@@ -1,13 +1,13 @@
 import { useContext, useState } from 'react';
 import { Ban, ChartNoAxesCombined, Crosshair, MapPinned, Radio, Swords, Trophy } from 'lucide-react';
-import { PublicMeta } from './analytics';
-import { MetaPeriods } from './collector-panel';
-import { byModeId, findMap, MapImage, ModeIcon, Portrait, roleName } from './game';
-import { LiveMeta } from './live';
-import { byId, ordered, publicPicks, usePublicStats, wilson } from './scouting';
-import type { PublicStats } from './scouting';
-import type { Battle, Filters } from './data';
-import { dateTime, modeName, normalize, number, percent } from './data';
+import { PublicMeta } from '@/features/analytics/analytics';
+import { MetaPeriods } from '@/features/collection/collector-panel';
+import { byModeId, findMap, MapImage, ModeIcon, Portrait, roleName } from '@/components/game';
+import { LiveMeta } from '@/lib/live';
+import { byId, ordered, publicPicks, usePublicStats, wilson } from '@/lib/scouting';
+import type { PublicStats } from '@/lib/scouting';
+import type { Battle, Filters } from '@/lib/data';
+import { dateTime, modeName, normalize, number, percent } from '@/lib/data';
 
 type Metric='win'|'pick'|'ban';
 type ChartRow={name:string; value:number; detail:string};

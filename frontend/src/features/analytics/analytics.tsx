@@ -1,13 +1,13 @@
 import { useContext, useState } from 'react';
 import { Activity, ArrowRight, ArrowUpRight, CalendarDays, Crosshair, Flame, MapPinned, Radio, Swords, Trophy } from 'lucide-react';
-import type { Battle, Filters } from './data';
-import { dateTime, groupStats, localDay, modeName, normalize, number, percent, resultName, stats } from './data';
-import { AccountIcon, findMap, MapImage, ModeIcon, Portrait, RankArt, TrophyArt } from './game';
-import type { Account, LocalData } from './browser-store';
-import { progressSeries, progressionWindow, RankGoal, rankProgress, TrendChart } from './progression';
-import { byId, ordered, publicPicks, usePublicStats } from './scouting';
-import type { PublicStats, ScoutingRow } from './scouting';
-import { LiveMeta } from './live';
+import type { Battle, Filters } from '@/lib/data';
+import { dateTime, groupStats, localDay, modeName, normalize, number, percent, resultName, stats } from '@/lib/data';
+import { AccountIcon, findMap, MapImage, ModeIcon, Portrait, RankArt, TrophyArt } from '@/components/game';
+import type { Account, LocalData } from '@/lib/browser-store';
+import { progressSeries, progressionWindow, RankGoal, rankProgress, TrendChart } from '@/features/analytics/progression';
+import { byId, ordered, publicPicks, usePublicStats } from '@/lib/scouting';
+import type { PublicStats, ScoutingRow } from '@/lib/scouting';
+import { LiveMeta } from '@/lib/live';
 
 type RankRow = ScoutingRow & { mode?: string | null };
 

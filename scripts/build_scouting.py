@@ -14,7 +14,7 @@ def dump(path, value):
 
 
 def build(parquet):
-    catalog = json.loads((ROOT / "app/catalog/game.json").read_text(encoding="utf-8"))
+    catalog = json.loads((ROOT / "src/lib/catalog/game.json").read_text(encoding="utf-8"))
     ids = {row["name"].upper(): row["id"] for row in catalog["brawlers"]}
     db = duckdb.connect(config={"threads": 4, "memory_limit": "2GB"})
     db.execute("CREATE TABLE roster (name VARCHAR, id INTEGER)")

@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import { privateAccess } from '../../../lib/access';
+import { privateAccess } from '@/lib/access';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;

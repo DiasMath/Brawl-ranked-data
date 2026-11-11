@@ -1,14 +1,14 @@
 import type { PointerEvent } from 'react';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, Bomb, ChevronDown, ChevronLeft, ChevronRight, Crosshair, Flame, HeartPulse, Map as MapIcon, Search, Shield, SlidersHorizontal, Swords, Target, Undo2, X } from 'lucide-react';
-import type { Battle, Dataset, Filters } from './data';
-import { groupStats, modeName, normalize, number, percent } from './data';
-import { byModeId, brawlers, findMap, MapImage, maps, ModeIcon, pickableModes, Portrait, roleName } from './game';
-import { accountCounters, draftPicks, ordered, publicCounters, publicPicks, usePublicStats } from './scouting';
-import type { ScoutingRow } from './scouting';
-import type { MetaMatchup } from './browser-store';
-import { LiveMeta } from './live';
-import type { LivePeriod } from './live';
+import type { Battle, Dataset, Filters } from '@/lib/data';
+import { groupStats, modeName, normalize, number, percent } from '@/lib/data';
+import { byModeId, brawlers, findMap, MapImage, maps, ModeIcon, pickableModes, Portrait, roleName } from '@/components/game';
+import { accountCounters, draftPicks, ordered, publicCounters, publicPicks, usePublicStats } from '@/lib/scouting';
+import type { ScoutingRow } from '@/lib/scouting';
+import type { MetaMatchup } from '@/lib/browser-store';
+import { LiveMeta } from '@/lib/live';
+import type { LivePeriod } from '@/lib/live';
 
 type Side = 'team'|'enemy';
 type Zone = Side|'blueBan'|'redBan';

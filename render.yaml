@@ -2,17 +2,17 @@ services:
   - type: web
     name: brawl-ranked-api
     runtime: python
-    plan: starter
+    plan: 0.5c-512mb
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.12"
       - key: BRAWL_PLAYER_TAG
         sync: false
-      - key: BRAWL_POLL_SECONDS
+      - key: BRAWL_COLLECTION_INTERVAL_SECONDS
         value: "300"
       - key: BRAWL_SERVICE_TOKEN
         sync: false
