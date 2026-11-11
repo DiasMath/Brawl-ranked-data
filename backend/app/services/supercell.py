@@ -28,7 +28,15 @@ def fetch(client, path):
     except httpx.RequestError as exc:
         raise CollectionError(502, "Falha de conexão com a API oficial.") from exc
     if response.status_code == 403:
-        raise CollectionError(403, "Supercell recusou a chave. Confira sua validade e o IP público autorizado.")
+        try:
+            error = response.json()
+        except ValueError:
+            error = None
+        if isinstance(error, dict) and error.get("reason") == "accessDenied.invalidIp":
+            raise CollectionError(403, "A Supercell recusou o IP de saída do servidor. "
+                                  "Confira os endereços autorizados na chave de API.")
+        raise CollectionError(403, "A Supercell negou o acesso (HTTP 403). "
+                              "Confira a chave configurada no servidor e os IPs autorizados.")
     if response.status_code == 404:
         raise CollectionError(404, "Conta não encontrada na API oficial.")
     if response.status_code == 429:

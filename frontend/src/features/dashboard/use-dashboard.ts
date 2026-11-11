@@ -69,12 +69,12 @@ export function useDashboard() {
     finally{setBusy(false);}
   }
 
-  async function saveAccount(tag:string,alias:string){
+  async function saveAccount(tag:string){
     if(busy||sending||processing.current)throw new Error('Aguarde a atualização em andamento.');
     setBusy(true);
     try{
       const saved=await collectionRequest<Account>('/api/accounts',{
-        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag,alias:alias.trim()||null}),
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag}),
       });
       const existing=book.accounts.some(a=>a.tag===saved.tag);
       const accounts=existing?book.accounts.map(a=>a.tag===saved.tag?saved:a):[...book.accounts,saved];
@@ -89,6 +89,7 @@ export function useDashboard() {
       return;
     }
     setSending(true);
+    setFeedback('');
     try{
       const result=await collectionRequest<{received:number;added:number}>('/api/sync?'+new URLSearchParams({tag:book.active}),{
         method:'POST',headers:{'Content-Type':'application/json'},body:'{}',

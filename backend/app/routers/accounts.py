@@ -11,7 +11,6 @@ router = APIRouter()
 
 class AccountInput(BaseModel):
     tag: str = Field(min_length=3, max_length=30)
-    alias: str | None = Field(default=None, max_length=60)
 
 
 def require_player(cursor, requested):
@@ -36,7 +35,6 @@ def register_account(data: AccountInput):
         player = tag(data.tag)
     except ValueError as exc:
         raise HTTPException(422, "Informe uma tag de jogador válida.") from exc
-    alias = (data.alias or "").strip() or None
     with database() as (_, cursor):
-        save_account(cursor, player, alias)
+        save_account(cursor, player)
         return next(row for row in list_accounts(cursor) if row["tag"] == player)

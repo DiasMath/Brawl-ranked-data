@@ -29,8 +29,8 @@ export function CollectorPanel({ battles, onSync, syncing, server, serverError, 
         <p>Servidor · {server.player_tag}{server.interval_seconds?' · intervalo esperado '+number(server.interval_seconds/60)+' min':''}</p></div>
         <span className={`tag ${server.last_success&&!delayed&&!failed?'confirmed':'hypothesis'}`}>{status}</span></div>
       <div className="collector-controls">
-        <button className="button primary" onClick={onSync} disabled={syncing||!server.configured||!!retrying}>
-          <RefreshCw size={15} className={syncing?'spin':''}/>{syncing?'Consultando Supercell…':'Sincronizar agora'}</button>
+        <button className="button primary" onClick={onSync} disabled={syncing||!server.configured||!!retrying} aria-busy={syncing}>
+          <RefreshCw size={15} aria-hidden="true"/>{syncing?'Sincronizando…':'Sincronizar agora'}</button>
       </div>
       <div className="collector-readings">
         <div><span>Última coleta bem-sucedida</span><strong>{dateTime(server.last_success)}</strong></div>

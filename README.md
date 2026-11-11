@@ -109,7 +109,7 @@ Os retratos, mapas e a meta histórica ficam em `frontend/assets/`. O comando `n
 
 ## Contas e dados
 
-Em **Contas e dados**, cadastre cada jogador pela tag. O apelido é opcional. Quando o perfil é coletado, o painel usa o nome do jogo se o cadastro estiver sem apelido. O seletor no topo troca a conta usada nas telas e lembra a seleção neste navegador. A tela mostra a última coleta, a partida mais recente recebida, atraso observado, falhas e histórico de atualizações da conta ativa. **Sincronizar agora** consulta a Supercell. **Exportar histórico** baixa uma cópia. A primeira coleta parte da janela recente da API e acumula as partidas recebidas daí em diante.
+Em **Contas e dados**, cadastre cada jogador pela tag. O painel mostra a tag até a primeira coleta bem-sucedida. A partir daí, usa o nome do perfil retornado pela Supercell. O seletor no topo troca a conta usada nas telas e lembra a seleção neste navegador. A tela mostra a última coleta, a partida mais recente recebida, atraso observado, falhas e histórico de atualizações da conta ativa. **Sincronizar agora** consulta a Supercell. **Exportar histórico** baixa uma cópia. A primeira coleta parte da janela recente da API e acumula as partidas recebidas daí em diante.
 
 Leituras manuais de rank, pontos e evidências continuam no navegador onde foram registradas. O histórico de outra origem, incluindo o antigo endereço `chatgpt.site`, fica onde foi registrado. A meta histórica permanece identificada por período e amostra. A coleta agendada percorre todas as contas cadastradas. Se a Supercell retornar HTTP 429, a pausa vale para todas as contas que usam a mesma integração.
 

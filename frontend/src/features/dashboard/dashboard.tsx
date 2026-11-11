@@ -74,8 +74,9 @@ export default function Dashboard() {
               onChange={e=>void selectAccount(e.target.value)}>
               {book.accounts.map(a=><option key={a.tag} value={a.tag}>{a.tag===book.active||a.tag===a.name?a.name:a.name+' · '+a.tag}</option>)}
             </select></div>}
-          {section!=='draftlab'&&<button className="button small subtle navbar-sync" onClick={()=>void sync()} disabled={busy||!ready||sending} aria-label="Sincronizar conta">
-            <RefreshCw size={14} className={sending?'spin':''}/><span>Sincronizar</span></button>}
+          {section!=='draftlab'&&<button className="button small subtle navbar-sync" onClick={()=>void sync()}
+            disabled={busy||!ready||sending} aria-busy={sending} aria-label={sending?'Sincronizando conta':'Sincronizar conta'}>
+            <RefreshCw size={14} aria-hidden="true"/><span>{sending?'Sincronizando…':'Sincronizar'}</span></button>}
           <button className="button small top-button" onClick={()=>navigate('sources')} aria-label="Gerenciar contas"><Settings size={15}/><span>Contas</span></button></div>
       </header>
       <main className={`main compact-main ${section==='draftlab'?'draft-main':''}`}>
@@ -98,7 +99,7 @@ export default function Dashboard() {
           {dateError&&!commonPublic&&<p className="section-note error" role="alert">A data final deve ser igual ou posterior à data inicial.</p>}
         </section>}
         {section==='overview'&&<Overview local={local} account={active} matches={ranked} filters={filters}
-          busy={busy||!ready||sending} onSettings={()=>navigate('sources')} onProgress={()=>navigate('progress')} onDraft={()=>navigate('draftlab')} onMeta={()=>navigate('meta')} onSync={()=>void sync()} onMatch={b=>setSelected(b.id)} onHistory={()=>navigate('matches')} collectorLinked={!!server?.configured}/>}
+          busy={busy||!ready||sending} syncing={sending} onSettings={()=>navigate('sources')} onProgress={()=>navigate('progress')} onDraft={()=>navigate('draftlab')} onMeta={()=>navigate('meta')} onSync={()=>void sync()} onMatch={b=>setSelected(b.id)} onHistory={()=>navigate('matches')} collectorLinked={!!server?.configured}/>}
         {section==='progress'&&<Progression key={book.active} local={local} filters={progressFilters}
           matches={filtered(data.matches,progressFilters,true)} onSave={saveProgress}/>}
         {section==='matches'&&<Card title="Histórico de partidas" icon={List} sub={`Horário de Brasília · ${shownMatches.length?'Partida mais recente '+dateTime(shownMatches[0].played_at):'Sem registros neste recorte'}`}

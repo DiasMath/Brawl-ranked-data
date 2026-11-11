@@ -2,7 +2,7 @@ import type { Battle, Dataset, Meta } from '@/lib/data';
 import { emptyData, normalize, parseSnapshot } from '@/lib/data';
 import rankTable from '@/lib/catalog/ranks.json';
 
-export type Account = { tag: string; name: string; alias?: string | null; profile_name?: string | null };
+export type Account = { tag: string; name: string };
 export type Progress = {
   id: string; at: string; trophies: number | null; score: number | null; rank: string | null;
   season: string | null; source: string; method: 'api' | 'manual';

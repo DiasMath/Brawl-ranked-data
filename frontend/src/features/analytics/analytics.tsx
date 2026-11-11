@@ -1,5 +1,5 @@
 import { useContext, useState } from 'react';
-import { Activity, ArrowRight, ArrowUpRight, CalendarDays, Crosshair, Flame, MapPinned, Radio, Swords, Trophy } from 'lucide-react';
+import { Activity, ArrowRight, ArrowUpRight, CalendarDays, Crosshair, Flame, MapPinned, Radio, RefreshCw, Swords, Trophy } from 'lucide-react';
 import type { Battle, Filters } from '@/lib/data';
 import { dateTime, groupStats, localDay, modeName, normalize, number, percent, resultName, stats } from '@/lib/data';
 import { AccountIcon, findMap, MapImage, ModeIcon, Portrait, RankArt, TrophyArt } from '@/components/game';
@@ -107,9 +107,9 @@ function RankedActivity({matches,filters}:{matches:Battle[];filters:Filters}) {
   </section>;
 }
 
-export function Overview({ local, account, matches, filters, onSettings, onProgress, onDraft, onMeta, onSync, onMatch, onHistory, busy, collectorLinked }: {
+export function Overview({ local, account, matches, filters, onSettings, onProgress, onDraft, onMeta, onSync, onMatch, onHistory, busy, syncing, collectorLinked }: {
   local: LocalData; account: Account; matches: Battle[]; filters: Filters; onSettings:()=>void; onProgress:()=>void; onDraft:()=>void;
-  onMeta:()=>void; onSync:()=>void; onMatch:(battle:Battle)=>void; onHistory:()=>void; busy:boolean; collectorLinked:boolean;
+  onMeta:()=>void; onSync:()=>void; onMatch:(battle:Battle)=>void; onHistory:()=>void; busy:boolean; syncing:boolean; collectorLinked:boolean;
 }) {
   const rows=progressSeries(local);
   const summary=rankProgress(rows);
@@ -126,13 +126,13 @@ export function Overview({ local, account, matches, filters, onSettings, onProgr
   return <div className="stack">
     <div className="rank-summary-grid">
       <section className="command-hero overview-hero">
-        <div className="hero-info"><div className="hero-profile"><AccountIcon id={profile?.icon_id}/><div><strong>{account.alias || profile?.name || account.name}</strong><span>{account.tag}</span></div></div>
+        <div className="hero-info"><div className="hero-profile"><AccountIcon id={profile?.icon_id}/><div><strong>{account.name}</strong>{account.name!==account.tag&&<span>{account.tag}</span>}</div></div>
           <div className="hero-rank"><small>RANQUEADO · ÚLTIMA LEITURA</small><h2>{rank || 'Rank indisponível'}</h2>
             <p>{current ? [current.score!=null?number(current.score)+' pontos':'',dateTime(current.at),current.season,current.rank?'':'divisão de referência'].filter(Boolean).join(' · ')
               : 'Registre sua divisão e acompanhe a subida.'}</p></div>
           {!collectorLinked&&<button className="button small primary" onClick={onSettings} disabled={busy}>Ver status da coleta <ArrowRight size={15}/></button>}
-          {collectorLinked&&!current&&<button className="button small primary" onClick={onSync} disabled={busy}>
-            {busy?'Sincronizando…':'Sincronizar conta'} <ArrowRight size={15}/></button>}
+          {collectorLinked&&!current&&<button className="button small primary" onClick={onSync} disabled={busy} aria-busy={syncing}>
+            <RefreshCw size={15} aria-hidden="true"/>{syncing?'Sincronizando…':'Sincronizar conta'}</button>}
         </div>
         <div className="hero-art" aria-hidden="true"><img className="hero-portrait one" src="/game/art/16000016.webp" alt=""/>
           <RankArt rank={rank}/><img className="hero-portrait two" src="/game/art/16000025.webp" alt=""/></div>
