@@ -1,0 +1,8 @@
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
+httpx[socks]>=0.28,<1
+psycopg[binary]>=3.2,<4
+duckdb>=1.4,<2
+pyarrow>=19,<24
+sqlglot>=27,<31
+python-dotenv>=1.1,<2
