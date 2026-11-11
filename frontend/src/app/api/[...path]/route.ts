@@ -4,7 +4,10 @@ import { privateAccess } from '@/lib/access';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-const routes = new Set(['GET /api/collection/status', 'GET /api/collection/history', 'POST /api/sync']);
+const routes = new Set([
+  'GET /api/accounts', 'POST /api/accounts', 'GET /api/collection/status',
+  'GET /api/collection/history', 'POST /api/sync',
+]);
 const headers = { 'Cache-Control': 'private, no-store' };
 
 async function forward(request: NextRequest) {
@@ -35,10 +38,26 @@ async function forward(request: NextRequest) {
     return Response.json({ detail: 'Configure a conexão privada com o Render na Vercel.' }, { status: 503, headers });
   }
 
+  let body: string | undefined;
+  if (request.method === 'POST') {
+    if (!request.headers.get('content-type')?.includes('application/json')) {
+      return Response.json({ detail: 'Envie dados em JSON.' }, { status: 415, headers });
+    }
+    body = path === '/api/accounts' ? await request.text() : '{}';
+    if (body.length > 2048) return Response.json({ detail: 'Dados muito extensos.' }, { status: 413, headers });
+  }
+
   try {
     const target = new URL(path, base);
     const local = ['localhost', '127.0.0.1', '[::1]'].includes(target.hostname);
     if (target.protocol !== 'https:' && !(local && target.protocol === 'http:')) throw new Error('Origem inválida.');
+    if (path !== '/api/accounts') {
+      const tag = request.nextUrl.searchParams.get('tag');
+      if (tag !== null) {
+        if (!/^#?[0289PYLQGRJCUV]{3,16}$/i.test(tag)) return Response.json({ detail: 'Tag inválida.' }, { status: 400, headers });
+        target.searchParams.set('tag', tag);
+      }
+    }
     if (path === '/api/collection/history') {
       const after = request.nextUrl.searchParams.get('after') ?? '0';
       if (!/^\d{1,15}$/.test(after)) return Response.json({ detail: 'Cursor inválido.' }, { status: 400, headers });
@@ -47,7 +66,7 @@ async function forward(request: NextRequest) {
     const upstream = await fetch(target, {
       method: request.method,
       headers: { Authorization: 'Bearer ' + secret, 'Content-Type': 'application/json' },
-      body: request.method === 'POST' ? '{}' : undefined,
+      body,
       cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(50000),
     });
     if (upstream.status === 401) {

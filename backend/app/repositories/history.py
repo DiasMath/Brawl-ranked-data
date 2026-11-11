@@ -12,8 +12,8 @@ def latest_run(cursor, player, successful=False):
     return cursor.fetchone()
 
 
-def retry_until(cursor, player):
-    cursor.execute("SELECT retry_until FROM collection_state WHERE player_tag=%s", (player,))
+def retry_until(cursor):
+    cursor.execute("SELECT MAX(retry_until) AS retry_until FROM collection_state")
     return (cursor.fetchone() or {}).get("retry_until")
 
 

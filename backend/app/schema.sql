@@ -114,3 +114,9 @@ CREATE INDEX IF NOT EXISTS battles_ranked_time ON battles (player_tag, ranked, p
 CREATE INDEX IF NOT EXISTS updates_account_time ON update_log (player_tag, started_at DESC);
 CREATE INDEX IF NOT EXISTS meta_account_period ON meta_observations (player_tag, period_start, period_end);
 CREATE INDEX IF NOT EXISTS collection_run ON battle_collection (last_run_id);
+
+CREATE TABLE IF NOT EXISTS tracked_accounts (
+  player_tag VARCHAR(20) PRIMARY KEY,
+  alias VARCHAR(60),
+  created_at TIMESTAMP(3) NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+);

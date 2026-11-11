@@ -13,8 +13,8 @@ export function MetaPeriods() {
   </div>;
 }
 
-export function CollectorPanel({ battles, onSync, syncing, server, serverError }: {
-  battles:Battle[]; onSync:()=>void; syncing:boolean; server:ServerCollection|null; serverError:string;
+export function CollectorPanel({ battles, onSync, syncing, server, serverError, hasAccount }: {
+  battles:Battle[]; onSync:()=>void; syncing:boolean; server:ServerCollection|null; serverError:string; hasAccount:boolean;
 }) {
   const delay=observedDelay(battles);
   if(server){
@@ -49,7 +49,7 @@ export function CollectorPanel({ battles, onSync, syncing, server, serverError }
   }
   return <section className="card collector-panel">
     <div className="card-head"><div><h2><Activity size={17}/> Coleta automática</h2>
-      <p>{serverError?'Conexão com o servidor indisponível.':'Consultando o servidor de coleta…'}</p></div></div>
+      <p>{serverError?'Conexão com o servidor indisponível.':hasAccount?'Consultando o servidor de coleta…':'Cadastre uma conta para começar.'}</p></div></div>
     {serverError&&<p className="feedback" role="status">{serverError}</p>}
   </section>;
 }

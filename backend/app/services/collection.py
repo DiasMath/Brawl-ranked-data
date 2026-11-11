@@ -3,7 +3,7 @@ from datetime import timedelta
 import httpx
 import psycopg
 
-from ..config import account, api_token
+from ..config import api_token
 from ..db import database
 from ..domain import encoded, integer, parse_battle, string, utc_now
 from ..repositories.history import latest_run, retry_until
@@ -37,10 +37,9 @@ def save_battle(cursor, battle):
     return int(not existing)
 
 
-def collect_account(*, scheduled=False):
-    player = account()
+def collect_account(player, *, scheduled=False):
     key = api_token()
-    lock_name = "brawl:sync:" + player
+    lock_name = "brawl:sync"
     with database() as (connection, cursor):
         cursor.execute("SELECT pg_try_advisory_lock(hashtextextended(%s, 0)) AS acquired", (lock_name,))
         if not cursor.fetchone()["acquired"]:
@@ -48,7 +47,7 @@ def collect_account(*, scheduled=False):
                 return None
             raise CollectionError(409, "Uma atualização já está em andamento.")
         try:
-            waiting = retry_until(cursor, player)
+            waiting = retry_until(cursor)
             now = utc_now()
             if waiting and waiting > now:
                 if scheduled:

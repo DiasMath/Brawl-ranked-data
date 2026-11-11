@@ -2,7 +2,7 @@ import type { Battle, Dataset, Meta } from '@/lib/data';
 import { emptyData, normalize, parseSnapshot } from '@/lib/data';
 import rankTable from '@/lib/catalog/ranks.json';
 
-export type Account = { tag: string; name: string; hasKey: boolean };
+export type Account = { tag: string; name: string; alias?: string | null; profile_name?: string | null };
 export type Progress = {
   id: string; at: string; trophies: number | null; score: number | null; rank: string | null;
   season: string | null; source: string; method: 'api' | 'manual';
@@ -56,9 +56,7 @@ async function write(name: StoreName, key: string, value: unknown) {
   });
 }
 
-export const initialBook: AccountBook = { active: emptyData.player_tag, accounts: [
-  { tag: emptyData.player_tag, name: 'Minha conta', hasKey: false },
-] };
+export const initialBook: AccountBook = { active: emptyData.player_tag, accounts: [] };
 export const blankLocal = (tag: string): LocalData => ({ dataset: { ...emptyData, player_tag: tag }, progress: [], matchups: [], raw: {} });
 export const loadBook = async () => await read<AccountBook>('data', 'accounts') ?? initialBook;
 export const saveBook = (book: AccountBook) => write('data', 'accounts', book);

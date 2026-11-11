@@ -126,7 +126,7 @@ export function Overview({ local, account, matches, filters, onSettings, onProgr
   return <div className="stack">
     <div className="rank-summary-grid">
       <section className="command-hero overview-hero">
-        <div className="hero-info"><div className="hero-profile"><AccountIcon id={profile?.icon_id}/><div><strong>{profile?.name || account.name}</strong><span>{account.tag}</span></div></div>
+        <div className="hero-info"><div className="hero-profile"><AccountIcon id={profile?.icon_id}/><div><strong>{account.alias || profile?.name || account.name}</strong><span>{account.tag}</span></div></div>
           <div className="hero-rank"><small>RANQUEADO · ÚLTIMA LEITURA</small><h2>{rank || 'Rank indisponível'}</h2>
             <p>{current ? [current.score!=null?number(current.score)+' pontos':'',dateTime(current.at),current.season,current.rank?'':'divisão de referência'].filter(Boolean).join(' · ')
               : 'Registre sua divisão e acompanhe a subida.'}</p></div>

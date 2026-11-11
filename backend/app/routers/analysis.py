@@ -5,10 +5,10 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, HttpUrl, StringConstraints, model_validator
 
-from ..config import account
 from ..db import database
 from ..domain import encoded, utc_now
 from ..services.explorer import TABLES, explore, parquet
+from .accounts import require_player
 
 
 router = APIRouter()
@@ -34,9 +34,9 @@ class Evidence(BaseModel):
 
 
 @router.post("/api/evidence")
-def import_evidence(evidence: Evidence):
+def import_evidence(evidence: Evidence, tag: str | None = None):
     with database() as (connection, cursor):
-        cursor.execute("SELECT ranked FROM battles WHERE id=%s AND player_tag=%s", (evidence.battle_id, account()))
+        cursor.execute("SELECT ranked FROM battles WHERE id=%s AND player_tag=%s", (evidence.battle_id, require_player(cursor, tag)))
         if not (row := cursor.fetchone()) or not row["ranked"]:
             raise HTTPException(404, "Partida ranqueada não encontrada.")
         cursor.execute("""
@@ -103,9 +103,9 @@ class MetaImport(BaseModel):
 
 
 @router.post("/api/meta")
-def import_meta(data: MetaImport):
+def import_meta(data: MetaImport, tag: str | None = None):
     with database() as (connection, cursor):
-        player = account()
+        player = require_player(cursor, tag)
         lock_name = "brawl:meta:" + player
         cursor.execute("SELECT pg_try_advisory_lock(hashtextextended(%s, 0)) AS acquired", (lock_name,))
         if cursor.fetchone()["acquired"] != 1:

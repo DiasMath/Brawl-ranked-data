@@ -3,46 +3,50 @@ import json
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from ..config import account, api_token, collection_interval
+from ..config import api_token, collection_interval
 from ..db import database
 from ..domain import iso, utc_now
-from ..repositories.history import dataset, latest_run
+from ..repositories.history import dataset, latest_run, retry_until
 from ..services.collection import collect_account
+from .accounts import require_player
 
 
 router = APIRouter()
 
 
 @router.post("/api/sync")
-def sync():
-    return collect_account()
+def sync(tag: str | None = None):
+    with database() as (_, cursor):
+        player = require_player(cursor, tag)
+    return collect_account(player)
 
 
 @router.get("/api/collection/status")
-def collection_status():
-    player = account()
+def collection_status(tag: str | None = None):
     with database() as (_, cursor):
+        player = require_player(cursor, tag)
         last_attempt = latest_run(cursor, player)
         last_success = latest_run(cursor, player, successful=True)
         cursor.execute("SELECT MAX(played_at) AS latest FROM battles WHERE player_tag=%s", (player,))
         latest_battle = cursor.fetchone()["latest"]
-        cursor.execute("SELECT last_possible_gap, retry_until FROM collection_state WHERE player_tag=%s", (player,))
+        cursor.execute("SELECT last_possible_gap FROM collection_state WHERE player_tag=%s", (player,))
         state = cursor.fetchone() or {}
+        waiting = retry_until(cursor)
     return {
         "player_tag": player, "configured": bool(api_token()), "interval_seconds": collection_interval(),
         "last_attempt": {**last_attempt, "started_at": iso(last_attempt["started_at"]),
                          "finished_at": iso(last_attempt["finished_at"])} if last_attempt else None,
         "last_success": iso(last_success["finished_at"]) if last_success else None,
         "last_battle": iso(latest_battle), "last_possible_gap": iso(state.get("last_possible_gap")),
-        "retry_until": iso(state.get("retry_until")) if state.get("retry_until") and state["retry_until"] > utc_now() else None,
+        "retry_until": iso(waiting) if waiting and waiting > utc_now() else None,
     }
 
 
 @router.get("/api/collection/history")
-def collection_history(after: int = 0):
-    player = account()
+def collection_history(after: int = 0, tag: str | None = None):
     with database() as (_, cursor):
         cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+        player = require_player(cursor, tag)
         latest = latest_run(cursor, player, successful=True)
         run_id = latest["id"] if latest else 0
         snapshot = dataset(cursor, player, after_run=after if 0 < after <= run_id else 0, include_archive=True)
@@ -50,23 +54,23 @@ def collection_history(after: int = 0):
 
 
 @router.get("/api/dataset")
-def get_dataset():
+def get_dataset(tag: str | None = None):
     with database() as (_, cursor):
-        return dataset(cursor, account())
+        return dataset(cursor, require_player(cursor, tag))
 
 
 @router.get("/api/export")
-def export():
+def export(tag: str | None = None):
     with database() as (_, cursor):
         from fastapi.encoders import jsonable_encoder
-        data = jsonable_encoder(dataset(cursor, account(), include_archive=True))
+        data = jsonable_encoder(dataset(cursor, require_player(cursor, tag), include_archive=True))
     return JSONResponse(data, headers={"Content-Disposition": 'attachment; filename="brawl-snapshot.json"'})
 
 
 @router.get("/api/battles/{battle_id}")
-def raw_battle(battle_id: str):
+def raw_battle(battle_id: str, tag: str | None = None):
     with database() as (_, cursor):
-        cursor.execute("SELECT raw FROM battles WHERE player_tag=%s AND id=%s", (account(), battle_id))
+        cursor.execute("SELECT raw FROM battles WHERE player_tag=%s AND id=%s", (require_player(cursor, tag), battle_id))
         row = cursor.fetchone()
         if row is None:
             raise HTTPException(404, "Partida não encontrada.")

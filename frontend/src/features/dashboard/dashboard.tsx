@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { CalendarDays, ChevronRight, Filter, FlaskConical, History, List, LockKeyhole, Menu, RefreshCw, ShieldCheck, X } from 'lucide-react';
+import { CalendarDays, ChevronRight, Filter, FlaskConical, History, List, LockKeyhole, Menu, RefreshCw, Settings, ShieldCheck, X } from 'lucide-react';
 import { Card } from '@/components/dashboard-ui';
 import { AccountIcon, brawlers } from '@/components/game';
 import { dateTime, draftStats, emptyFilters, filtered, localDay, normalize, number } from '@/lib/data';
@@ -22,7 +22,7 @@ import { useDashboard } from './use-dashboard';
 export default function Dashboard() {
   const {section, filters, setFilters, book, local, period, setPeriod, server, serverError,
     sending, feedback, setFeedback, ready, busy, menuOpen, setMenuOpen, rankedOnly, setRankedOnly,
-    setSelected, active, data, match, navigate, sync, saveProgress, saveEvidence} = useDashboard();
+    setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveProgress, saveEvidence} = useDashboard();
   const metaFilters={...filters,start:'',end:''};
   const ranked=useMemo(()=>filtered(data.matches,filters,true),[data.matches,filters]);
   const metaAccount=filtered(data.matches,metaFilters,true);
@@ -68,10 +68,15 @@ export default function Dashboard() {
         <div className="page-title"><button className="icon-button mobile-menu" aria-label="Abrir menu" onClick={()=>setMenuOpen(true)}><Menu size={20}/></button>
           <div><div className="eyebrow"><span/> Brawl Stars / Ranqueado</div><h1>{current.label}</h1></div>
           <p>{subtitles[section]}</p></div>
-        <div className="top-actions"><span className="account-tag"><span className="account-dot"/>{book.active}</span>
+        <div className="top-actions">
+          {book.accounts.length>0&&<div className="account-switcher"><AccountIcon id={data.profile?.icon_id}/>
+            <select aria-label="Conta ativa" value={book.active} disabled={busy||sending||!ready}
+              onChange={e=>void selectAccount(e.target.value)}>
+              {book.accounts.map(a=><option key={a.tag} value={a.tag}>{a.tag===book.active||a.tag===a.name?a.name:a.name+' · '+a.tag}</option>)}
+            </select></div>}
           {section!=='draftlab'&&<button className="button small subtle navbar-sync" onClick={()=>void sync()} disabled={busy||!ready||sending} aria-label="Sincronizar conta">
             <RefreshCw size={14} className={sending?'spin':''}/><span>Sincronizar</span></button>}
-          <button className="button small top-button" onClick={()=>navigate('sources')}><AccountIcon id={data.profile?.icon_id}/><span>Contas</span></button></div>
+          <button className="button small top-button" onClick={()=>navigate('sources')} aria-label="Gerenciar contas"><Settings size={15}/><span>Contas</span></button></div>
       </header>
       <main className={`main compact-main ${section==='draftlab'?'draft-main':''}`}>
         {section!=='sources'&&feedback&&<p className="feedback page-feedback" role="status">{feedback}<button className="icon-button" aria-label="Dispensar mensagem" onClick={()=>setFeedback('')}><X size={15}/></button></p>}
@@ -124,8 +129,9 @@ export default function Dashboard() {
         {section==='meta'&&<div className="stack"><MetaDashboard filters={metaFilters} matches={metaAccount}
           onMap={map_name=>setFilters({...filters,map_name})}/>{data.meta.length>0&&<MetaView data={data} filters={metaFilters}/>}</div>}
         {section==='sources'&&<div className="stack">
-          <CollectorPanel server={server} serverError={serverError} battles={data.matches} onSync={()=>void sync()} syncing={sending}/>
-          <Accounts tag={book.active} data={local} busy={busy||!ready} feedback={feedback} onExport={()=>downloadSnapshot(local)}/></div>}
+          <CollectorPanel server={server} serverError={serverError} battles={data.matches} onSync={()=>void sync()} syncing={sending} hasAccount={!!book.active}/>
+          <Accounts tag={book.active} accounts={book.accounts} data={local} busy={busy||sending||!ready} feedback={feedback}
+            onSelect={tag=>void selectAccount(tag)} onSave={saveAccount} onExport={()=>downloadSnapshot(local)}/></div>}
         {section!=='draftlab'&&<footer><span><ShieldCheck size={15}/> Brawl Ranked Data</span><span>Projeto de fãs independente · Arte Supercell · <a href="https://supercell.com/en/fan-content-policy/" target="_blank" rel="noreferrer">Política de fãs</a> · <a href="https://github.com/Brawlify/CDN" target="_blank" rel="noreferrer">Brawlify</a></span></footer>}
       </main>
     </div>

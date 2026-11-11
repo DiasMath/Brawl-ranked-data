@@ -769,3 +769,18 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
 @media (max-width:440px) {
   .recent-results { grid-template-columns:repeat(6,minmax(0,1fr)); }
 }
+
+.account-switcher { display:flex; align-items:center; gap:6px; min-width:0; }
+.account-switcher .profile-icon { width:22px; height:22px; flex:none; border-radius:5px; }
+.account-switcher select { width:clamp(92px,16vw,185px); min-height:30px; padding-block:4px; font-size:12px; }
+.tracked-accounts { list-style:none; margin:0; padding:0 15px 13px; display:grid; gap:6px; }
+.tracked-accounts li { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:#211e33; }
+.tracked-accounts li strong,.tracked-accounts li small { display:block; overflow-wrap:anywhere; }
+.tracked-accounts li small { color:var(--muted); font-size:11px; }
+.tracked-accounts li .actions { flex:none; }
+.tracked-account-form { align-items:end; }
+.tracked-account-form [role=alert] { grid-column:1/-1; }
+@media(max-width:700px) {
+  .account-switcher select { max-width:115px; }
+  .account-switcher .profile-icon,.top-actions .top-button span { display:none; }
+}

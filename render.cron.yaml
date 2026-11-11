@@ -10,8 +10,6 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.12"
-      - key: BRAWL_PLAYER_TAG
-        sync: false
       - key: BRAWL_API_TOKEN
         sync: false
       - key: DATABASE_URL

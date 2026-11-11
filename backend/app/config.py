@@ -11,9 +11,12 @@ def api_token():
     return os.getenv("BRAWL_API_TOKEN", "").strip()
 
 
-def account():
+def initial_account():
+    configured = os.getenv("BRAWL_PLAYER_TAG", "").strip()
+    if not configured:
+        return None
     try:
-        return tag(os.getenv("BRAWL_PLAYER_TAG", ""))
+        return tag(configured)
     except ValueError as exc:
         raise RuntimeError("Configure BRAWL_PLAYER_TAG com uma tag válida.") from exc
 

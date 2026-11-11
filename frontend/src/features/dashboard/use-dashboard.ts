@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { emptyFilters, number } from '@/lib/data';
 import type { Filters } from '@/lib/data';
 import { blankLocal, fromSnapshot, initialBook, loadBook, loadLocal, saveBook, saveLocal } from '@/lib/browser-store';
-import type { AccountBook, LocalData, Progress } from '@/lib/browser-store';
+import type { Account, AccountBook, LocalData, Progress } from '@/lib/browser-store';
 import { collectionRequest } from '@/lib/live';
 import type { LivePeriod, ServerCollection } from '@/lib/live';
 import type { Evidence } from '@/features/matches/match-history';
@@ -26,7 +26,7 @@ export function useDashboard() {
   const [menuOpen,setMenuOpen]=useState(false);
   const [rankedOnly,setRankedOnly]=useState(true);
   const [selected,setSelected]=useState<string|null>(null);
-  const active=book.accounts.find(a=>a.tag===book.active)??initialBook.accounts[0];
+  const active=book.accounts.find(a=>a.tag===book.active)??{tag:book.active,name:'Minha conta'};
   const data=local.dataset;
   const match=data.matches.find(b=>b.id===selected);
 
@@ -43,15 +43,54 @@ export function useDashboard() {
     setSection(next);setMenuOpen(false);window.scrollTo(0,0);
   }
   async function persist(next:LocalData) { await saveLocal(next);setLocal(next); }
+
+  async function applyBook(next:AccountBook, signal?:AbortSignal){
+    const switching=next.active!==book.active;
+    const data=switching?await loadLocal(next.active):null;
+    if(signal?.aborted)return;
+    await saveBook(next);
+    if(signal?.aborted)return;
+    setBook(next);
+    if(data){
+      setLocal(data);
+      setServer(null);
+      setFilters(emptyFilters);
+      setSelected(null);
+      setFeedback('');
+      serverRevision.current='';
+    }
+  }
+
+  async function selectAccount(tag:string){
+    if(tag===book.active||!book.accounts.some(a=>a.tag===tag)||busy||sending||processing.current)return;
+    setBusy(true);
+    try{await applyBook({...book,active:tag});}
+    catch{setFeedback('Não foi possível trocar a conta ativa.');}
+    finally{setBusy(false);}
+  }
+
+  async function saveAccount(tag:string,alias:string){
+    if(busy||sending||processing.current)throw new Error('Aguarde a atualização em andamento.');
+    setBusy(true);
+    try{
+      const saved=await collectionRequest<Account>('/api/accounts',{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag,alias:alias.trim()||null}),
+      });
+      const existing=book.accounts.some(a=>a.tag===saved.tag);
+      const accounts=existing?book.accounts.map(a=>a.tag===saved.tag?saved:a):[...book.accounts,saved];
+      await applyBook({active:existing&&book.active?book.active:saved.tag,accounts});
+      setFeedback('Conta salva. A coleta usa a lista de contas monitoradas.');
+    }finally{setBusy(false);}
+  }
   async function sync() {
     if(sending)return;
-    if(!server?.configured){
+    if(!book.active||server?.player_tag!==book.active||!server.configured){
       navigate('sources');
       return;
     }
     setSending(true);
     try{
-      const result=await collectionRequest<{received:number;added:number}>('/api/sync',{
+      const result=await collectionRequest<{received:number;added:number}>('/api/sync?'+new URLSearchParams({tag:book.active}),{
         method:'POST',headers:{'Content-Type':'application/json'},body:'{}',
       });
       await refreshServer.current();
@@ -71,27 +110,34 @@ export function useDashboard() {
       if(cancelled||checking||document.visibilityState!=='visible')return;
       checking=true;
       try{
-        const status=await collectionRequest<ServerCollection>('/api/collection/status',{signal:controller.signal});
-        if(cancelled||typeof status.player_tag!=='string'||typeof status.configured!=='boolean')return;
-        setServer(status);
-        setServerError('');
-        if(status.player_tag!==book.active){
-          if(processing.current)return;
-          const data=await loadLocal(status.player_tag);
-          if(cancelled)return;
-          const entry=book.accounts.find(a=>a.tag===status.player_tag)??{tag:status.player_tag,name:'Minha conta',hasKey:false};
-          const next={active:status.player_tag,accounts:[entry]};
-          await saveBook(next);
-          if(cancelled)return;
-          setBook(next);setLocal(data);setFilters(emptyFilters);setSelected(null);
+        const accounts=await collectionRequest<Account[]>('/api/accounts',{signal:controller.signal});
+        if(cancelled||processing.current)return;
+        const tag=accounts.some(a=>a.tag===book.active)?book.active:(accounts[0]?.tag??'');
+        const next={active:tag,accounts};
+        if(JSON.stringify(next)!==JSON.stringify(book)){
+          processing.current=true;
+          try{await applyBook(next,controller.signal);}
+          finally{processing.current=false;}
+          setServerError('');
           return;
         }
+        if(!tag){
+          setServer(null);
+          setServerError('');
+          return;
+        }
+        const params=new URLSearchParams({tag});
+        const status=await collectionRequest<ServerCollection>('/api/collection/status?'+params,{signal:controller.signal});
+        if(cancelled||status.player_tag!==tag)return;
+        setServer(status);
+        setServerError('');
         const attempt=status.last_attempt;
         const revision=[status.player_tag,attempt?.id,attempt?.status,attempt?.finished_at].join(':');
         if(status.player_tag!==book.active||!attempt||serverRevision.current===revision||processing.current)return;
         const previous=await loadLocal(book.active);
+        params.set('after',String(previous.serverRunId??0));
         const history=await collectionRequest<{run_id:number;snapshot:unknown}>(
-          '/api/collection/history?after='+String(previous.serverRunId??0),{signal:controller.signal},
+          '/api/collection/history?'+params,{signal:controller.signal},
         );
         if(cancelled||processing.current)return;
         processing.current=true;
@@ -111,8 +157,9 @@ export function useDashboard() {
     const timer=window.setInterval(()=>void refresh(),30000);
     document.addEventListener('visibilitychange',refresh);
     return()=>{cancelled=true;controller.abort();window.clearInterval(timer);document.removeEventListener('visibilitychange',refresh);};
-  },[ready,busy,book.active]);
+  },[ready,busy,book]);
   async function saveProgress(record:Progress){
+    if(!book.active)throw new Error('Cadastre uma conta em Contas e dados.');
     if(busy||processing.current)throw new Error('Aguarde a atualização em andamento.');
     setBusy(true);
     try {
@@ -148,5 +195,5 @@ export function useDashboard() {
 
   return {section, filters, setFilters, book, local, period, setPeriod, server, serverError,
     sending, feedback, setFeedback, ready, busy, menuOpen, setMenuOpen, rankedOnly, setRankedOnly,
-    setSelected, active, data, match, navigate, sync, saveProgress, saveEvidence};
+    setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveProgress, saveEvidence};
 }

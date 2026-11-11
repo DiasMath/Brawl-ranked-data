@@ -5,6 +5,8 @@ from pathlib import Path
 import psycopg
 from psycopg.rows import dict_row
 
+from .config import initial_account
+
 
 ROOT = Path(__file__).resolve().parent
 
@@ -29,4 +31,12 @@ def prepare_collection():
         for statement in schema.split(";"):
             if statement.strip():
                 cursor.execute(statement)
+        player = initial_account()
+        if player:
+            cursor.execute("INSERT INTO tracked_accounts (player_tag) VALUES (%s) ON CONFLICT DO NOTHING", (player,))
+        cursor.execute("""
+            INSERT INTO tracked_accounts (player_tag)
+            SELECT player_tag FROM account_profile
+            ON CONFLICT DO NOTHING
+        """)
         connection.commit()
