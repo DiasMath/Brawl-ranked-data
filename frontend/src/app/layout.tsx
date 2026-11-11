@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Brawl Ranked Lab',
+  title: 'Brawl Ranked Data',
   description: 'Painel privado para análise do Ranqueado de Brawl Stars.',
   robots: { index: false, follow: false },
   icons: { icon: '/ranked.svg' },

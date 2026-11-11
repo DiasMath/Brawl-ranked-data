@@ -1,4 +1,4 @@
-# Brawl Ranked Lab
+# Brawl Ranked Data
 
 Painel privado do Ranqueado de Brawl Stars. A Vercel hospeda o Next.js, o Render executa o FastAPI e o PostgreSQL conserva o histórico.
 

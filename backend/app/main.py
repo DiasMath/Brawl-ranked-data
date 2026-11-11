@@ -22,7 +22,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Brawl Ranked Lab", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+app = FastAPI(title="Brawl Ranked Data", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.include_router(collection.router)
 app.include_router(analysis.router)
 

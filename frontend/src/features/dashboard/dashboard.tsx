@@ -52,7 +52,7 @@ export default function Dashboard() {
     {menuOpen&&<button className="mobile-scrim" aria-label="Fechar menu" onClick={()=>setMenuOpen(false)}/>}
     <aside className={`sidebar ${menuOpen?'open':''}`}>
       <button className="brand" onClick={()=>navigate('overview')}><span className="logo"><ShieldCheck size={23}/></span>
-        <span><strong>Brawl Ranked Lab</strong><small>CENTRAL COMPETITIVA</small></span></button>
+        <span><strong>Brawl Ranked Data</strong><small>CENTRAL COMPETITIVA</small></span></button>
       <div className="sidebar-content">
         {[[0,4,'Minha conta'],[4,7,'Competitivo'],[7,8,'Configurações']].map(([from,to,title])=><div className="nav-group" key={String(title)}>
           <div className="nav-label">{String(title)}</div>
@@ -126,7 +126,7 @@ export default function Dashboard() {
         {section==='sources'&&<div className="stack">
           <CollectorPanel server={server} serverError={serverError} battles={data.matches} onSync={()=>void sync()} syncing={sending}/>
           <Accounts tag={book.active} data={local} busy={busy||!ready} feedback={feedback} onExport={()=>downloadSnapshot(local)}/></div>}
-        {section!=='draftlab'&&<footer><span><ShieldCheck size={15}/> Brawl Ranked Lab</span><span>Projeto de fãs independente · Arte Supercell · <a href="https://supercell.com/en/fan-content-policy/" target="_blank" rel="noreferrer">Política de fãs</a> · <a href="https://github.com/Brawlify/CDN" target="_blank" rel="noreferrer">Brawlify</a></span></footer>}
+        {section!=='draftlab'&&<footer><span><ShieldCheck size={15}/> Brawl Ranked Data</span><span>Projeto de fãs independente · Arte Supercell · <a href="https://supercell.com/en/fan-content-policy/" target="_blank" rel="noreferrer">Política de fãs</a> · <a href="https://github.com/Brawlify/CDN" target="_blank" rel="noreferrer">Brawlify</a></span></footer>}
       </main>
     </div>
     {match&&<MatchDetail key={match.id} match={match} raw={local.raw[match.id]} onClose={()=>setSelected(null)} onChange={saveEvidence}/>}
