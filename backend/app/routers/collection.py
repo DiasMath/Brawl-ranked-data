@@ -3,11 +3,12 @@ import json
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from ..config import api_token, collection_interval
+from ..config import collection_interval
 from ..db import database
 from ..domain import iso, utc_now
 from ..repositories.history import dataset, latest_run, retry_until
 from ..services.collection import collect_account
+from ..services.credentials import credential_status
 from .accounts import require_player
 
 
@@ -32,8 +33,10 @@ def collection_status(tag: str | None = None):
         cursor.execute("SELECT last_possible_gap FROM collection_state WHERE player_tag=%s", (player,))
         state = cursor.fetchone() or {}
         waiting = retry_until(cursor)
+        credential = credential_status(cursor)
     return {
-        "player_tag": player, "configured": bool(api_token()), "interval_seconds": collection_interval(),
+        "player_tag": player, "configured": credential["configured"] and credential["encryption_configured"],
+        "interval_seconds": collection_interval(),
         "last_attempt": {**last_attempt, "started_at": iso(last_attempt["started_at"]),
                          "finished_at": iso(last_attempt["finished_at"])} if last_attempt else None,
         "last_success": iso(last_success["finished_at"]) if last_success else None,

@@ -41,7 +41,7 @@ export function CollectorPanel({ battles, onSync, syncing, server, serverError, 
         <div><span>Atraso observado</span><strong>{delay.median!==null?`${delay.median} min`:'—'}</strong>
           {delay.count>0&&<small>P90 {delay.p90} min · {number(delay.count)} registros</small>}</div>
       </div>
-      {!server.configured&&<p className="section-note">Configure a chave da Supercell nas variáveis do servidor.</p>}
+      {!server.configured&&<p className="section-note">Cadastre a chave da Supercell nesta tela para iniciar a coleta.</p>}
       {delayed&&<p className="section-note">A última coleta está atrasada. Confira as execuções do agendamento.</p>}
       {failed&&<p className="section-note error">{attempt.message}</p>}
       {retrying&&<p className="section-note">Consulta pausada até {dateTime(server.retry_until)} por limite da Supercell.</p>}

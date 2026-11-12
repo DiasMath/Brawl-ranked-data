@@ -37,17 +37,18 @@ if (!$Dev -and !$PlayerTag) { $PlayerTag = Read-Host 'Tag do jogador' }
 $PlayerTag = $PlayerTag.Trim().TrimStart('#').ToUpperInvariant()
 if ((!$Dev -or $PlayerTag) -and $PlayerTag -notmatch '^[0289PYLQGRJCUV]{3,16}$') { throw 'Tag inválida.' }
 if ($Dev) {
-    $token = Read-SecretValue 'Chave da Supercell autorizada para o seu IPv4 público (Enter para preencher depois)'
     $database = Read-SecretValue 'DATABASE_URL do PostgreSQL de desenvolvimento (Enter para preencher depois)'
     $interval = 0
+    $environment = 'development'
 } else {
-    $token = Read-SecretValue 'Chave da Supercell (Enter para preencher depois)'
     $database = Read-SecretValue 'DATABASE_URL do PostgreSQL (Enter para preencher depois)'
     $interval = 300
+    $environment = 'production'
 }
-if ($token -match '[\r\n]' -or $database -match '[\r\n]') { throw 'Informe valores de uma linha.' }
+if ($database -match '[\r\n]') { throw 'Informe valores de uma linha.' }
 $shared = New-RandomSecret
 $password = New-RandomSecret
+$credentialKey = New-RandomSecret
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 [IO.File]::WriteAllLines($front, @(
     "BRAWL_BACKEND_URL=$RenderUrl", 'BRAWL_SITE_USER=brawl',
@@ -55,7 +56,8 @@ $utf8 = New-Object System.Text.UTF8Encoding($false)
 ), $utf8)
 [IO.File]::WriteAllLines($back, @(
     'PYTHON_VERSION=3.12.12', "BRAWL_PLAYER_TAG=$PlayerTag", "BRAWL_COLLECTION_INTERVAL_SECONDS=$interval",
-    "BRAWL_SERVICE_TOKEN=$shared", "BRAWL_API_TOKEN=$token", "DATABASE_URL=$database"
+    "BRAWL_SERVICE_TOKEN=$shared", "BRAWL_ENVIRONMENT=$environment",
+    "BRAWL_CREDENTIAL_KEY=$credentialKey", "DATABASE_URL=$database"
 ), $utf8)
 Write-Host "Arquivos frontend/$envFileName e backend/$envFileName gerados."
 if (!$Dev) {

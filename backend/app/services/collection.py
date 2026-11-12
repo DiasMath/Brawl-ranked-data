@@ -1,13 +1,12 @@
 from datetime import timedelta
 
-import httpx
 import psycopg
 
-from ..config import api_token
 from ..db import database
 from ..domain import encoded, integer, parse_battle, string, utc_now
 from ..repositories.history import latest_run, retry_until
-from .supercell import CollectionError, fetch
+from .credentials import stored_token
+from .supercell import CollectionError, fetch, official_client
 
 
 BATTLE_FIELDS = (
@@ -38,7 +37,6 @@ def save_battle(cursor, battle):
 
 
 def collect_account(player, *, scheduled=False):
-    key = api_token()
     lock_name = "brawl:sync"
     with database() as (connection, cursor):
         cursor.execute("SELECT pg_try_advisory_lock(hashtextextended(%s, 0)) AS acquired", (lock_name,))
@@ -66,12 +64,9 @@ def collect_account(player, *, scheduled=False):
             connection.commit()
             received = None
             try:
-                if not key:
-                    raise CollectionError(503, "Configure BRAWL_API_TOKEN no ambiente de coleta.")
-                with httpx.Client(
-                    base_url="https://api.brawlstars.com/v1/", timeout=15,
-                    headers={"Authorization": f"Bearer {key}"}, follow_redirects=False,
-                ) as client:
+                key = stored_token(cursor)
+                connection.commit()
+                with official_client(key) as client:
                     path = "players/%23" + player[1:]
                     profile = fetch(client, path)
                     log = fetch(client, path + "/battlelog")

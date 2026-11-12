@@ -7,8 +7,11 @@ def service_token():
     return os.getenv("BRAWL_SERVICE_TOKEN", "").strip()
 
 
-def api_token():
-    return os.getenv("BRAWL_API_TOKEN", "").strip()
+def collection_environment():
+    environment = os.getenv("BRAWL_ENVIRONMENT", "production").strip()
+    if environment not in {"development", "production"}:
+        raise RuntimeError("Use development ou production em BRAWL_ENVIRONMENT.")
+    return environment
 
 
 def initial_account():

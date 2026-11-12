@@ -3,7 +3,7 @@ import logging
 
 import psycopg
 
-from ..config import api_token
+from ..config import collection_environment
 from ..db import database, prepare_collection
 from ..repositories.accounts import list_accounts
 from ..services.collection import collect_account
@@ -14,10 +14,8 @@ LOG = logging.getLogger("brawl.cron")
 
 
 def main():
-    if not api_token():
-        LOG.error("Configure BRAWL_API_TOKEN no ambiente de coleta.")
-        return 1
     try:
+        collection_environment()
         prepare_collection()
         with database() as (_, cursor):
             players = list_accounts(cursor)
@@ -32,7 +30,7 @@ def main():
             except CollectionError as exc:
                 LOG.error("Coleta de %s falhou (HTTP %s): %s", tag, exc.status_code, exc.detail)
                 failed = True
-                if exc.status_code in (401, 403, 429):
+                if exc.status_code in (401, 403, 429, 503):
                     break
                 continue
             if result is None:

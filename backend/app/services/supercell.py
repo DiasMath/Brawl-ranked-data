@@ -1,4 +1,6 @@
 from email.utils import parsedate_to_datetime
+from ipaddress import IPv4Address
+import re
 
 import httpx
 
@@ -11,6 +13,25 @@ class CollectionError(Exception):
         self.status_code = status_code
         self.detail = detail
         self.headers = headers
+
+
+def official_client(key):
+    return httpx.Client(
+        base_url="https://api.brawlstars.com/v1/", timeout=15,
+        headers={"Authorization": f"Bearer {key}"}, follow_redirects=False,
+    )
+
+
+def reported_ipv4(error):
+    message = error.get("message")
+    if not isinstance(message, str):
+        return None
+    for candidate in re.findall(r"(?<![\d.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![\d.])", message[:500]):
+        try:
+            return str(IPv4Address(candidate))
+        except ValueError:
+            continue
+    return None
 
 
 def retry_seconds(value):
@@ -33,10 +54,12 @@ def fetch(client, path):
         except ValueError:
             error = None
         if isinstance(error, dict) and error.get("reason") == "accessDenied.invalidIp":
-            raise CollectionError(403, "A Supercell recusou o IP de saída do servidor. "
-                                  "Confira os endereços autorizados na chave de API.")
+            address = reported_ipv4(error)
+            seen = f" IPv4 informado pela Supercell: {address}." if address else ""
+            raise CollectionError(403, "A Supercell recusou o IP de saída do servidor."
+                                  + seen + " Confira os endereços autorizados na chave de API.")
         raise CollectionError(403, "A Supercell negou o acesso (HTTP 403). "
-                              "Confira a chave configurada no servidor e os IPs autorizados.")
+                              "Confira a chave cadastrada e os IPs autorizados.")
     if response.status_code == 404:
         raise CollectionError(404, "Conta não encontrada na API oficial.")
     if response.status_code == 429:

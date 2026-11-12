@@ -6,9 +6,9 @@ import psycopg
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from .config import collection_interval, service_token
+from .config import collection_environment, collection_interval, service_token
 from .db import prepare_collection
-from .routers import accounts, analysis, collection
+from .routers import accounts, analysis, collection, credentials
 from .services.supercell import CollectionError
 
 
@@ -17,6 +17,7 @@ async def lifespan(_app):
     if len(service_token()) < 32:
         raise RuntimeError("Configure BRAWL_SERVICE_TOKEN com pelo menos 32 caracteres.")
     collection_interval()
+    collection_environment()
     await asyncio.to_thread(prepare_collection)
     yield
 
@@ -24,6 +25,7 @@ async def lifespan(_app):
 app = FastAPI(title="Brawl Ranked Data", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.include_router(accounts.router)
 app.include_router(collection.router)
+app.include_router(credentials.router)
 app.include_router(analysis.router)
 
 

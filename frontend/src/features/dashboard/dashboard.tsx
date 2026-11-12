@@ -11,6 +11,7 @@ import { Overview, Performance } from '@/features/analytics/analytics';
 import { Progression } from '@/features/analytics/progression';
 import { Accounts } from '@/features/collection/accounts';
 import { CollectorPanel, MetaPeriods } from '@/features/collection/collector-panel';
+import { SupercellCredential } from '@/features/collection/supercell-credential';
 import { CounterFinder, DraftLab } from '@/features/draft/draft-lab';
 import { MatchDetail, MatchList } from '@/features/matches/match-history';
 import { MetaDashboard, MetaRankings, VisualRanking } from '@/features/meta/meta-dashboard';
@@ -22,7 +23,7 @@ import { useDashboard } from './use-dashboard';
 export default function Dashboard() {
   const {section, filters, setFilters, book, local, period, setPeriod, server, serverError,
     sending, feedback, setFeedback, ready, busy, menuOpen, setMenuOpen, rankedOnly, setRankedOnly,
-    setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveProgress, saveEvidence} = useDashboard();
+    setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveProgress, saveEvidence, refreshCollection} = useDashboard();
   const metaFilters={...filters,start:'',end:''};
   const ranked=useMemo(()=>filtered(data.matches,filters,true),[data.matches,filters]);
   const metaAccount=filtered(data.matches,metaFilters,true);
@@ -131,6 +132,7 @@ export default function Dashboard() {
           onMap={map_name=>setFilters({...filters,map_name})}/>{data.meta.length>0&&<MetaView data={data} filters={metaFilters}/>}</div>}
         {section==='sources'&&<div className="stack">
           <CollectorPanel server={server} serverError={serverError} battles={data.matches} onSync={()=>void sync()} syncing={sending} hasAccount={!!book.active}/>
+          <SupercellCredential onSaved={()=>void refreshCollection()}/>
           <Accounts tag={book.active} accounts={book.accounts} data={local} busy={busy||sending||!ready} feedback={feedback}
             onSelect={tag=>void selectAccount(tag)} onSave={saveAccount} onExport={()=>downloadSnapshot(local)}/></div>}
         {section!=='draftlab'&&<footer><span><ShieldCheck size={15}/> Brawl Ranked Data</span><span>Projeto de fãs independente · Arte Supercell · <a href="https://supercell.com/en/fan-content-policy/" target="_blank" rel="noreferrer">Política de fãs</a> · <a href="https://github.com/Brawlify/CDN" target="_blank" rel="noreferrer">Brawlify</a></span></footer>}

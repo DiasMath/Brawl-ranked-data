@@ -49,7 +49,15 @@ No [portal da Supercell](https://developer.brawlstars.com/), gere uma chave para
 .\Preparar-Ambiente.ps1 -Dev
 ```
 
-Informe a chave de dev e a URL do banco escolhido. O script cria `frontend/.env.development.local` e `backend/.env.development.local`, gera um token de serviço compartilhado e uma senha para o painel local. Se já recebeu os arquivos de dev, coloque cada um na pasta indicada e preencha `DATABASE_URL` e `BRAWL_API_TOKEN` no arquivo do backend. Os arquivos preenchidos ficam fora do Git. Sem a chave, o painel abre e aceita cadastros. Preencha a chave e reinicie o FastAPI para sincronizar.
+Informe a URL do banco escolhido. O script cria `frontend/.env.development.local` e `backend/.env.development.local` com uma senha para o painel local, um token de serviço compartilhado e uma chave de criptografia para o backend. Os arquivos preenchidos ficam fora do Git.
+
+Se já usa os arquivos de dev, remova a variável antiga `BRAWL_API_TOKEN` e adicione `BRAWL_ENVIRONMENT=development` e `BRAWL_CREDENTIAL_KEY` ao arquivo do backend. Gere o valor de criptografia com Python e mantenha-o fixo para conseguir ler a chave salva.
+
+```powershell
+py -3.12 -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Com o painel aberto, acesse **Contas e dados → Chave da Supercell**, cole a chave de API e clique em **Validar e salvar**. A validação usa o mesmo servidor que fará a sincronização. Após uma validação bem-sucedida, o FastAPI grava a chave criptografada em um esquema privado do PostgreSQL. Repita pelo painel ao renovar a chave.
 
 ### Iniciar o painel
 
@@ -106,11 +114,14 @@ Conecte o repositório ao Render e crie um **Web Service** com runtime **Python*
 | `BRAWL_COLLECTION_INTERVAL_SECONDS` | `300` para exibir o intervalo no painel |
 | `BRAWL_SERVICE_TOKEN` | Valor de produção de `backend/.env.production.local` |
 | `DATABASE_URL` | URL do banco com suas credenciais |
-| `BRAWL_API_TOKEN` | Chave da Supercell autorizada para a saída do Render |
+| `BRAWL_ENVIRONMENT` | `production` |
+| `BRAWL_CREDENTIAL_KEY` | 32 bytes aleatórios em hexadecimal, próprios de produção |
+
+Para migrar um deploy existente, configure `BRAWL_CREDENTIAL_KEY` no Render, remova `BRAWL_API_TOKEN` do Render e, caso exista, da Vercel, e publique a atualização. Cadastre a chave da Supercell pelo painel em produção. As chaves de dev e produção ficam em registros separados mesmo quando usam o mesmo Supabase. Mantenha `brawl_secrets` fora da lista de esquemas expostos do Supabase.
 
 #### Coleta agendada opcional no Render
 
-Crie um **Cron Job** no mesmo repositório. Use a mesma `DATABASE_URL` no Cron Job e no Web Service. O cron lê desse banco a lista de jogadores cadastrados em **Contas e dados**. Configure a chave `BRAWL_API_TOKEN` em cada serviço com autorização para a saída correspondente. O token `BRAWL_SERVICE_TOKEN` é usado somente na Vercel e no Web Service.
+Crie um **Cron Job** no mesmo repositório. Use a mesma `DATABASE_URL`, `BRAWL_CREDENTIAL_KEY` e `BRAWL_ENVIRONMENT=production` no Cron Job e no Web Service. O cron lê do banco a lista de jogadores e a chave da Supercell cadastrada em produção. Autorize na chave a saída dos serviços que farão consultas. O token `BRAWL_SERVICE_TOKEN` é usado somente na Vercel e no Web Service.
 
 | Campo | Valor |
 | --- | --- |
@@ -123,7 +134,7 @@ Crie um **Cron Job** no mesmo repositório. Use a mesma `DATABASE_URL` no Cron J
 
 Se a API já existe, crie somente o Cron Job. O comando antigo da API ainda funciona. Para uma instalação nova, use `render.yaml` para a API e selecione `render.cron.yaml` como caminho do Blueprint quando quiser criar o Cron Job. A antiga variável `BRAWL_POLL_SECONDS` pode ser removida do Web Service. A frequência real é configurada no agendamento do Cron Job.
 
-Em **Connect → Outbound**, confira os endereços de saída de ambos os serviços. Autorize os endereços aceitos pelo portal da Supercell na chave configurada. A API pode subir antes da chave para você consultar os IPs. Depois de configurá-la, use **Runs → Trigger Run** no Cron Job e confirme a última coleta em **Contas e dados**. A coleta agendada e o botão manual compartilham o bloqueio no banco e respeitam o intervalo de espera após HTTP 429.
+Em **Connect → Outbound**, confira os endereços de saída de ambos os serviços. Se a Supercell aceitar apenas IPs individuais, os blocos compartilhados do Render exigem uma saída estável autorizável para coleta confiável. Depois de cadastrar a chave pelo painel, use **Runs → Trigger Run** no Cron Job e confirme a última coleta em **Contas e dados**. A coleta agendada e o botão manual compartilham o bloqueio no banco e respeitam o intervalo de espera após HTTP 429.
 
 ### 3. Vercel
 

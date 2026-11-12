@@ -21,10 +21,13 @@ if ($Ambiente -eq 'development') {
 }
 
 Push-Location -LiteralPath $backend
+$previousEnvironment = $env:BRAWL_ENVIRONMENT
 try {
+    $env:BRAWL_ENVIRONMENT = $Ambiente
     & $python @uvicornArgs
     $exitCode = $LASTEXITCODE
 } finally {
+    $env:BRAWL_ENVIRONMENT = $previousEnvironment
     Pop-Location
 }
 exit $exitCode

@@ -120,3 +120,12 @@ CREATE TABLE IF NOT EXISTS tracked_accounts (
   alias VARCHAR(60),
   created_at TIMESTAMP(3) NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
 );
+
+CREATE TABLE IF NOT EXISTS brawl_secrets.supercell_credentials (
+  environment VARCHAR(12) PRIMARY KEY CHECK (environment IN ('development', 'production')),
+  encrypted_token BYTEA NOT NULL,
+  updated_at TIMESTAMP(3) NOT NULL
+);
+
+REVOKE ALL ON SCHEMA brawl_secrets FROM PUBLIC;
+REVOKE ALL ON brawl_secrets.supercell_credentials FROM PUBLIC;

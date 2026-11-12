@@ -28,6 +28,7 @@ def prepare_collection():
     with database() as (connection, cursor):
         cursor.execute("SELECT pg_advisory_xact_lock(hashtextextended('brawl:schema', 0))")
         cursor.execute("CREATE SCHEMA IF NOT EXISTS brawl_lab")
+        cursor.execute("CREATE SCHEMA IF NOT EXISTS brawl_secrets")
         for statement in schema.split(";"):
             if statement.strip():
                 cursor.execute(statement)

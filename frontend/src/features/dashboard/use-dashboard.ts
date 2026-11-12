@@ -196,5 +196,6 @@ export function useDashboard() {
 
   return {section, filters, setFilters, book, local, period, setPeriod, server, serverError,
     sending, feedback, setFeedback, ready, busy, menuOpen, setMenuOpen, rankedOnly, setRankedOnly,
-    setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveProgress, saveEvidence};
+    setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveProgress, saveEvidence,
+    refreshCollection:()=>refreshServer.current()};
 }

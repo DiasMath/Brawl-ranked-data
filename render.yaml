@@ -14,7 +14,9 @@ services:
         value: "300"
       - key: BRAWL_SERVICE_TOKEN
         sync: false
-      - key: BRAWL_API_TOKEN
+      - key: BRAWL_ENVIRONMENT
+        value: production
+      - key: BRAWL_CREDENTIAL_KEY
         sync: false
       - key: DATABASE_URL
         sync: false
