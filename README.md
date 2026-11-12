@@ -53,21 +53,15 @@ Informe a chave de dev e a URL do banco escolhido. O script cria `frontend/.env.
 
 ### Iniciar o painel
 
-Na primeira execução, instale as dependências a partir da raiz do projeto.
-
-```powershell
-py -3.12 -m venv backend/.venv
-.\backend\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt
-npm.cmd --prefix frontend ci
-```
-
-Com os arquivos de dev preenchidos e as dependências instaladas, execute o comando na raiz do projeto.
+Com os arquivos de dev preenchidos, execute o comando na raiz do projeto.
 
 ```powershell
 npm.cmd run dev
 ```
 
-O comando abre duas janelas, uma com os logs do FastAPI na porta 8787 e outra com os logs do Next.js na porta 3000. Para encerrar o ambiente, pressione `Ctrl+C` em cada janela. Você também pode iniciar os dois serviços diretamente com `.\Iniciar-Dev.ps1`.
+Na primeira execução, o comando cria `backend/.venv` usando `py -3.12` e instala as dependências. Nos próximos inícios, reaproveita a instalação e executa de novo a instalação correspondente se mudarem os arquivos de requisitos ou o `package-lock.json` do frontend.
+
+Em seguida, o comando abre duas janelas, uma com os logs do FastAPI na porta 8787 e outra com os logs do Next.js na porta 3000. Para encerrar o ambiente, pressione `Ctrl+C` em cada janela. Você também pode iniciar os dois serviços diretamente com `.\Iniciar-Dev.ps1`.
 
 Abra `http://127.0.0.1:3000` e entre com `BRAWL_SITE_USER` e `BRAWL_SITE_PASSWORD` de `frontend/.env.development.local`. Em **Contas e dados**, adicione cada jogador pela tag e clique em **Sincronizar agora**. Se precisar confirmar que o FastAPI subiu, acesse `http://127.0.0.1:8787/health`.
 
