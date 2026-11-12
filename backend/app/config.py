@@ -1,4 +1,5 @@
 import os
+import re
 
 from .domain import tag
 
@@ -43,3 +44,14 @@ def meta_batch_size():
     if not 1 <= value <= 100:
         raise ValueError("BRAWL_META_PLAYERS_PER_RUN precisa estar entre 1 e 100.")
     return value
+
+
+def meta_regions():
+    configured = os.getenv("BRAWL_META_REGIONS", "global")
+    regions = tuple(dict.fromkeys(
+        "global" if value.strip().lower() == "global" else value.strip().upper()
+        for value in configured.split(",") if value.strip()
+    ))
+    if not regions or any(region != "global" and not re.fullmatch(r"[A-Z]{2}", region) for region in regions):
+        raise ValueError("Use global ou códigos de país de duas letras em BRAWL_META_REGIONS, separados por vírgula.")
+    return regions

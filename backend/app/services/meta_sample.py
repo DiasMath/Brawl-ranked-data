@@ -38,8 +38,8 @@ def sample_battle(item, player):
             [brawler for _, brawler in identities[0]], [brawler for _, brawler in identities[1]], winning_index)
 
 
-def choose_players(client, excluded, *, limit=10, count=5):
-    response = fetch(client, f"rankings/global/players?limit={limit}")
+def choose_players(client, excluded, *, region="global", limit=10, count=5):
+    response = fetch(client, f"rankings/{region}/players?limit={limit}")
     items = response.get("items")
     if not isinstance(items, list):
         raise CollectionError(502, "A classificação pública veio sem uma lista de jogadores.")
@@ -176,8 +176,10 @@ def sample_report(cursor):
     cursor.execute("""
         SELECT COUNT(*) AS queued,
                COUNT(*) FILTER (WHERE last_checked_at IS NOT NULL) AS checked,
-               COUNT(*) FILTER (WHERE ranked_elo >= %s) AS qualified
-        FROM meta_sample_players
+               COUNT(*) FILTER (WHERE ranked_elo >= %s) AS qualified,
+               COUNT(*) FILTER (WHERE next_check_at <= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')) AS due
+        FROM meta_sample_players p
+        WHERE NOT EXISTS (SELECT 1 FROM tracked_accounts a WHERE a.player_tag=p.player_tag)
     """, (minimum,))
     queue = cursor.fetchone()
     cursor.execute("SELECT last_run_at FROM meta_tracker_state WHERE singleton")

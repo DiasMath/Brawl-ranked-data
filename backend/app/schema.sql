@@ -145,6 +145,7 @@ CREATE TABLE IF NOT EXISTS meta_tracker_state (
   last_run_at TIMESTAMP(3),
   retry_until TIMESTAMP(3)
 );
+ALTER TABLE meta_tracker_state ADD COLUMN IF NOT EXISTS seed_regions TEXT;
 
 CREATE TABLE IF NOT EXISTS tracked_accounts (
   player_tag VARCHAR(20) PRIMARY KEY,

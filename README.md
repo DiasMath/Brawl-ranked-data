@@ -15,6 +15,7 @@ Painel privado do Ranqueado de Brawl Stars. Use Next.js, FastAPI e PostgreSQL no
 | `backend/` | FastAPI, coleta oficial, esquema PostgreSQL e histórico persistente |
 | `render.yaml` | Blueprint opcional para a API do Render |
 | `render.cron.yaml` | Blueprint opcional para criar o Cron Job pago separadamente |
+| `Agendar-Meta.ps1` | Registra e inicia a coleta competitiva no Agendador de Tarefas do Windows |
 | `Preparar-Ambiente.ps1` | Gera as credenciais próprias do painel e preenche os arquivos locais de ambiente |
 | `Iniciar-Backend.ps1` | Executa o FastAPI no Windows com o arquivo do ambiente selecionado |
 | `Iniciar-Dev.ps1` | Abre o FastAPI e o Next.js com um comando na raiz |
@@ -168,15 +169,24 @@ Em **Meta → Amostra de outros jogadores**, atualize até cinco históricos da 
 
 ### Coleta recorrente da Meta
 
-O coletor alimenta uma fila com até 200 tags da classificação global de troféus e a expande com participantes das ranqueadas observadas. Confirma o Elo em cada perfil antes de consultar o histórico. O recorte **Alto nível · 7 dias** considera partidas completas observadas por jogadores com Elo igual ou superior a `BRAWL_META_MIN_ELO` (padrão `8250`). Esse Elo é o do perfil no momento da consulta. A tela mostra quantos perfis foram verificados, quantos se qualificaram e quando a fila rodou pela última vez.
+O coletor alimenta uma fila com até 200 tags por classificação de troféus e a expande com participantes das ranqueadas observadas. As classificações são definidas por `BRAWL_META_REGIONS`, que aceita `global` e códigos de países separados por vírgula. Confirma o Elo em cada perfil antes de consultar o histórico. O recorte **Alto nível · 7 dias** considera partidas completas observadas por jogadores com Elo igual ou superior a `BRAWL_META_MIN_ELO` (padrão `8250`). Esse Elo é o do perfil no momento da consulta. A tela mostra os perfis verificados, os qualificados, os que aguardam consulta e a última rodada.
 
-Para executar uma rodada no Windows, use o ambiente de desenvolvimento a partir de `backend/`.
+**Windows.** Na raiz, com o ambiente de desenvolvimento preparado e a chave da Supercell cadastrada, execute:
 
 ```powershell
-.\.venv\Scripts\python.exe -m dotenv -f .env.development.local run -- .\.venv\Scripts\python.exe -m app.jobs.collect_meta
+.\Agendar-Meta.ps1
 ```
 
-Repita o comando pelo Agendador de Tarefas do Windows para coletar enquanto o computador estiver ligado. Para rodar no Cron Job existente do Render, defina `BRAWL_META_COLLECT=1` nas variáveis do job. Use o mesmo `BRAWL_META_MIN_ELO` no job e no Web Service se ajustar o corte. Cada rodada consulta até `BRAWL_META_PLAYERS_PER_RUN` perfis, padrão 10, e até um histórico por perfil elegível. A classificação global é renovada a cada seis horas e os HTTP 429 aplicam o intervalo de espera compartilhado.
+O script registra a tarefa **Brawl Ranked Data - Meta**, solicita a primeira rodada e repete a cada **15 minutos**, com **20 perfis por rodada** e as classificações **global e Brasil**. A tarefa roda enquanto o Windows estiver ligado e seu usuário conectado, inclusive com o painel fechado. Execute o script novamente com `-IntervaloMinutos`, `-JogadoresPorRodada` ou `-Regioes` para ajustar a mesma tarefa.
+
+```powershell
+Get-ScheduledTaskInfo -TaskName 'Brawl Ranked Data - Meta'
+Get-Content .\backend\.venv\meta-coleta.log -Tail 20
+```
+
+**Render.** Se preferir coletar com o computador desligado, use um Cron Job. Para executar apenas a Meta, use `python -m app.jobs.collect_meta`. Se o job já usa `python -m app.jobs.collect`, defina `BRAWL_META_COLLECT=1` para incluir a Meta na mesma execução. Configure `BRAWL_META_PLAYERS_PER_RUN=20` e `BRAWL_META_REGIONS=global,BR` para usar o mesmo volume do agendador Windows. Use o mesmo `BRAWL_META_MIN_ELO` no job e no Web Service se ajustar o corte. Para usar apenas o Render, desative a tarefa Windows com `Disable-ScheduledTask -TaskName 'Brawl Ranked Data - Meta'`.
+
+Cada perfil elegível acrescenta uma consulta de histórico. As classificações são renovadas a cada seis horas e os HTTP 429 aplicam o intervalo de espera compartilhado.
 
 Na **Visão geral**, expanda **Perfil e coleção de brawlers** para ver recordes, nível, vitórias, clube, troféus e equipamentos do perfil quando a API enviar esses campos. O detalhe de partida mostra craque e colocação de Combate quando presentes e conserva o JSON original para consulta.
 

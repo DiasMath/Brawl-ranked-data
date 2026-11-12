@@ -7,7 +7,7 @@ export type LiveMap = { map: string | null; mode: string | null; sets: number; d
 export type LiveWindow = { label: string; start: string; end: string; latest: string | null; contexts: LiveMap[] };
 export type LiveReport = {
   patchSince?: string | null;
-  tracking?: { queued: number; checked: number; qualified: number; minimum_elo: number; last_run_at: string|null };
+  tracking?: { queued: number; checked: number; qualified: number; due?: number; minimum_elo: number; last_run_at: string|null };
   windows: Partial<Record<Exclude<LivePeriod,'reference'>,LiveWindow>>;
 };
 

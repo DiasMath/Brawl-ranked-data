@@ -1,7 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
+import logging
 
-from ..config import meta_batch_size, meta_min_elo
+from ..config import meta_batch_size, meta_min_elo, meta_regions
 from ..db import database
 from ..domain import ranked_reading, utc_now
 from ..repositories.accounts import list_accounts
@@ -9,6 +10,9 @@ from ..repositories.history import retry_until
 from .credentials import stored_token
 from .meta_sample import choose_players, discovered_players, player_battlelog, sample_battle, save_sample
 from .supercell import CollectionError, fetch, official_client
+
+
+LOG = logging.getLogger("brawl.meta")
 
 
 def enqueue_players(cursor, players, now):
@@ -42,9 +46,23 @@ def read_player(client, player, minimum):
         return error
 
 
+def seed_players(client, regions, excluded):
+    seeds = set()
+    for region in regions:
+        try:
+            seeds.update(choose_players(client, excluded, region=region, limit=200, count=200))
+        except CollectionError as error:
+            if error.status_code in (403, 429, 503):
+                raise
+            LOG.warning("Classificação %s indisponível (HTTP %s).", region, error.status_code)
+    return seeds
+
+
 def collect_competitive_sample():
     minimum = meta_min_elo()
     batch_size = meta_batch_size()
+    regions = meta_regions()
+    seed_regions = ",".join(regions)
     now = utc_now()
     now = now.replace(microsecond=now.microsecond // 1000 * 1000)
     with database() as (connection, cursor):
@@ -55,25 +73,29 @@ def collect_competitive_sample():
         if until and until > now:
             return None
         excluded = {account["tag"] for account in list_accounts(cursor)}
-        cursor.execute("SELECT last_seed_at FROM meta_tracker_state WHERE singleton")
+        cursor.execute("SELECT last_seed_at, seed_regions FROM meta_tracker_state WHERE singleton")
         state = cursor.fetchone()
         key = stored_token(cursor)
         with official_client(key) as client:
-            if not state or not state["last_seed_at"] or now - state["last_seed_at"] >= timedelta(hours=6):
+            if (not state or not state["last_seed_at"] or state["seed_regions"] != seed_regions
+                    or now - state["last_seed_at"] >= timedelta(hours=6)):
                 try:
-                    seeds = choose_players(client, excluded, limit=200, count=200)
+                    seeds = seed_players(client, regions, excluded)
                 except CollectionError as error:
                     if error.status_code == 429:
                         pause_tracker(cursor, error)
                         connection.commit()
                     raise
-                if not seeds:
-                    raise CollectionError(502, "A classificação pública veio sem jogadores para a fila.")
-                enqueue_players(cursor, seeds, now)
-                cursor.execute("""
-                    INSERT INTO meta_tracker_state (singleton,last_seed_at) VALUES (TRUE,%s)
-                    ON CONFLICT (singleton) DO UPDATE SET last_seed_at=EXCLUDED.last_seed_at
-                """, (now,))
+                if seeds:
+                    enqueue_players(cursor, seeds, now)
+                    LOG.info("%s tags candidatas nas classificações %s.", len(seeds), seed_regions)
+                    cursor.execute("""
+                        INSERT INTO meta_tracker_state (singleton,last_seed_at,seed_regions) VALUES (TRUE,%s,%s)
+                        ON CONFLICT (singleton) DO UPDATE SET last_seed_at=EXCLUDED.last_seed_at,
+                            seed_regions=EXCLUDED.seed_regions
+                    """, (now, seed_regions))
+                else:
+                    LOG.warning("Classificações públicas sem novas tags para alimentar a fila nesta rodada.")
             cursor.execute("""
                 SELECT p.player_tag FROM meta_sample_players p
                 WHERE p.next_check_at <= %s
@@ -118,7 +140,10 @@ def collect_competitive_sample():
             """, (now, elo, now + interval, player))
         enqueue_players(cursor, discovered - excluded, now)
         if failed < len(players):
-            cursor.execute("UPDATE meta_tracker_state SET last_run_at=%s WHERE singleton", (utc_now(),))
+            cursor.execute("""
+                INSERT INTO meta_tracker_state (singleton,last_run_at) VALUES (TRUE,%s)
+                ON CONFLICT (singleton) DO UPDATE SET last_run_at=EXCLUDED.last_run_at
+            """, (utc_now(),))
         connection.commit()
         if failed == len(players):
             raise first_error

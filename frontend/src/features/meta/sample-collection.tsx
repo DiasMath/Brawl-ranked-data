@@ -14,7 +14,8 @@ export function SampleCollection({ tracking, onCollected, notify }: {
     <div className="card-head"><div><h2><Radio size={17}/> Amostra de outros jogadores</h2>
       <p>Consulta manual de até cinco jogadores da classificação global ou de uma tag pública específica.</p></div></div>
     {tracking&&<div className="collector-readings">
-      <div><span>Jogadores na fila</span><strong>{number(tracking.queued)}</strong></div>
+      <div><span>Jogadores na fila</span><strong>{number(tracking.queued)}</strong>
+        {tracking.due!=null&&<small>{number(tracking.due)} prontos para consulta</small>}</div>
       <div><span>Perfis consultados</span><strong>{number(tracking.checked)}</strong></div>
       <div><span>Com Elo ≥ {number(tracking.minimum_elo)}</span><strong>{number(tracking.qualified)}</strong></div>
       <div><span>Última rodada da fila</span><strong>{dateTime(tracking.last_run_at)}</strong></div>
