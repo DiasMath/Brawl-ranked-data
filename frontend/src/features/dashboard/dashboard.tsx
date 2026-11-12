@@ -12,6 +12,7 @@ import { Progression } from '@/features/analytics/progression';
 import { Accounts } from '@/features/collection/accounts';
 import { CollectorPanel, MetaPeriods } from '@/features/collection/collector-panel';
 import { SupercellCredential } from '@/features/collection/supercell-credential';
+import { SyncProgressCard } from '@/features/collection/sync-progress';
 import { CounterFinder, DraftLab } from '@/features/draft/draft-lab';
 import { MatchDetail, MatchList } from '@/features/matches/match-history';
 import { MetaDashboard, MetaRankings, VisualRanking } from '@/features/meta/meta-dashboard';
@@ -22,7 +23,7 @@ import { useDashboard } from './use-dashboard';
 
 export default function Dashboard() {
   const {section, filters, setFilters, book, local, period, setPeriod, server, serverError,
-    sending, feedback, setFeedback, ready, busy, menuOpen, setMenuOpen, rankedOnly, setRankedOnly,
+    sending, syncProgress, feedback, setFeedback, ready, busy, menuOpen, setMenuOpen, rankedOnly, setRankedOnly,
     setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveProgress, saveEvidence, refreshCollection} = useDashboard();
   const metaFilters={...filters,start:'',end:''};
   const ranked=useMemo(()=>filtered(data.matches,filters,true),[data.matches,filters]);
@@ -103,7 +104,7 @@ export default function Dashboard() {
           busy={busy||!ready||sending} syncing={sending} onSettings={()=>navigate('sources')} onProgress={()=>navigate('progress')} onDraft={()=>navigate('draftlab')} onMeta={()=>navigate('meta')} onSync={()=>void sync()} onMatch={b=>setSelected(b.id)} onHistory={()=>navigate('matches')} collectorLinked={!!server?.configured}/>}
         {section==='progress'&&<Progression key={book.active} local={local} filters={progressFilters}
           matches={filtered(data.matches,progressFilters,true)} onSave={saveProgress}/>}
-        {section==='matches'&&<Card title="Histórico de partidas" icon={List} sub={`Horário de Brasília · ${shownMatches.length?'Partida mais recente '+dateTime(shownMatches[0].played_at):'Sem registros neste recorte'}`}
+        {section==='matches'&&<Card title="Histórico de partidas" icon={List} sub={`${number(shownMatches.length)} no recorte · ${number(data.matches.length)} no histórico${shownMatches[0]?' · Mais recente '+dateTime(shownMatches[0].played_at):''} · Horário de Brasília`}
           action={<label className="switch-label"><input type="checkbox" checked={rankedOnly} onChange={e=>setRankedOnly(e.target.checked)}/> Só ranqueadas</label>}>
           <MatchList key={JSON.stringify([filters,rankedOnly])} matches={shownMatches} onOpen={b=>setSelected(b.id)}/></Card>}
         {section==='performance'&&<Performance rows={ranked} filters={filters}/>}
@@ -138,6 +139,7 @@ export default function Dashboard() {
         {section!=='draftlab'&&<footer><span><ShieldCheck size={15}/> Brawl Ranked Data</span><span>Projeto de fãs independente · Arte Supercell · <a href="https://supercell.com/en/fan-content-policy/" target="_blank" rel="noreferrer">Política de fãs</a> · <a href="https://github.com/Brawlify/CDN" target="_blank" rel="noreferrer">Brawlify</a></span></footer>}
       </main>
     </div>
+    {syncProgress&&<SyncProgressCard progress={syncProgress} account={active.name}/>}
     {match&&<MatchDetail key={match.id} match={match} raw={local.raw[match.id]} onClose={()=>setSelected(null)} onChange={saveEvidence}/>}
   </div></LiveMeta.Provider>;
 }

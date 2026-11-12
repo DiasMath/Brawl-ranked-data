@@ -19,8 +19,15 @@ export const LiveMeta = createContext<{ report: LiveReport | null; period: LiveP
 
 export type ServerCollection = {
   player_tag: string; configured: boolean; interval_seconds: number;
-  last_attempt: Update|null; last_success: string|null; last_battle: string|null;
+  last_attempt: (Update & { phase?: 'profile'|'battlelog'|'saving'|null; processed?: number|null })|null;
+  last_success: string|null; last_battle: string|null;
   last_possible_gap: string|null; retry_until: string|null;
+};
+
+export type SyncProgress = {
+  phase: 'profile'|'battlelog'|'saving'|'history';
+  processed: number|null;
+  total: number|null;
 };
 
 export async function collectionRequest<T>(path:string, init?:RequestInit):Promise<T> {

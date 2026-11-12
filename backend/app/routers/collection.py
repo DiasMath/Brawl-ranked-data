@@ -16,7 +16,7 @@ router = APIRouter()
 
 
 @router.post("/api/sync")
-def sync(tag: str | None = None):
+def sync(tag: str):
     with database() as (_, cursor):
         player = require_player(cursor, tag)
     return collect_account(player)

@@ -143,7 +143,9 @@ export function Overview({ local, account, matches, filters, onSettings, onProgr
       <div className="card game-metric"><TrophyArt/><div><small>Troféus da conta</small><strong>{trophy?.trophies != null?number(trophy.trophies):'—'}</strong>
         <span>{trophy?dateTime(trophy.at):'Sem leitura do perfil'}</span></div></div>
       <div className="card game-metric"><span className="game-metric-icon violet"><Swords size={22}/></span><div><small>Ranqueadas no recorte</small>
-        <strong>{profile||local.dataset.matches.length?number(s.games):'—'}</strong><span>{previous?'Atualizado '+dateTime(previous.finished_at):'Histórico da conta'}</span></div></div>
+        <strong>{profile||local.dataset.matches.length?number(s.games):'—'}</strong><span>{local.dataset.matches.length
+          ?number(local.dataset.matches.length)+' partidas no histórico'
+          :previous?'Atualizado '+dateTime(previous.finished_at):'Histórico da conta'}</span></div></div>
       <div className="card game-metric"><span className="game-metric-icon green"><Activity size={22}/></span><div><small>Win rate do recorte</small><strong>{percent(s.rate)}</strong>
         <span>{s.decided?number(s.wins)+' vitórias · '+number(s.losses)+' derrotas':'Vitórias / registros decisivos'}</span></div></div>
       <div className="card game-metric"><span className="game-metric-icon orange"><Crosshair size={22}/></span><div><small>Brawlers usados</small>

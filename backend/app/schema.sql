@@ -50,6 +50,9 @@ CREATE TABLE IF NOT EXISTS update_log (
   message VARCHAR(255)
 );
 
+ALTER TABLE update_log ADD COLUMN IF NOT EXISTS phase VARCHAR(24);
+ALTER TABLE update_log ADD COLUMN IF NOT EXISTS processed INT;
+
 CREATE TABLE IF NOT EXISTS battle_evidence (
   battle_id VARCHAR(64) PRIMARY KEY,
   rank_label VARCHAR(60),

@@ -14,5 +14,7 @@ services:
         value: production
       - key: BRAWL_CREDENTIAL_KEY
         sync: false
+      - key: BRAWL_SCHEDULED_PLAYER_TAG
+        sync: false
       - key: DATABASE_URL
         sync: false

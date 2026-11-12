@@ -4,7 +4,7 @@ import type { Filters } from '@/lib/data';
 import { blankLocal, fromSnapshot, initialBook, loadBook, loadLocal, saveBook, saveLocal } from '@/lib/browser-store';
 import type { Account, AccountBook, LocalData, Progress } from '@/lib/browser-store';
 import { collectionRequest } from '@/lib/live';
-import type { LivePeriod, ServerCollection } from '@/lib/live';
+import type { LivePeriod, ServerCollection, SyncProgress } from '@/lib/live';
 import type { Evidence } from '@/features/matches/match-history';
 import type { Section } from './navigation';
 
@@ -19,12 +19,14 @@ export function useDashboard() {
   const refreshServer=useRef<()=>Promise<void>>(async()=>{});
   const serverRevision=useRef('');
   const processing=useRef(false);
+  const firstSync=useRef(new Set<string>());
   const [sending,setSending]=useState(false);
+  const [syncProgress,setSyncProgress]=useState<SyncProgress|null>(null);
   const [feedback,setFeedback]=useState('');
   const [ready,setReady]=useState(false);
   const [busy,setBusy]=useState(false);
   const [menuOpen,setMenuOpen]=useState(false);
-  const [rankedOnly,setRankedOnly]=useState(true);
+  const [rankedOnly,setRankedOnly]=useState(false);
   const [selected,setSelected]=useState<string|null>(null);
   const active=book.accounts.find(a=>a.tag===book.active)??{tag:book.active,name:'Minha conta'};
   const data=local.dataset;
@@ -79,31 +81,82 @@ export function useDashboard() {
       const existing=book.accounts.some(a=>a.tag===saved.tag);
       const accounts=existing?book.accounts.map(a=>a.tag===saved.tag?saved:a):[...book.accounts,saved];
       await applyBook({active:existing&&book.active?book.active:saved.tag,accounts});
-      setFeedback('Conta salva. A coleta usa a lista de contas monitoradas.');
+      setFeedback('Conta salva.');
     }finally{setBusy(false);}
   }
+  async function loadHistory(tag:string, signal?:AbortSignal) {
+    const previous=await loadLocal(tag);
+    const params=new URLSearchParams({tag,after:String(previous.serverRunId??0)});
+    const history=await collectionRequest<{run_id:number;snapshot:unknown}>(
+      '/api/collection/history?'+params,{signal},
+    );
+    if(signal?.aborted)return;
+    const latest=await loadLocal(tag);
+    const merged=fromSnapshot(history.snapshot,latest);
+    if(signal?.aborted)return;
+    const next={...merged,serverRunId:history.run_id};
+    await saveLocal(next);
+    if(!signal?.aborted)setLocal(next);
+  }
+
   async function sync() {
-    if(sending)return;
+    if(sending||busy||processing.current)return;
     if(!book.active||server?.player_tag!==book.active||!server.configured){
       navigate('sources');
       return;
     }
+    const tag=book.active;
+    firstSync.current.add(tag);
+    const params=new URLSearchParams({tag});
+    const previousAttempt=server.last_attempt?.id??0;
+    const progressController=new AbortController();
+    let checkingProgress=false;
+    const progressTimer=window.setInterval(async()=>{
+      if(checkingProgress||progressController.signal.aborted)return;
+      checkingProgress=true;
+      try{
+        const status=await collectionRequest<ServerCollection>('/api/collection/status?'+params,{signal:progressController.signal});
+        const attempt=status.last_attempt;
+        if(!progressController.signal.aborted&&status.player_tag===tag&&attempt&&attempt.id>previousAttempt&&attempt.phase){
+          setSyncProgress({phase:attempt.phase,processed:attempt.processed??null,total:attempt.received});
+        }
+      }catch{
+        // A solicitação de sincronização informa o resultado final.
+      }finally{checkingProgress=false;}
+    },1000);
     setSending(true);
+    setSyncProgress({phase:'profile',processed:null,total:null});
     setFeedback('');
+    let collected=false;
     try{
-      const result=await collectionRequest<{received:number;added:number}>('/api/sync?'+new URLSearchParams({tag:book.active}),{
+      const result=await collectionRequest<{received:number;added:number}>('/api/sync?'+params,{
         method:'POST',headers:{'Content-Type':'application/json'},body:'{}',
       });
-      await refreshServer.current();
-      setFeedback(number(result.added)+' registros novos na coleta do servidor.');
+      collected=true;
+      progressController.abort();
+      setSyncProgress({phase:'history',processed:result.received,total:result.received});
+      await loadHistory(tag);
+      setFeedback(`${number(result.received)} partidas recebidas · ${number(result.added)} novas no histórico.`);
     }catch(e){
-      await refreshServer.current();
-      setFeedback(e instanceof Error?e.message:'A sincronização falhou.');
-    }finally{setSending(false);}
+      setFeedback(collected ? 'Partidas salvas no servidor. Falha ao carregar o histórico no painel.'
+        : e instanceof Error?e.message:'A sincronização falhou.');
+    }finally{
+      progressController.abort();
+      window.clearInterval(progressTimer);
+      setSyncProgress(null);
+      setSending(false);
+    }
   }
 
   useEffect(()=>{
-    if(!ready||busy)return;
+    const tag=book.active;
+    if(!ready||busy||sending||processing.current||!tag||server?.player_tag!==tag
+      ||!server.configured||server.last_attempt||firstSync.current.has(tag))return;
+    void sync();
+  },[ready,busy,sending,book.active,server]);
+
+  useEffect(()=>{
+    if(!ready||busy||sending)return;
     let cancelled=false;
     let checking=false;
     const controller=new AbortController();
@@ -135,19 +188,10 @@ export function useDashboard() {
         const attempt=status.last_attempt;
         const revision=[status.player_tag,attempt?.id,attempt?.status,attempt?.finished_at].join(':');
         if(status.player_tag!==book.active||!attempt||serverRevision.current===revision||processing.current)return;
-        const previous=await loadLocal(book.active);
-        params.set('after',String(previous.serverRunId??0));
-        const history=await collectionRequest<{run_id:number;snapshot:unknown}>(
-          '/api/collection/history?'+params,{signal:controller.signal},
-        );
-        if(cancelled||processing.current)return;
         processing.current=true;
         try{
-          const latest=await loadLocal(book.active);
-          if(cancelled)return;
-          const merged=fromSnapshot(history.snapshot,latest);
-          await persist({...merged,serverRunId:history.run_id});
-          serverRevision.current=revision;
+          await loadHistory(tag,controller.signal);
+          if(!cancelled)serverRevision.current=revision;
         }finally{processing.current=false;}
       }catch(e){
         if(!cancelled)setServerError(e instanceof Error?e.message:'A coleta do servidor está indisponível.');
@@ -158,7 +202,7 @@ export function useDashboard() {
     const timer=window.setInterval(()=>void refresh(),30000);
     document.addEventListener('visibilitychange',refresh);
     return()=>{cancelled=true;controller.abort();window.clearInterval(timer);document.removeEventListener('visibilitychange',refresh);};
-  },[ready,busy,book]);
+  },[ready,busy,book,sending]);
   async function saveProgress(record:Progress){
     if(!book.active)throw new Error('Cadastre uma conta em Contas e dados.');
     if(busy||processing.current)throw new Error('Aguarde a atualização em andamento.');
@@ -195,7 +239,7 @@ export function useDashboard() {
   }
 
   return {section, filters, setFilters, book, local, period, setPeriod, server, serverError,
-    sending, feedback, setFeedback, ready, busy, menuOpen, setMenuOpen, rankedOnly, setRankedOnly,
+    sending, syncProgress, feedback, setFeedback, ready, busy, menuOpen, setMenuOpen, rankedOnly, setRankedOnly,
     setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveProgress, saveEvidence,
     refreshCollection:()=>refreshServer.current()};
 }

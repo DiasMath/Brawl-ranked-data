@@ -12,7 +12,7 @@ export function Accounts({ tag, accounts, data, busy, feedback, onExport, onSele
   const active=accounts.find(a=>a.tag===tag);
   return <div className="stack">
     <section className="card account-card"><div className="card-head">
-      <div><h2><UserRound size={17}/> Contas monitoradas</h2><p>O servidor usa esta lista para coletar as partidas.</p></div>
+      <div><h2><UserRound size={17}/> Contas monitoradas</h2><p>O painel sincroniza a conta selecionada.</p></div>
       <button className="button small primary" disabled={busy||adding} onClick={()=>{setAdding(true);setError('');}}>
         <Plus size={15}/> Adicionar jogador</button>
     </div>

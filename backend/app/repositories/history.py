@@ -5,7 +5,7 @@ from ..domain import integer, iso, obj, string, utc_now
 
 def latest_run(cursor, player, successful=False):
     cursor.execute(
-        "SELECT id, started_at, finished_at, status, received, added, message "
+        "SELECT id, started_at, finished_at, status, received, added, message, phase, processed "
         "FROM update_log WHERE player_tag=%s " + ("AND status='success' " if successful else "") +
         "ORDER BY id DESC LIMIT 1", (player,),
     )

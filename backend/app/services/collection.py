@@ -36,6 +36,12 @@ def save_battle(cursor, battle):
     return int(not existing)
 
 
+def publish_progress(connection, cursor, run_id, phase, received=None, processed=None):
+    cursor.execute("UPDATE update_log SET phase=%s, received=%s, processed=%s WHERE id=%s",
+                   (phase, received, processed, run_id))
+    connection.commit()
+
+
 def collect_account(player, *, scheduled=False):
     lock_name = "brawl:sync"
     with database() as (connection, cursor):
@@ -58,7 +64,8 @@ def collect_account(player, *, scheduled=False):
                 "UPDATE update_log SET status='error', finished_at=%s, message='Atualização interrompida' "
                 "WHERE player_tag=%s AND status='running'", (utc_now(), player)
             )
-            cursor.execute("INSERT INTO update_log (player_tag, started_at, status) VALUES (%s,%s,'running') RETURNING id",
+            cursor.execute("INSERT INTO update_log (player_tag, started_at, status, phase) "
+                           "VALUES (%s,%s,'running','profile') RETURNING id",
                            (player, utc_now()))
             run_id = cursor.fetchone()["id"]
             connection.commit()
@@ -69,12 +76,14 @@ def collect_account(player, *, scheduled=False):
                 with official_client(key) as client:
                     path = "players/%23" + player[1:]
                     profile = fetch(client, path)
+                    publish_progress(connection, cursor, run_id, "battlelog")
                     log = fetch(client, path + "/battlelog")
                 if profile.get("tag") != player or not isinstance(profile.get("name"), str):
                     raise CollectionError(502, "O perfil retornado não corresponde à conta configurada.")
                 if not isinstance(log.get("items"), list):
                     raise CollectionError(502, "A resposta não contém o histórico esperado.")
                 received = len(log["items"])
+                publish_progress(connection, cursor, run_id, "saving", received, 0)
                 try:
                     battles = [parse_battle(item, player) for item in log["items"]]
                 except (KeyError, AttributeError, TypeError, ValueError) as exc:
@@ -86,26 +95,29 @@ def collect_account(player, *, scheduled=False):
                 )
                 observed_at = utc_now()
                 added = 0
-                for battle in battles:
-                    inserted = save_battle(cursor, battle)
-                    added += inserted
-                    observed = bool(inserted and previous_success and
-                                    previous_success["started_at"] <= battle["played_at"] <= observed_at)
-                    cursor.execute(
-                        "INSERT INTO battle_collection (battle_id, first_seen_at, delay_observed, last_run_id) "
-                        "VALUES (%s,%s,%s,%s) ON CONFLICT (battle_id) DO UPDATE SET last_run_id=EXCLUDED.last_run_id",
-                        (battle["id"], observed_at, observed, run_id),
-                    )
+                with database() as (progress_connection, progress_cursor):
+                    for processed, battle in enumerate(battles, 1):
+                        inserted = save_battle(cursor, battle)
+                        added += inserted
+                        observed = bool(inserted and previous_success and
+                                        previous_success["started_at"] <= battle["played_at"] <= observed_at)
+                        cursor.execute(
+                            "INSERT INTO battle_collection (battle_id, first_seen_at, delay_observed, last_run_id) "
+                            "VALUES (%s,%s,%s,%s) ON CONFLICT (battle_id) DO UPDATE SET last_run_id=EXCLUDED.last_run_id",
+                            (battle["id"], observed_at, observed, run_id),
+                        )
+                        if processed % 5 == 0 or processed == received:
+                            publish_progress(progress_connection, progress_cursor, run_id, "saving", received, processed)
                 if previous_success and len(battles) >= 25 and added == len(battles):
                     cursor.execute(
                         "INSERT INTO collection_state (player_tag, last_possible_gap) VALUES (%s,%s) "
                         "ON CONFLICT (player_tag) DO UPDATE SET last_possible_gap=EXCLUDED.last_possible_gap", (player, observed_at),
                     )
                 record_profile_reading(cursor, player, run_id, observed_at, profile)
-                cursor.execute("UPDATE update_log SET finished_at=%s, status='success', received=%s, added=%s "
-                               "WHERE id=%s", (utc_now(), received, added, run_id))
+                cursor.execute("UPDATE update_log SET finished_at=%s, status='success', received=%s, added=%s, processed=%s "
+                               "WHERE id=%s", (utc_now(), received, added, received, run_id))
                 connection.commit()
-                return {"received": received, "added": added}
+                return {"run_id": run_id, "received": received, "added": added}
             except (CollectionError, psycopg.Error) as exc:
                 connection.rollback()
                 message = str(exc.detail) if isinstance(exc, CollectionError) else "Falha de persistência no PostgreSQL."

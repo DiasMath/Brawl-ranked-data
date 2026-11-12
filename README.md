@@ -71,9 +71,9 @@ Na primeira execução, o comando cria `backend/.venv` usando `py -3.12` e insta
 
 Em seguida, o comando abre duas janelas, uma com os logs do FastAPI na porta 8787 e outra com os logs do Next.js na porta 3000. Para encerrar o ambiente, pressione `Ctrl+C` em cada janela. Você também pode iniciar os dois serviços diretamente com `.\Iniciar-Dev.ps1`.
 
-Abra `http://127.0.0.1:3000` e entre com `BRAWL_SITE_USER` e `BRAWL_SITE_PASSWORD` de `frontend/.env.development.local`. Em **Contas e dados**, adicione cada jogador pela tag e clique em **Sincronizar agora**. Se precisar confirmar que o FastAPI subiu, acesse `http://127.0.0.1:8787/health`.
+Abra `http://127.0.0.1:3000` e entre com `BRAWL_SITE_USER` e `BRAWL_SITE_PASSWORD` de `frontend/.env.development.local`. Em **Contas e dados**, adicione um jogador pela tag. Com a chave configurada, a primeira consulta da conta selecionada começa automaticamente. Use **Sincronizar agora** para buscar uma atualização. Se precisar confirmar que o FastAPI subiu, acesse `http://127.0.0.1:8787/health`.
 
-O ambiente local começa em modo manual. Para coletar todas as contas de uma vez, execute a partir de `backend/`:
+O ambiente local começa sem agendamento. Para executar o coletor em segundo plano, adicione `BRAWL_SCHEDULED_PLAYER_TAG` ao arquivo do backend com a tag de uma conta já cadastrada. Execute o comando a partir de `backend/`.
 
 ```powershell
 .\.venv\Scripts\python.exe -m dotenv -f .env.development.local run -- .\.venv\Scripts\python.exe -m app.jobs.collect
@@ -121,7 +121,7 @@ Para migrar um deploy existente, configure `BRAWL_CREDENTIAL_KEY` no Render, rem
 
 #### Coleta agendada opcional no Render
 
-Crie um **Cron Job** no mesmo repositório. Use a mesma `DATABASE_URL`, `BRAWL_CREDENTIAL_KEY` e `BRAWL_ENVIRONMENT=production` no Cron Job e no Web Service. O cron lê do banco a lista de jogadores e a chave da Supercell cadastrada em produção. Autorize na chave a saída dos serviços que farão consultas. O token `BRAWL_SERVICE_TOKEN` é usado somente na Vercel e no Web Service.
+Crie um **Cron Job** no mesmo repositório. Use a mesma `DATABASE_URL`, `BRAWL_CREDENTIAL_KEY` e `BRAWL_ENVIRONMENT=production` no Cron Job e no Web Service. Defina `BRAWL_SCHEDULED_PLAYER_TAG` no Cron Job para escolher uma única conta cadastrada. Sem essa variável, o job encerra sem consultar a Supercell. O cron usa a chave cadastrada em produção. Autorize na chave a saída dos serviços que farão consultas. O token `BRAWL_SERVICE_TOKEN` é usado somente na Vercel e no Web Service.
 
 | Campo | Valor |
 | --- | --- |
@@ -160,9 +160,11 @@ Os retratos, mapas e a meta histórica ficam em `frontend/assets/`. O comando `n
 
 ## Contas e dados
 
-Em **Contas e dados**, cadastre cada jogador pela tag. O painel mostra a tag até a primeira coleta bem-sucedida. A partir daí, usa o nome do perfil retornado pela Supercell. O seletor no topo troca a conta usada nas telas e lembra a seleção neste navegador. A tela mostra a última coleta, a partida mais recente recebida, atraso observado, falhas e histórico de atualizações da conta ativa. **Sincronizar agora** consulta a Supercell. **Exportar histórico** baixa uma cópia. A primeira coleta parte da janela recente da API e acumula as partidas recebidas daí em diante.
+Em **Contas e dados**, cadastre cada jogador pela tag. O painel mostra a tag até a primeira coleta bem-sucedida. A partir daí, usa o nome do perfil retornado pela Supercell. O seletor no topo troca a conta usada nas telas e lembra a seleção neste navegador. A tela mostra a última coleta, a partida mais recente recebida, atraso observado, falhas e histórico de atualizações da conta ativa. **Sincronizar agora** consulta apenas a conta selecionada. **Exportar histórico** baixa uma cópia.
 
-Leituras manuais de rank, pontos e evidências continuam no navegador onde foram registradas. O histórico de outra origem, incluindo o antigo endereço `chatgpt.site`, fica onde foi registrado. A meta histórica permanece identificada por período e amostra. A coleta agendada percorre todas as contas cadastradas. Se a Supercell retornar HTTP 429, a pausa vale para todas as contas que usam a mesma integração.
+A Supercell fornece uma janela de até 25 partidas recentes por consulta. O banco acumula as partidas novas conforme são coletadas. O histórico mostra todos os modos por padrão e pode ser filtrado para exibir só as partidas identificadas como Ranqueado. Análises de Ranqueado dependem das partidas e campos que a fonte fornece.
+
+Leituras manuais de rank, pontos e evidências continuam no navegador onde foram registradas. O histórico de outra origem, incluindo o antigo endereço `chatgpt.site`, fica onde foi registrado. A meta histórica permanece identificada por período e amostra. Se a Supercell retornar HTTP 429, a pausa vale para todas as contas que usam a mesma integração.
 
 ## Referências
 

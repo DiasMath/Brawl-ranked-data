@@ -786,3 +786,17 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
   .account-switcher select { max-width:115px; }
   .account-switcher .profile-icon,.top-actions .top-button span { display:none; }
 }
+.sync-progress {
+  position: fixed; z-index: 20;
+  left: max(12px, env(safe-area-inset-left)); bottom: max(12px, env(safe-area-inset-bottom));
+  width: min(320px, calc(100vw - 24px)); display: grid; gap: 6px; padding: 12px 14px;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: 0 8px 28px #0007; font-size: 12px;
+}
+.sync-progress strong { display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
+.sync-progress strong svg { flex: none; }
+.sync-progress small { color: var(--muted); }
+.sync-progress progress { width: 100%; height: 7px; accent-color: var(--lavender); }
+@media (prefers-reduced-motion: no-preference) {
+  .sync-progress svg { animation: spin .8s linear infinite; }
+}
