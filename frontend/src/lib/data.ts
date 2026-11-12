@@ -7,8 +7,14 @@ export type Battle = {
   ranked: boolean; result: 'victory' | 'defeat' | 'draw' | null; duration_seconds: number | null;
   player_brawler: string | null; rank_label: string | null; rank_score: number | null; season: string | null;
   bans: string[] | null; players: Participant[];
+  star_player?: { tag: string|null; name: string|null } | null; placement?: number|null;
   rank_reference: string | null; score_reference: string | null; season_reference: string | null; bans_reference: string | null;
   rank_source: string | null; score_source: string | null; season_source: string | null; bans_source: string | null;
+};
+export type Equipment = { id: number|null; name: string };
+export type OwnedBrawler = {
+  name: string; power: number; id?: number|null; rank?: number|null; trophies?: number|null; highest_trophies?: number|null;
+  gadgets?: Equipment[]|null; star_powers?: Equipment[]|null; gears?: Equipment[]|null;
 };
 export type Update = {
   id: number; started_at: string; finished_at: string | null; status: 'success' | 'error' | 'running';
@@ -24,7 +30,9 @@ export type Dataset = {
   schema: 1; exported_at: string; player_tag: string; profile: {
     name: string; fetched_at: string; trophies: number | null; icon_id?: number | null;
     rank_label?: string | null; rank_score?: number | null; season?: string | null;
-    owned_brawlers?: { name: string; power: number }[];
+    highest_trophies?: number|null; exp_level?: number|null; victories_3v3?: number|null;
+    solo_victories?: number|null; duo_victories?: number|null; club?: {tag:string|null; name:string|null}|null;
+    owned_brawlers?: OwnedBrawler[];
   } | null;
   matches: Battle[]; updates: Update[]; meta: Meta[];
 };

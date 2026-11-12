@@ -1,16 +1,24 @@
 import { useState } from 'react';
 import { Radio, RefreshCw } from 'lucide-react';
-import { number } from '@/lib/data';
+import { dateTime, number } from '@/lib/data';
 import { collectionRequest } from '@/lib/live';
 import type { LiveReport } from '@/lib/live';
 
 type SampleResult = { players: number; failed: number; received: number; added: number; report: LiveReport };
 
-export function SampleCollection({ onCollected, notify }: { onCollected: (report: LiveReport) => void; notify: (message: string) => void }) {
+export function SampleCollection({ tracking, onCollected, notify }: {
+  tracking?: LiveReport['tracking']; onCollected: (report: LiveReport) => void; notify: (message: string) => void;
+}) {
   const [loading, setLoading] = useState(false);
   return <section className="card account-card">
     <div className="card-head"><div><h2><Radio size={17}/> Amostra de outros jogadores</h2>
-      <p>Consulte até cinco jogadores da classificação global ou informe uma tag pública específica.</p></div></div>
+      <p>Consulta manual de até cinco jogadores da classificação global ou de uma tag pública específica.</p></div></div>
+    {tracking&&<div className="collector-readings">
+      <div><span>Jogadores na fila</span><strong>{number(tracking.queued)}</strong></div>
+      <div><span>Perfis consultados</span><strong>{number(tracking.checked)}</strong></div>
+      <div><span>Com Elo ≥ {number(tracking.minimum_elo)}</span><strong>{number(tracking.qualified)}</strong></div>
+      <div><span>Última rodada da fila</span><strong>{dateTime(tracking.last_run_at)}</strong></div>
+    </div>}
     <form className="form-grid tracked-account-form" onSubmit={async event => {
       event.preventDefault();
       if (loading) return;

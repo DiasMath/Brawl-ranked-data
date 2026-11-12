@@ -166,6 +166,20 @@ A Supercell fornece uma janela de até 25 partidas recentes por consulta. O banc
 
 Em **Meta → Amostra de outros jogadores**, atualize até cinco históricos da classificação global da Supercell ou consulte uma tag pública específica. A coleta guarda as ranqueadas 3×3 completas em uma amostra independente das contas monitoradas. O painel calcula picks, win rate, confrontos e sinergias por mapa em janelas de hoje e sete dias. O histórico padrão da API mostra os times finais. As taxas de ban exigem uma fonte com listas explícitas.
 
+### Coleta recorrente da Meta
+
+O coletor alimenta uma fila com até 200 tags da classificação global de troféus e a expande com participantes das ranqueadas observadas. Confirma o Elo em cada perfil antes de consultar o histórico. O recorte **Alto nível · 7 dias** considera partidas completas observadas por jogadores com Elo igual ou superior a `BRAWL_META_MIN_ELO` (padrão `8250`). Esse Elo é o do perfil no momento da consulta. A tela mostra quantos perfis foram verificados, quantos se qualificaram e quando a fila rodou pela última vez.
+
+Para executar uma rodada no Windows, use o ambiente de desenvolvimento a partir de `backend/`.
+
+```powershell
+.\.venv\Scripts\python.exe -m dotenv -f .env.development.local run -- .\.venv\Scripts\python.exe -m app.jobs.collect_meta
+```
+
+Repita o comando pelo Agendador de Tarefas do Windows para coletar enquanto o computador estiver ligado. Para rodar no Cron Job existente do Render, defina `BRAWL_META_COLLECT=1` nas variáveis do job. Use o mesmo `BRAWL_META_MIN_ELO` no job e no Web Service se ajustar o corte. Cada rodada consulta até `BRAWL_META_PLAYERS_PER_RUN` perfis, padrão 10, e até um histórico por perfil elegível. A classificação global é renovada a cada seis horas e os HTTP 429 aplicam o intervalo de espera compartilhado.
+
+Na **Visão geral**, expanda **Perfil e coleção de brawlers** para ver recordes, nível, vitórias, clube, troféus e equipamentos do perfil quando a API enviar esses campos. O detalhe de partida mostra craque e colocação de Combate quando presentes e conserva o JSON original para consulta.
+
 Leituras manuais de rank, pontos e evidências continuam no navegador onde foram registradas. O histórico de outra origem, incluindo o antigo endereço `chatgpt.site`, fica onde foi registrado. A meta histórica permanece identificada por período e amostra. Se a Supercell retornar HTTP 429, a pausa vale para todas as contas que usam a mesma integração.
 
 ## Referências

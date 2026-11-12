@@ -14,7 +14,12 @@ def latest_run(cursor, player, successful=False):
 
 
 def retry_until(cursor):
-    cursor.execute("SELECT MAX(retry_until) AS retry_until FROM collection_state")
+    cursor.execute("""
+        SELECT GREATEST(
+            (SELECT MAX(retry_until) FROM collection_state),
+            (SELECT retry_until FROM meta_tracker_state WHERE singleton)
+        ) AS retry_until
+    """)
     return (cursor.fetchone() or {}).get("retry_until")
 
 
@@ -55,15 +60,20 @@ def dataset(cursor, player, after_run=0, include_archive=False):
     raw_battles = {}
     for match in matches:
         item = json.loads(match.pop("raw"))
+        battle = obj(item.get("battle"))
         if include_archive:
             raw_battles[match["id"]] = item
-        match["trophy_change"] = integer(obj(item.get("battle")).get("trophyChange")) if match["api_type"] == "ranked" else None
+        match["trophy_change"] = integer(battle.get("trophyChange")) if match["api_type"] == "ranked" else None
+        star = obj(battle.get("starPlayer"))
+        match["star_player"] = {"tag": string(star.get("tag")), "name": string(star.get("name"))} if star else None
+        mode = (match["mode"] or "").lower()
+        match["placement"] = integer(battle.get("rank")) if "showdown" in mode else None
         match["first_seen_at"] = iso(match["first_seen_at"])
         match["delay_observed"] = bool(match["delay_observed"])
         match["played_at"] = iso(match["played_at"])
         match["ranked"] = bool(match["ranked"])
         if match["ranked"]:
-            rank, score, season = ranked_reading(obj(item.get("battle")))
+            rank, score, season = ranked_reading(battle)
             for field, value in (("rank_label", rank), ("rank_score", score), ("season", season)):
                 if match[field] is None:
                     match[field] = value
@@ -93,12 +103,25 @@ def dataset(cursor, player, after_run=0, include_archive=False):
     for brawler in brawlers if isinstance(brawlers, list) else []:
         name, power = string(obj(brawler).get("name")), integer(obj(brawler).get("power"))
         if name and power is not None:
-            owned.append({"name": name, "power": power})
+            owned.append({
+                "name": name, "power": power, "id": integer(brawler.get("id")),
+                "trophies": integer(brawler.get("trophies")), "highest_trophies": integer(brawler.get("highestTrophies")),
+                "rank": integer(brawler.get("rank")),
+                "gadgets": equipment(brawler.get("gadgets")), "star_powers": equipment(brawler.get("starPowers")),
+                "gears": equipment(brawler.get("gears")),
+            })
+    club = obj(raw_profile.get("club"))
     snapshot = {
         "schema": 1, "exported_at": iso(utc_now()), "player_tag": player,
         "profile": {"name": profile["player_name"], "fetched_at": iso(profile["fetched_at"]),
                     "trophies": integer(raw_profile.get("trophies")), "icon_id": integer(obj(raw_profile.get("icon")).get("id")),
                     "rank_label": profile_rank, "rank_score": profile_score, "season": profile_season,
+                    "highest_trophies": integer(raw_profile.get("highestTrophies")),
+                    "exp_level": integer(raw_profile.get("expLevel")),
+                    "victories_3v3": integer(raw_profile.get("3vs3Victories")),
+                    "solo_victories": integer(raw_profile.get("soloVictories")),
+                    "duo_victories": integer(raw_profile.get("duoVictories")),
+                    "club": {"tag": string(club.get("tag")), "name": string(club.get("name"))} if club else None,
                     "owned_brawlers": owned} if profile else None,
         "matches": matches, "updates": updates, "meta": meta,
     }
@@ -113,3 +136,10 @@ def dataset(cursor, player, after_run=0, include_archive=False):
         ]
         snapshot["raw"] = raw_battles
     return snapshot
+
+
+def equipment(value):
+    if not isinstance(value, list):
+        return None
+    return [{"id": integer(item.get("id")), "name": name}
+            for entry in value if (item := obj(entry)) and (name := string(item.get("name")))]

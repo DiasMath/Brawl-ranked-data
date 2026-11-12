@@ -30,22 +30,32 @@ export default function Dashboard() {
     setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveProgress, saveEvidence, refreshCollection} = useDashboard();
   const dismissFeedback=useCallback(()=>setFeedback(''),[setFeedback]);
   const [report,setReport]=useState<LiveReport|null>(null);
-  const metaRead=useRef<AbortController|null>(null);
+  const metaRevision=useRef(0);
   const firstMetaRead=useRef(true);
   const loadMeta=section==='meta'||section==='draft'||section==='draftlab';
   useEffect(()=>{
     if(!loadMeta)return;
     const controller=new AbortController();
-    metaRead.current=controller;
-    void collectionRequest<LiveReport>('/api/meta/sample',{signal:controller.signal})
-      .then(data=>{
-        if(controller.signal.aborted)return;
+    let pending=false;
+    const refresh=async()=>{
+      if(pending||controller.signal.aborted||document.visibilityState!=='visible')return;
+      pending=true;
+      const revision=metaRevision.current;
+      try{
+        const data=await collectionRequest<LiveReport>('/api/meta/sample',{signal:controller.signal});
+        if(controller.signal.aborted||metaRevision.current!==revision)return;
         setReport(data);
-        if(firstMetaRead.current&&data.windows.week)setPeriod('week');
-        firstMetaRead.current=false;
-      })
-      .catch(()=>{});
-    return ()=>controller.abort();
+        if(firstMetaRead.current&&(data.windows.competitive||data.windows.week)){
+          setPeriod(data.windows.competitive?'competitive':'week');
+          firstMetaRead.current=false;
+        }
+      }catch{
+        // A referência histórica fica disponível durante falhas de leitura.
+      }finally{pending=false;}
+    };
+    void refresh();
+    const timer=window.setInterval(()=>void refresh(),60_000);
+    return ()=>{controller.abort();window.clearInterval(timer);};
   },[loadMeta]);
   const metaFilters={...filters,start:'',end:'',rank_label:'',season:period==='reference'?filters.season:''};
   const ranked=useMemo(()=>filtered(data.matches,filters,true),[data.matches,filters]);
@@ -155,12 +165,12 @@ export default function Dashboard() {
           </Card>
         </div>}
         {section==='meta'&&<div className="stack">
-          <SampleCollection notify={setFeedback} onCollected={sample=>{
-            metaRead.current?.abort();
+          <SampleCollection tracking={report?.tracking} notify={setFeedback} onCollected={sample=>{
+            metaRevision.current++;
             firstMetaRead.current=false;
             setReport(sample);
             if(sample.windows.week){
-              setPeriod('week');
+              setPeriod(sample.windows.competitive?'competitive':'week');
               setFilters(old=>({...old,map_name:'',player_brawler:'',season:'',rank_label:''}));
             }
           }}/>

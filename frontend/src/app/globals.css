@@ -812,3 +812,5 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
 @media (prefers-reduced-motion: reduce) {
   .feedback-toast-time { animation: none; }
 }
+.profile-details > summary { cursor: pointer; padding: 12px 14px; font-weight: 600; }
+.profile-details > .detail-grid { margin: 0 14px 12px; }

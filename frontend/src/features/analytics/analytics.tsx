@@ -5,6 +5,7 @@ import { dateTime, groupStats, localDay, modeName, normalize, number, percent, r
 import { AccountIcon, findMap, MapImage, ModeIcon, Portrait, RankArt, TrophyArt } from '@/components/game';
 import type { Account, LocalData } from '@/lib/browser-store';
 import { profileProgress, progressSeries, progressionWindow, RankGoal, rankProgress, TrendChart } from '@/features/analytics/progression';
+import { ProfileDetails } from '@/features/analytics/profile-details';
 import { byId, ordered, publicPicks, usePublicStats } from '@/lib/scouting';
 import type { PublicStats, ScoutingRow } from '@/lib/scouting';
 import { LiveMeta } from '@/lib/live';
@@ -161,6 +162,7 @@ export function Overview({ local, account, matches, filters, onSettings, onProgr
     <div className="two-col equal"><Ranking rows={topMaps} kind="map" title="Seus melhores mapas" short/>
       <Ranking rows={topBrawlers} kind="brawler" title="Seus melhores brawlers" short/></div>
     <PublicSpotlight onDraft={onDraft} onMeta={onMeta}/>
+    {profile&&<ProfileDetails profile={profile}/>}
   </div>;
 }
 

@@ -129,6 +129,22 @@ CREATE TABLE IF NOT EXISTS meta_sample_battles (
 );
 
 CREATE INDEX IF NOT EXISTS meta_sample_time ON meta_sample_battles (played_at);
+ALTER TABLE meta_sample_battles ADD COLUMN IF NOT EXISTS observed_elo INT;
+
+CREATE TABLE IF NOT EXISTS meta_sample_players (
+  player_tag VARCHAR(20) PRIMARY KEY,
+  next_check_at TIMESTAMP(3) NOT NULL,
+  last_checked_at TIMESTAMP(3),
+  ranked_elo INT
+);
+CREATE INDEX IF NOT EXISTS meta_sample_players_due ON meta_sample_players (next_check_at, player_tag);
+
+CREATE TABLE IF NOT EXISTS meta_tracker_state (
+  singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+  last_seed_at TIMESTAMP(3),
+  last_run_at TIMESTAMP(3),
+  retry_until TIMESTAMP(3)
+);
 
 CREATE TABLE IF NOT EXISTS tracked_accounts (
   player_tag VARCHAR(20) PRIMARY KEY,

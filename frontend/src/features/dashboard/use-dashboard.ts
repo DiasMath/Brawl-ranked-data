@@ -8,7 +8,7 @@ import type { LivePeriod, ServerCollection, SyncProgress } from '@/lib/live';
 import type { Evidence } from '@/features/matches/match-history';
 import type { Section } from './navigation';
 
-const historyVersion=2;
+const historyVersion=3;
 
 export function useDashboard() {
   const [section,setSection]=useState<Section>('overview');

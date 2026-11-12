@@ -65,7 +65,7 @@ export function MetaDashboard({filters,matches,onMap}:{
 }) {
   const [tab,setTab]=useState<'overview'|'map'|'top'>('overview');
   const [metric,setMetric]=useState<Metric>('win');
-  const {period}=useContext(LiveMeta);
+  const {period,report}=useContext(LiveMeta);
   const meta=usePublicStats(null,filters.map_name||null,filters);
   const contexts=meta.index?.contexts.filter(c=>c.map&&c.sets)??[];
   const volume=meta.context?.sets??0;
@@ -123,6 +123,7 @@ export function MetaDashboard({filters,matches,onMap}:{
         metric={metric} limit={10} rows={sample?metaLeaders(sample,volume,metric).filter(r=>!filters.player_brawler||normalize(r.name)===normalize(filters.player_brawler)):[]}
         empty={metric==='ban'?'Nenhuma lista de bans disponível para este recorte.':undefined}/>
     </div>}
+    {period==='competitive'&&<p className="section-note">Partidas observadas em históricos de jogadores com Elo de pelo menos {number(report?.tracking?.minimum_elo??8250)} no perfil consultado.</p>}
     {tab!=='map'&&meta.index&&<p className="section-note">Melhores picks consideram taxa de vitória e tamanho da amostra. Pick rate usa os espaços de escolha.
       {' '}<a href={meta.index.url} target="_blank" rel="noreferrer">{meta.index.source}</a></p>}
   </div>;

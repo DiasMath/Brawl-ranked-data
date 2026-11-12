@@ -2,11 +2,12 @@ import { createContext } from 'react';
 import type { PublicStats } from '@/lib/scouting';
 import type { Update } from '@/lib/data';
 
-export type LivePeriod = 'today' | 'week' | 'patch' | 'reference';
+export type LivePeriod = 'today' | 'week' | 'competitive' | 'patch' | 'reference';
 export type LiveMap = { map: string | null; mode: string | null; sets: number; decisive: number; latest?: string|null; sample: PublicStats };
 export type LiveWindow = { label: string; start: string; end: string; latest: string | null; contexts: LiveMap[] };
 export type LiveReport = {
   patchSince?: string | null;
+  tracking?: { queued: number; checked: number; qualified: number; minimum_elo: number; last_run_at: string|null };
   windows: Partial<Record<Exclude<LivePeriod,'reference'>,LiveWindow>>;
 };
 

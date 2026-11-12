@@ -9,15 +9,16 @@ from ..db import database, prepare_collection
 from ..repositories.accounts import find_player
 from ..services.collection import collect_account
 from ..services.supercell import CollectionError
+from .collect_meta import main as collect_meta
 
 
 LOG = logging.getLogger("brawl.cron")
 
 
-def main():
+def collect_selected():
     requested = os.getenv("BRAWL_SCHEDULED_PLAYER_TAG", "").strip()
     if not requested:
-        LOG.info("Coleta agendada desativada. Defina BRAWL_SCHEDULED_PLAYER_TAG para monitorar uma conta.")
+        LOG.info("Coleta pessoal agendada desativada. Defina BRAWL_SCHEDULED_PLAYER_TAG para monitorar uma conta.")
         return 0
     try:
         collection_environment()
@@ -45,6 +46,13 @@ def main():
     except RuntimeError as exc:
         LOG.error("%s", exc)
         return 1
+
+
+def main():
+    personal_status = collect_selected()
+    if os.getenv("BRAWL_META_COLLECT", "").strip() == "1":
+        return max(personal_status, collect_meta())
+    return personal_status
 
 
 if __name__ == "__main__":

@@ -64,12 +64,14 @@ export function MatchDetail({ match, raw, onClose, onChange }: { match: Battle; 
     <div className="detail-status"><Pill kind={resultTone(match.result)}>{resultName(match.result)}</Pill>
       <Pill kind={match.ranked ? 'accent' : 'neutral'}>{match.ranked ? 'Ranqueado' : match.api_type ?? 'Tipo indisponível'}</Pill>
       {match.duration_seconds !== null && <span>{match.duration_seconds}s</span>}
+      {match.placement!=null&&<span>{number(match.placement)}º lugar</span>}
       {match.trophy_change!=null&&<span>{match.trophy_change>0?'+':''}{match.trophy_change} troféus</span>}</div>
     <dl className="detail-grid">
       <div><dt>Rank</dt><dd>{match.rank_label ?? 'Indisponível'}{match.rank_source && <small>Evidência · {match.rank_reference}</small>}</dd></div>
       <div><dt>Pontos de rank</dt><dd>{match.rank_score === null ? 'Indisponível' : number(match.rank_score)}{match.score_source && <small>Evidência · {match.score_reference}</small>}</dd></div>
       <div><dt>Temporada</dt><dd>{match.season ?? 'Indisponível'}{match.season_source && <small>Evidência · {match.season_reference}</small>}</dd></div>
       <div><dt>Bans</dt><dd>{match.bans === null ? 'Indisponível' : match.bans.join(', ') || 'Nenhum registrado'}{match.bans_source && <small>Evidência · {match.bans_reference}</small>}</dd></div>
+      {(match.star_player?.name||match.star_player?.tag)&&<div><dt>Craque da partida</dt><dd>{match.star_player.name??match.star_player.tag}</dd></div>}
     </dl>
     {groups.length ? groups.map(group => {
       const members = match.players.filter(p => p.team_index === group);

@@ -4,7 +4,8 @@ from datetime import timedelta
 from hashlib import sha256
 from itertools import permutations
 
-from ..domain import encoded, iso, parse_battle, tag, utc_now
+from ..config import meta_min_elo
+from ..domain import encoded, iso, obj, parse_battle, tag
 from .supercell import CollectionError, fetch
 
 
@@ -37,8 +38,8 @@ def sample_battle(item, player):
             [brawler for _, brawler in identities[0]], [brawler for _, brawler in identities[1]], winning_index)
 
 
-def choose_players(client, excluded):
-    response = fetch(client, "rankings/global/players?limit=10")
+def choose_players(client, excluded, *, limit=10, count=5):
+    response = fetch(client, f"rankings/global/players?limit={limit}")
     items = response.get("items")
     if not isinstance(items, list):
         raise CollectionError(502, "A classificação pública veio sem uma lista de jogadores.")
@@ -50,16 +51,34 @@ def choose_players(client, excluded):
             continue
         if player not in excluded and player not in players:
             players.append(player)
-    return players[:5]
+    return players[:count]
+
+
+def player_battlelog(client, player):
+    response = fetch(client, "players/%23" + player[1:] + "/battlelog")
+    items = response.get("items")
+    if not isinstance(items, list):
+        raise CollectionError(502, "A API retornou um histórico inesperado para a amostra.")
+    return items
+
+
+def discovered_players(items):
+    found = set()
+    for item in items:
+        groups = obj(obj(item).get("battle")).get("teams")
+        for team in groups if isinstance(groups, list) else ():
+            for member in team if isinstance(team, list) else ():
+                try:
+                    found.add(tag(obj(member).get("tag")))
+                except ValueError:
+                    continue
+    return found
 
 
 def sample_players(client, players):
     def read(player):
         try:
-            response = fetch(client, "players/%23" + player[1:] + "/battlelog")
-            items = response.get("items")
-            if not isinstance(items, list):
-                raise CollectionError(502, "A API retornou um histórico inesperado para a amostra.")
+            items = player_battlelog(client, player)
         except CollectionError as error:
             return error
         return [row for item in items if (row := sample_battle(item, player)) is not None]
@@ -75,14 +94,19 @@ def sample_players(client, players):
     return {row[0]: row for result in results if isinstance(result, list) for row in result}, len(errors)
 
 
-def save_sample(cursor, battles):
+def save_sample(cursor, battles, observed_elo=None):
     added = 0
     for row in battles.values():
         cursor.execute("""
-            INSERT INTO meta_sample_battles (id, played_at, map_name, mode, team_a, team_b, winner)
-            VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING
-        """, row)
+            INSERT INTO meta_sample_battles (id, played_at, map_name, mode, team_a, team_b, winner, observed_elo)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING
+        """, (*row, observed_elo))
         added += cursor.rowcount
+        if cursor.rowcount == 0 and observed_elo is not None:
+            cursor.execute("""
+                UPDATE meta_sample_battles SET observed_elo=%s
+                WHERE id=%s AND (observed_elo IS NULL OR observed_elo < %s)
+            """, (observed_elo, row[0], observed_elo))
     return added
 
 
@@ -123,19 +147,23 @@ def summarize_context(rows, mode, map_name):
 
 
 def sample_report(cursor):
+    minimum = meta_min_elo()
     cursor.execute("SELECT (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::date AS today")
     today = cursor.fetchone()["today"]
     cursor.execute("""
-        SELECT played_at, map_name, mode, team_a, team_b, winner,
+        SELECT played_at, map_name, mode, team_a, team_b, winner, observed_elo,
                ((played_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo')::date AS day
         FROM meta_sample_battles
         WHERE played_at >= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - INTERVAL '8 days'
     """)
     rows = cursor.fetchall()
     windows = {}
-    for key, label, days in (("today", "Hoje", 0), ("week", "7 dias", 6)):
+    for key, label, days in (("today", "Hoje", 0), ("week", "7 dias", 6),
+                             ("competitive", "Alto nível · 7 dias", 6)):
         start = today - timedelta(days=days)
         selected = [row for row in rows if start <= row["day"] <= today]
+        if key == "competitive":
+            selected = [row for row in selected if (row["observed_elo"] or 0) >= minimum]
         if not selected:
             continue
         groups = defaultdict(list)
@@ -145,4 +173,14 @@ def sample_report(cursor):
         contexts.extend(summarize_context(group, *group_key) for group_key, group in groups.items())
         windows[key] = {"label": label, "start": start.isoformat(), "end": today.isoformat(),
                         "latest": contexts[0]["latest"], "contexts": contexts}
-    return {"windows": windows}
+    cursor.execute("""
+        SELECT COUNT(*) AS queued,
+               COUNT(*) FILTER (WHERE last_checked_at IS NOT NULL) AS checked,
+               COUNT(*) FILTER (WHERE ranked_elo >= %s) AS qualified
+        FROM meta_sample_players
+    """, (minimum,))
+    queue = cursor.fetchone()
+    cursor.execute("SELECT last_run_at FROM meta_tracker_state WHERE singleton")
+    state = cursor.fetchone()
+    return {"windows": windows, "tracking": {**queue, "minimum_elo": minimum,
+                                             "last_run_at": iso(state["last_run_at"]) if state else None}}

@@ -4,9 +4,10 @@ from pydantic import BaseModel, Field
 from ..db import database
 from ..domain import tag, utc_now
 from ..repositories.accounts import list_accounts
-from ..repositories.history import retry_until, remember_retry
+from ..repositories.history import retry_until
 from ..services.credentials import stored_token
 from ..services.meta_sample import choose_players, sample_players, sample_report, save_sample
+from ..services.meta_tracker import enqueue_players, pause_tracker
 from ..services.supercell import CollectionError, official_client
 
 
@@ -50,10 +51,11 @@ def collect_sample(request: SampleRequest):
                     raise CollectionError(502, "A classificação pública veio sem jogadores para a amostra.")
                 battles, failed = sample_players(client, players)
         except CollectionError as error:
-            if error.status_code == 429 and players:
-                remember_retry(cursor, players[0], error)
+            if error.status_code == 429:
+                pause_tracker(cursor, error)
                 connection.commit()
             raise
         added = save_sample(cursor, battles)
+        enqueue_players(cursor, players, utc_now())
         return {"players": len(players), "failed": failed, "received": len(battles), "added": added,
                 "report": sample_report(cursor)}

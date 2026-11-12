@@ -8,7 +8,7 @@ import type { Battle } from '@/lib/data';
 export function MetaPeriods() {
   const { report,period,setPeriod }=useContext(LiveMeta);
   return <div className="periods" aria-label="Janela da meta">
-    {([['today','Hoje'],['week','7 dias'],['patch','Desde o patch'],['reference','Histórico 4–5/11']] as [LivePeriod,string][]).filter(([key])=>key==='reference'||Boolean(report?.windows[key])).map(([key,label])=>
+    {([['competitive','Alto nível · 7 dias'],['today','Hoje'],['week','7 dias'],['patch','Desde o patch'],['reference','Histórico 4–5/11']] as [LivePeriod,string][]).filter(([key])=>key==='reference'||Boolean(report?.windows[key])).map(([key,label])=>
       <button key={key} className={period===key?'selected':''} aria-pressed={period===key} onClick={()=>setPeriod(key)}>{label}</button>)}
   </div>;
 }
