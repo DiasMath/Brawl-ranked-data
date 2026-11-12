@@ -1,0 +1,7 @@
+{
+  "name": "brawl-ranked-data-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "powershell.exe -NoProfile -File Iniciar-Dev.ps1"
+  }
+}

@@ -17,6 +17,7 @@ Painel privado do Ranqueado de Brawl Stars. Use Next.js, FastAPI e PostgreSQL no
 | `render.cron.yaml` | Blueprint opcional para criar o Cron Job pago separadamente |
 | `Preparar-Ambiente.ps1` | Gera as credenciais próprias do painel e preenche os arquivos locais de ambiente |
 | `Iniciar-Backend.ps1` | Executa o FastAPI no Windows com o arquivo do ambiente selecionado |
+| `Iniciar-Dev.ps1` | Abre o FastAPI e o Next.js com um comando na raiz |
 
 ## Desenvolvimento no Windows
 
@@ -52,25 +53,21 @@ Informe a chave de dev e a URL do banco escolhido. O script cria `frontend/.env.
 
 ### Iniciar o painel
 
-Abra dois terminais na raiz. A criação do ambiente virtual e a instalação dos pacotes são necessárias na primeira execução ou quando as dependências mudarem.
-
-**Terminal 1 · FastAPI**
+Na primeira execução, instale as dependências a partir da raiz do projeto.
 
 ```powershell
-cd backend
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-cd ..
-.\Iniciar-Backend.ps1
+py -3.12 -m venv backend/.venv
+.\backend\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt
+npm.cmd --prefix frontend ci
 ```
 
-**Terminal 2 · Next.js**
+Com os arquivos de dev preenchidos e as dependências instaladas, execute o comando na raiz do projeto.
 
 ```powershell
-cd frontend
-npm.cmd ci
-npm.cmd run dev -- --hostname 127.0.0.1
+npm.cmd run dev
 ```
+
+O comando abre duas janelas, uma com os logs do FastAPI na porta 8787 e outra com os logs do Next.js na porta 3000. Para encerrar o ambiente, pressione `Ctrl+C` em cada janela. Você também pode iniciar os dois serviços diretamente com `.\Iniciar-Dev.ps1`.
 
 Abra `http://127.0.0.1:3000` e entre com `BRAWL_SITE_USER` e `BRAWL_SITE_PASSWORD` de `frontend/.env.development.local`. Em **Contas e dados**, adicione cada jogador pela tag e clique em **Sincronizar agora**. Se precisar confirmar que o FastAPI subiu, acesse `http://127.0.0.1:8787/health`.
 
