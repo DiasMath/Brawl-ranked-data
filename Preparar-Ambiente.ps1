@@ -6,12 +6,12 @@
 $ErrorActionPreference = 'Stop'
 if ($Dev) {
     $RenderUrl = 'http://127.0.0.1:8787'
-    $front = Join-Path $PSScriptRoot 'frontend/.env.development.local'
-    $back = Join-Path $PSScriptRoot 'backend/.env.development.local'
+    $envFileName = '.env.development.local'
 } else {
-    $front = Join-Path $PSScriptRoot 'frontend/.env.local'
-    $back = Join-Path $PSScriptRoot 'backend/.env'
+    $envFileName = '.env.production.local'
 }
+$front = Join-Path $PSScriptRoot "frontend/$envFileName"
+$back = Join-Path $PSScriptRoot "backend/$envFileName"
 if ((Test-Path -LiteralPath $front) -or (Test-Path -LiteralPath $back)) {
     throw "Já existe um arquivo de ambiente de destino. Confira $front e $back."
 }
@@ -57,8 +57,7 @@ $utf8 = New-Object System.Text.UTF8Encoding($false)
     'PYTHON_VERSION=3.12.12', "BRAWL_PLAYER_TAG=$PlayerTag", "BRAWL_COLLECTION_INTERVAL_SECONDS=$interval",
     "BRAWL_SERVICE_TOKEN=$shared", "BRAWL_API_TOKEN=$token", "DATABASE_URL=$database"
 ), $utf8)
-if ($Dev) {
-    Write-Host 'Arquivos frontend/.env.development.local e backend/.env.development.local gerados.'
-} else {
-    Write-Host 'Arquivos frontend/.env.local e backend/.env gerados. Use os valores nos painéis da Vercel e do Render.'
+Write-Host "Arquivos frontend/$envFileName e backend/$envFileName gerados."
+if (!$Dev) {
+    Write-Host 'Configure os valores de produção nos painéis da Vercel e do Render.'
 }

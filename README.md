@@ -4,7 +4,7 @@ Painel privado do Ranqueado de Brawl Stars. Use Next.js, FastAPI e PostgreSQL no
 
 | Ambiente | Frontend | Backend | Banco | Chave da Supercell |
 | --- | --- | --- | --- | --- |
-| Desenvolvimento | `http://127.0.0.1:3000` | `http://127.0.0.1:8787` | PostgreSQL local, banco `brawl_ranked_dev` | Autorizada para o IPv4 público da sua conexão |
+| Desenvolvimento | `http://127.0.0.1:3000` | `http://127.0.0.1:8787` | Supabase ou PostgreSQL local | Autorizada para o IPv4 público da sua conexão |
 | Produção | Vercel | Render | PostgreSQL do Supabase | Autorizada para o IPv4 de saída usado pelo backend |
 
 ## Estrutura
@@ -16,12 +16,17 @@ Painel privado do Ranqueado de Brawl Stars. Use Next.js, FastAPI e PostgreSQL no
 | `render.yaml` | Blueprint opcional para a API do Render |
 | `render.cron.yaml` | Blueprint opcional para criar o Cron Job pago separadamente |
 | `Preparar-Ambiente.ps1` | Gera as credenciais próprias do painel e preenche os arquivos locais de ambiente |
+| `Iniciar-Backend.ps1` | Executa o FastAPI no Windows com o arquivo do ambiente selecionado |
 
 ## Desenvolvimento no Windows
 
-Use Python 3.12, Node.js 20.9 ou superior e [PostgreSQL para Windows](https://www.postgresql.org/download/windows/). Abra o PowerShell em `D:\PROJETOS\BRAWL RANKED DATA`.
+Use Python 3.12 e Node.js 20.9 ou superior. Abra o PowerShell em `D:\PROJETOS\BRAWL RANKED DATA`.
 
 ### Banco de desenvolvimento
+
+Para usar Supabase, abra **Connect → Session pooler**, copie a URL da porta `5432`, substitua o campo da senha e inclua `sslmode=require`. Use essa URL em `DATABASE_URL`. Se dev e prod usarem a mesma URL, os dois ambientes compartilham contas e partidas. Use um projeto Supabase separado se quiser isolar os dados.
+
+Para usar o banco na sua máquina, instale o [PostgreSQL para Windows](https://www.postgresql.org/download/windows/).
 
 No pgAdmin, conecte-se ao PostgreSQL local e execute as duas instruções separadamente. Substitua `SUA_SENHA_LOCAL` por uma senha própria para esse usuário.
 
@@ -33,7 +38,7 @@ CREATE ROLE brawl_dev LOGIN PASSWORD 'SUA_SENHA_LOCAL';
 CREATE DATABASE brawl_ranked_dev OWNER brawl_dev;
 ```
 
-Use a URL `postgresql://brawl_dev:SUA_SENHA_LOCAL@127.0.0.1:5432/brawl_ranked_dev`. Se a senha contiver caracteres reservados de URL, como `@` ou `#`, codifique-os na URL. O FastAPI cria as tabelas na primeira execução.
+No banco local, use `postgresql://brawl_dev:SUA_SENHA_LOCAL@127.0.0.1:5432/brawl_ranked_dev`. Para ambas as opções, codifique caracteres reservados da senha na URL, como `@` (`%40`) ou `#` (`%23`). O FastAPI cria as tabelas na primeira execução.
 
 ### Credenciais locais
 
@@ -43,7 +48,7 @@ No [portal da Supercell](https://developer.brawlstars.com/), gere uma chave para
 .\Preparar-Ambiente.ps1 -Dev
 ```
 
-Informe a chave de dev e a URL do PostgreSQL local. O script cria `frontend/.env.development.local` e `backend/.env.development.local`, gera um token de serviço compartilhado e uma senha para o painel local. Os arquivos preenchidos ficam fora do Git. Se deixar a chave vazia, você pode abrir o painel e cadastrar as contas. Preencha `BRAWL_API_TOKEN` e reinicie o FastAPI para sincronizar.
+Informe a chave de dev e a URL do banco escolhido. O script cria `frontend/.env.development.local` e `backend/.env.development.local`, gera um token de serviço compartilhado e uma senha para o painel local. Se já recebeu os arquivos de dev, coloque cada um na pasta indicada e preencha `DATABASE_URL` e `BRAWL_API_TOKEN` no arquivo do backend. Os arquivos preenchidos ficam fora do Git. Sem a chave, o painel abre e aceita cadastros. Preencha a chave e reinicie o FastAPI para sincronizar.
 
 ### Iniciar o painel
 
@@ -55,7 +60,8 @@ Abra dois terminais na raiz. A criação do ambiente virtual e a instalação do
 cd backend
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --env-file .env.development.local --host 127.0.0.1 --port 8787 --reload
+cd ..
+.\Iniciar-Backend.ps1
 ```
 
 **Terminal 2 · Next.js**
@@ -78,7 +84,14 @@ Esse comando também pode ser agendado pelo Agendador de Tarefas do Windows enqu
 
 ## Produção na Vercel e no Render
 
-Configure os valores de produção diretamente nos painéis, com senha e token de serviço próprios de produção. Se precisar gerar esses valores, execute `Preparar-Ambiente.ps1 -RenderUrl https://SEU-SERVICO.onrender.com` sem `-Dev` e use os arquivos gerados `frontend/.env.local` e `backend/.env` como referência para os painéis.
+Configure os valores de produção diretamente nos painéis, com senha e token de serviço próprios de produção. Se você já tem os arquivos antigos com credenciais de produção, renomeie-os localmente.
+
+| Arquivo antigo | Novo nome |
+| --- | --- |
+| `frontend/.env.local` | `frontend/.env.production.local` |
+| `backend/.env` | `backend/.env.production.local` |
+
+Se precisar gerar novos arquivos de produção, execute `.\Preparar-Ambiente.ps1 -RenderUrl https://SEU-SERVICO.onrender.com` sem `-Dev`. Use os valores como referência para os painéis. O Next.js seleciona o arquivo de dev ao executar `npm run dev` e o de produção ao executar `npm run build` ou `npm start`. Para executar o FastAPI no Windows com o arquivo de produção, use `.\Iniciar-Backend.ps1 -Ambiente production`. Essa execução usa o banco de produção se a URL configurada apontar para ele.
 
 ### 1. PostgreSQL
 
@@ -100,7 +113,7 @@ Conecte o repositório ao Render e crie um **Web Service** com runtime **Python*
 | `PYTHON_VERSION` | `3.12.12` |
 | `BRAWL_PLAYER_TAG` | Opcional. Adiciona uma conta inicial na primeira execução |
 | `BRAWL_COLLECTION_INTERVAL_SECONDS` | `300` para exibir o intervalo no painel |
-| `BRAWL_SERVICE_TOKEN` | Valor gerado em `backend/.env` |
+| `BRAWL_SERVICE_TOKEN` | Valor de produção de `backend/.env.production.local` |
 | `DATABASE_URL` | URL do banco com suas credenciais |
 | `BRAWL_API_TOKEN` | Chave da Supercell autorizada para a saída do Render |
 
@@ -130,7 +143,7 @@ Crie um projeto Next.js no mesmo repositório com **Root Directory** em `fronten
 | `BRAWL_BACKEND_URL` | URL HTTPS base do serviço no Render |
 | `BRAWL_SERVICE_TOKEN` | Mesmo valor usado no Render |
 | `BRAWL_SITE_USER` | `brawl` |
-| `BRAWL_SITE_PASSWORD` | Senha gerada em `frontend/.env.local` |
+| `BRAWL_SITE_PASSWORD` | Senha de `frontend/.env.production.local` |
 
 O navegador pede usuário e senha ao abrir a Vercel. A chave da Supercell e a conexão do banco ficam no Render. O navegador consulta a API da Vercel na mesma origem, e a Vercel chama o Render com o token de serviço.
 
