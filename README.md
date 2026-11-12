@@ -164,6 +164,8 @@ Em **Contas e dados**, cadastre cada jogador pela tag. O painel mostra a tag at�
 
 A Supercell fornece uma janela de até 25 partidas recentes por consulta. O banco acumula as partidas novas conforme são coletadas. O histórico mostra todos os modos por padrão e pode ser filtrado para exibir só as partidas identificadas como Ranqueado. Análises de Ranqueado dependem das partidas e campos que a fonte fornece.
 
+Em **Meta → Amostra de outros jogadores**, atualize até cinco históricos da classificação global da Supercell ou consulte uma tag pública específica. A coleta guarda as ranqueadas 3×3 completas em uma amostra independente das contas monitoradas. O painel calcula picks, win rate, confrontos e sinergias por mapa em janelas de hoje e sete dias. O histórico padrão da API mostra os times finais. As taxas de ban exigem uma fonte com listas explícitas.
+
 Leituras manuais de rank, pontos e evidências continuam no navegador onde foram registradas. O histórico de outra origem, incluindo o antigo endereço `chatgpt.site`, fica onde foi registrado. A meta histórica permanece identificada por período e amostra. Se a Supercell retornar HTTP 429, a pausa vale para todas as contas que usam a mesma integração.
 
 ## Referências

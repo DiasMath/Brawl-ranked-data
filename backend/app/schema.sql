@@ -118,6 +118,18 @@ CREATE INDEX IF NOT EXISTS updates_account_time ON update_log (player_tag, start
 CREATE INDEX IF NOT EXISTS meta_account_period ON meta_observations (player_tag, period_start, period_end);
 CREATE INDEX IF NOT EXISTS collection_run ON battle_collection (last_run_id);
 
+CREATE TABLE IF NOT EXISTS meta_sample_battles (
+  id VARCHAR(64) PRIMARY KEY,
+  played_at TIMESTAMP(3) NOT NULL,
+  map_name VARCHAR(150) NOT NULL,
+  mode VARCHAR(50) NOT NULL,
+  team_a INT[] NOT NULL,
+  team_b INT[] NOT NULL,
+  winner SMALLINT CHECK (winner IN (0, 1))
+);
+
+CREATE INDEX IF NOT EXISTS meta_sample_time ON meta_sample_battles (played_at);
+
 CREATE TABLE IF NOT EXISTS tracked_accounts (
   player_tag VARCHAR(20) PRIMARY KEY,
   alias VARCHAR(60),

@@ -3,8 +3,8 @@ import { ArrowDownToLine, History, Plus, UserRound } from 'lucide-react';
 import type { Account, LocalData } from '@/lib/browser-store';
 import { dateTime, number } from '@/lib/data';
 
-export function Accounts({ tag, accounts, data, busy, feedback, onExport, onSelect, onSave }: {
-  tag:string; accounts:Account[]; data:LocalData; busy:boolean; feedback:string; onExport:()=>void;
+export function Accounts({ tag, accounts, data, busy, onExport, onSelect, onSave }: {
+  tag:string; accounts:Account[]; data:LocalData; busy:boolean; onExport:()=>void;
   onSelect:(tag:string)=>void; onSave:(tag:string)=>Promise<void>;
 }) {
   const [adding,setAdding]=useState(false);
@@ -40,7 +40,6 @@ export function Accounts({ tag, accounts, data, busy, feedback, onExport, onSele
         {error&&<p className="feedback" role="alert">{error}</p>}
       </form>}
     </section>
-    {feedback&&<p className="feedback" role="status">{feedback}</p>}
     <section className="card"><div className="card-head"><div><h2><History size={17}/> Histórico de atualizações</h2>
       <p>{active?'Até 100 execuções para '+active.name:'Selecione uma conta monitorada.'}</p></div>
       <button className="button small subtle" disabled={busy||!tag} onClick={onExport}><ArrowDownToLine size={15}/> Exportar histórico</button></div>

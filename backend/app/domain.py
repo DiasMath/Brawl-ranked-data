@@ -40,6 +40,19 @@ def string(value):
     return value.strip() if isinstance(value, str) and value.strip() else None
 
 
+def ranked_reading(data):
+    raw_rank = data.get("rankedRank")
+    rank = string(data.get("rankedRankName")) or string(raw_rank)
+    if rank is None and integer(raw_rank) is not None:
+        rank = str(raw_rank)
+    elo = integer(data.get("rankedElo"))
+    raw_season = data.get("rankedSeason")
+    season = string(raw_season)
+    if season is None and integer(raw_season) is not None:
+        season = str(raw_season)
+    return rank, elo if elo is not None else integer(data.get("rankedScore")), season
+
+
 def bans(value):
     if not isinstance(value, list):
         return None
@@ -88,13 +101,13 @@ def parse_battle(item, account):
     result = string(battle.get("result"))
     draft = obj(battle.get("draft"))
     ban_list = bans(draft.get("bans", battle.get("bans"))) if ranked else None
+    rank, score, season = ranked_reading(battle) if ranked else (None, None, None)
     return {
         "id": key, "player_tag": account, "played_at": played, "event_id": event_id,
         "map_name": string(event.get("map")), "mode": string(battle.get("mode")) or string(event.get("mode")),
         "api_type": raw_type, "ranked": ranked, "result": result if result in RESULTS else None,
         "duration_seconds": integer(battle.get("duration")), "player_brawler_id": integer(owner.get("id")),
-        "player_brawler": string(owner.get("name")), "rank_label": string(battle.get("rankedRank")) if ranked else None,
-        "rank_score": integer(battle.get("rankedScore")) if ranked else None,
-        "season": string(battle.get("rankedSeason")) if ranked else None,
+        "player_brawler": string(owner.get("name")), "rank_label": rank,
+        "rank_score": score, "season": season,
         "bans": encoded(ban_list) if ban_list is not None else None, "raw": encoded(item), "players": players,
     }

@@ -1,10 +1,8 @@
-from datetime import timedelta
-
 import psycopg
 
 from ..db import database
-from ..domain import encoded, integer, parse_battle, string, utc_now
-from ..repositories.history import latest_run, retry_until
+from ..domain import encoded, integer, parse_battle, ranked_reading, utc_now
+from ..repositories.history import latest_run, remember_retry, retry_until
 from .credentials import stored_token
 from .supercell import CollectionError, fetch, official_client
 
@@ -122,11 +120,7 @@ def collect_account(player, *, scheduled=False):
                 connection.rollback()
                 message = str(exc.detail) if isinstance(exc, CollectionError) else "Falha de persistência no PostgreSQL."
                 if isinstance(exc, CollectionError) and exc.status_code == 429:
-                    retry = utc_now() + timedelta(seconds=int((exc.headers or {}).get("Retry-After", 600)))
-                    cursor.execute(
-                        "INSERT INTO collection_state (player_tag, retry_until) VALUES (%s,%s) "
-                        "ON CONFLICT (player_tag) DO UPDATE SET retry_until=EXCLUDED.retry_until", (player, retry),
-                    )
+                    remember_retry(cursor, player, exc)
                 cursor.execute("UPDATE update_log SET finished_at=%s, status='error', received=%s, message=%s "
                                "WHERE id=%s", (utc_now(), received, message, run_id))
                 connection.commit()
@@ -137,10 +131,8 @@ def collect_account(player, *, scheduled=False):
 
 
 def record_profile_reading(cursor, player, run_id, at, profile):
-    rank = profile.get("rankedRank")
-    rank = string(rank) or (str(rank) if integer(rank) is not None else None)
-    readings = (integer(profile.get("trophies")), integer(profile.get("rankedScore")), rank,
-                string(profile.get("rankedSeason")))
+    rank, score, season = ranked_reading(profile)
+    readings = (integer(profile.get("trophies")), score, rank, season)
     if not any(value is not None for value in readings[:3]):
         return
     cursor.execute("SELECT trophies, rank_score, rank_label, season FROM profile_readings "

@@ -1,6 +1,7 @@
+from datetime import timedelta
 import json
 
-from ..domain import integer, iso, obj, string, utc_now
+from ..domain import integer, iso, obj, ranked_reading, string, utc_now
 
 
 def latest_run(cursor, player, successful=False):
@@ -15,6 +16,15 @@ def latest_run(cursor, player, successful=False):
 def retry_until(cursor):
     cursor.execute("SELECT MAX(retry_until) AS retry_until FROM collection_state")
     return (cursor.fetchone() or {}).get("retry_until")
+
+
+def remember_retry(cursor, player, error):
+    until = utc_now() + timedelta(seconds=int((error.headers or {}).get("Retry-After", 600)))
+    cursor.execute(
+        "INSERT INTO collection_state (player_tag, retry_until) VALUES (%s,%s) "
+        "ON CONFLICT (player_tag) DO UPDATE SET retry_until=EXCLUDED.retry_until",
+        (player, until),
+    )
 
 
 def dataset(cursor, player, after_run=0, include_archive=False):
@@ -52,6 +62,11 @@ def dataset(cursor, player, after_run=0, include_archive=False):
         match["delay_observed"] = bool(match["delay_observed"])
         match["played_at"] = iso(match["played_at"])
         match["ranked"] = bool(match["ranked"])
+        if match["ranked"]:
+            rank, score, season = ranked_reading(obj(item.get("battle")))
+            for field, value in (("rank_label", rank), ("rank_score", score), ("season", season)):
+                if match[field] is None:
+                    match[field] = value
         match["bans"] = json.loads(match["bans"]) if match["bans"] is not None else None
         match["players"] = []
     cursor.execute(f"""
@@ -72,6 +87,7 @@ def dataset(cursor, player, after_run=0, include_archive=False):
                    "FROM meta_observations WHERE player_tag=%s ORDER BY period_end DESC, id DESC", (player,))
     meta = cursor.fetchall()
     raw_profile = json.loads(profile["raw"]) if profile else {}
+    profile_rank, profile_score, profile_season = ranked_reading(raw_profile)
     brawlers = raw_profile.get("brawlers")
     owned = []
     for brawler in brawlers if isinstance(brawlers, list) else []:
@@ -82,6 +98,7 @@ def dataset(cursor, player, after_run=0, include_archive=False):
         "schema": 1, "exported_at": iso(utc_now()), "player_tag": player,
         "profile": {"name": profile["player_name"], "fetched_at": iso(profile["fetched_at"]),
                     "trophies": integer(raw_profile.get("trophies")), "icon_id": integer(obj(raw_profile.get("icon")).get("id")),
+                    "rank_label": profile_rank, "rank_score": profile_score, "season": profile_season,
                     "owned_brawlers": owned} if profile else None,
         "matches": matches, "updates": updates, "meta": meta,
     }

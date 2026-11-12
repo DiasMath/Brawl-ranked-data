@@ -8,6 +8,8 @@ import type { LivePeriod, ServerCollection, SyncProgress } from '@/lib/live';
 import type { Evidence } from '@/features/matches/match-history';
 import type { Section } from './navigation';
 
+const historyVersion=2;
+
 export function useDashboard() {
   const [section,setSection]=useState<Section>('overview');
   const [filters,setFilters]=useState<Filters>(emptyFilters);
@@ -86,7 +88,8 @@ export function useDashboard() {
   }
   async function loadHistory(tag:string, signal?:AbortSignal) {
     const previous=await loadLocal(tag);
-    const params=new URLSearchParams({tag,after:String(previous.serverRunId??0)});
+    const after=previous.serverHistoryVersion===historyVersion?previous.serverRunId??0:0;
+    const params=new URLSearchParams({tag,after:String(after)});
     const history=await collectionRequest<{run_id:number;snapshot:unknown}>(
       '/api/collection/history?'+params,{signal},
     );
@@ -94,7 +97,7 @@ export function useDashboard() {
     const latest=await loadLocal(tag);
     const merged=fromSnapshot(history.snapshot,latest);
     if(signal?.aborted)return;
-    const next={...merged,serverRunId:history.run_id};
+    const next={...merged,serverRunId:history.run_id,serverHistoryVersion:historyVersion};
     await saveLocal(next);
     if(!signal?.aborted)setLocal(next);
   }

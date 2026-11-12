@@ -1,12 +1,14 @@
 'use client';
 
-import { useMemo } from 'react';
-import { CalendarDays, ChevronRight, Filter, FlaskConical, History, List, LockKeyhole, Menu, RefreshCw, Settings, ShieldCheck, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarDays, ChevronRight, Filter, FlaskConical, History, List, LockKeyhole, Menu, RefreshCw, Settings, ShieldCheck } from 'lucide-react';
 import { Card } from '@/components/dashboard-ui';
+import { FeedbackToast } from '@/components/feedback-toast';
 import { AccountIcon, brawlers } from '@/components/game';
 import { dateTime, draftStats, emptyFilters, filtered, localDay, normalize, number } from '@/lib/data';
 import { downloadSnapshot } from '@/lib/browser-store';
-import { LiveMeta } from '@/lib/live';
+import { collectionRequest, LiveMeta } from '@/lib/live';
+import type { LiveReport } from '@/lib/live';
 import { Overview, Performance } from '@/features/analytics/analytics';
 import { Progression } from '@/features/analytics/progression';
 import { Accounts } from '@/features/collection/accounts';
@@ -17,6 +19,7 @@ import { CounterFinder, DraftLab } from '@/features/draft/draft-lab';
 import { MatchDetail, MatchList } from '@/features/matches/match-history';
 import { MetaDashboard, MetaRankings, VisualRanking } from '@/features/meta/meta-dashboard';
 import { MetaView } from '@/features/meta/meta-comparison';
+import { SampleCollection } from '@/features/meta/sample-collection';
 import publicIndex from '@public/scouting/index.json';
 import { columnFilters, navigation, subtitles } from './navigation';
 import { useDashboard } from './use-dashboard';
@@ -25,7 +28,26 @@ export default function Dashboard() {
   const {section, filters, setFilters, book, local, period, setPeriod, server, serverError,
     sending, syncProgress, feedback, setFeedback, ready, busy, menuOpen, setMenuOpen, rankedOnly, setRankedOnly,
     setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveProgress, saveEvidence, refreshCollection} = useDashboard();
-  const metaFilters={...filters,start:'',end:''};
+  const dismissFeedback=useCallback(()=>setFeedback(''),[setFeedback]);
+  const [report,setReport]=useState<LiveReport|null>(null);
+  const metaRead=useRef<AbortController|null>(null);
+  const firstMetaRead=useRef(true);
+  const loadMeta=section==='meta'||section==='draft'||section==='draftlab';
+  useEffect(()=>{
+    if(!loadMeta)return;
+    const controller=new AbortController();
+    metaRead.current=controller;
+    void collectionRequest<LiveReport>('/api/meta/sample',{signal:controller.signal})
+      .then(data=>{
+        if(controller.signal.aborted)return;
+        setReport(data);
+        if(firstMetaRead.current&&data.windows.week)setPeriod('week');
+        firstMetaRead.current=false;
+      })
+      .catch(()=>{});
+    return ()=>controller.abort();
+  },[loadMeta]);
+  const metaFilters={...filters,start:'',end:'',rank_label:'',season:period==='reference'?filters.season:''};
   const ranked=useMemo(()=>filtered(data.matches,filters,true),[data.matches,filters]);
   const metaAccount=filtered(data.matches,metaFilters,true);
   const shownMatches=useMemo(()=>rankedOnly?ranked:filtered(data.matches,filters,false),[data.matches,filters,ranked,rankedOnly]);
@@ -37,20 +59,22 @@ export default function Dashboard() {
   const dateError=Boolean(filters.start&&filters.end&&filters.end<filters.start);
   const commonPublic=section==='meta'||section==='draft';
   const available=useMemo(()=>Object.fromEntries(columnFilters.map(([key])=>{
-    const source=section==='matches'&&!rankedOnly?data.matches:data.matches.filter(b=>b.ranked);
-    const values=source.map(b=>b[key]);
+    const source=section==='matches'&&rankedOnly?data.matches.filter(b=>b.ranked):data.matches;
+    const values=commonPublic?[]:source.map(b=>b[key]);
     if(commonPublic){
-      values.push(...data.meta.map(m=>key==='player_brawler'?m.brawler:m[key]));
-      if(key==='map_name')values.push(...publicIndex.contexts.map(c=>c.map));
-      if(key==='season')values.push(publicIndex.season);
-      if(key==='player_brawler')values.push(...brawlers.map(b=>b.name));
+      const live=period==='reference'?null:report?.windows[period];
+      if(key==='map_name')values.push(...(period==='reference'?publicIndex.contexts:live?.contexts??[]).map(c=>c.map));
+      if(key==='season'&&period==='reference')values.push(publicIndex.season);
+      if(key==='player_brawler'){
+        const observed=new Set(live?.contexts.find(c=>!c.map&&!c.mode)?.sample.picks.map(([id])=>id));
+        values.push(...brawlers.filter(b=>period==='reference'||observed.has(b.id)).map(b=>b.name));
+      }
     }
-    if(key==='season')values.push(...local.progress.map(p=>p.season));
-    if(key==='rank_label')values.push(...local.progress.map(p=>p.rank));
+    if(key==='season'&&section==='progress')values.push(data.profile?.season??null,...local.progress.map(p=>p.season));
     return [key,[...new Map(values.filter((v):v is string=>Boolean(v)).map(v=>[normalize(v),v])).values()].sort((a,b)=>a.localeCompare(b,'pt-BR'))];
-  })),[data,local.progress,section,rankedOnly,commonPublic]);
+  })),[data,local.progress,section,rankedOnly,commonPublic,period,report]);
 
-  return <LiveMeta.Provider value={{report:null,period,setPeriod}}><div className={`shell lab-shell ${section==='draftlab'?'draft-shell':''}`}>
+  return <LiveMeta.Provider value={{report,period,setPeriod}}><div className={`shell lab-shell ${section==='draftlab'?'draft-shell':''}`}>
     {menuOpen&&<button className="mobile-scrim" aria-label="Fechar menu" onClick={()=>setMenuOpen(false)}/>}
     <aside className={`sidebar ${menuOpen?'open':''}`}>
       <button className="brand" onClick={()=>navigate('overview')}><span className="logo"><ShieldCheck size={23}/></span>
@@ -82,7 +106,6 @@ export default function Dashboard() {
           <button className="button small top-button" onClick={()=>navigate('sources')} aria-label="Gerenciar contas"><Settings size={15}/><span>Contas</span></button></div>
       </header>
       <main className={`main compact-main ${section==='draftlab'?'draft-main':''}`}>
-        {section!=='sources'&&feedback&&<p className="feedback page-feedback" role="status">{feedback}<button className="icon-button" aria-label="Dispensar mensagem" onClick={()=>setFeedback('')}><X size={15}/></button></p>}
         {filtersVisible&&<section className="card filters" aria-label="Filtros de análise">
           <div className="filters-head"><h2><Filter size={16}/> Filtros {countFilters>0&&<span>{countFilters}</span>}</h2>
             <div className="actions">{!commonPublic&&(section==='overview'||section==='progress'?[1,7,30]:[1]).map(days=><button key={days} className="text-button" onClick={()=>{
@@ -94,9 +117,11 @@ export default function Dashboard() {
           <div className={`filter-fields ${section==='progress'?'progress-filters':commonPublic?'map-filters':''}`}>{!commonPublic&&<fieldset><legend><CalendarDays size={13}/> Período</legend>
             <div className="date-fields"><input aria-label="Data inicial" type="date" value={filters.start} onChange={e=>setFilters({...filters,start:e.target.value})}/>
               <span>–</span><input aria-label="Data final" type="date" value={filters.end} onChange={e=>setFilters({...filters,end:e.target.value})}/></div></fieldset>}
-            {columnFilters.filter(([key])=>section!=='progress'||key==='season').map(([key,label,placeholder])=><label key={key}>{label}
-              <select value={filters[key]} onChange={e=>setFilters({...filters,[key]:e.target.value,mode:''})}>
-                <option value="">{placeholder}</option>{filters[key]&&!available[key].includes(filters[key])&&<option value={filters[key]}>{filters[key]}</option>}
+            {columnFilters.filter(([key])=>section==='progress'?key==='season':
+              !commonPublic||(key!=='rank_label'&&(key!=='season'||period==='reference'))).map(([key,label,placeholder])=><label key={key}>{label}
+              <select value={filters[key]} disabled={!available[key].length&&!filters[key]} onChange={e=>setFilters({...filters,[key]:e.target.value,mode:''})}>
+                <option value="">{!available[key].length&&key==='rank_label'?'Rank da partida indisponível':placeholder}</option>
+                {filters[key]&&!available[key].includes(filters[key])&&<option value={filters[key]}>{filters[key]}</option>}
                 {available[key].map(v=><option key={v} value={v}>{v}</option>)}</select></label>)}</div>
           {dateError&&!commonPublic&&<p className="section-note error" role="alert">A data final deve ser igual ou posterior à data inicial.</p>}
         </section>}
@@ -129,17 +154,30 @@ export default function Dashboard() {
             <MatchList matches={ranked.filter(b=>b.players.some(p=>p.side==='ally')&&b.players.some(p=>p.side==='opponent'))} compact onOpen={b=>setSelected(b.id)}/>
           </Card>
         </div>}
-        {section==='meta'&&<div className="stack"><MetaDashboard filters={metaFilters} matches={metaAccount}
+        {section==='meta'&&<div className="stack">
+          <SampleCollection notify={setFeedback} onCollected={sample=>{
+            metaRead.current?.abort();
+            firstMetaRead.current=false;
+            setReport(sample);
+            if(sample.windows.week){
+              setPeriod('week');
+              setFilters(old=>({...old,map_name:'',player_brawler:'',season:'',rank_label:''}));
+            }
+          }}/>
+          <MetaDashboard filters={metaFilters} matches={metaAccount}
           onMap={map_name=>setFilters({...filters,map_name})}/>{data.meta.length>0&&<MetaView data={data} filters={metaFilters}/>}</div>}
         {section==='sources'&&<div className="stack">
           <CollectorPanel server={server} serverError={serverError} battles={data.matches} onSync={()=>void sync()} syncing={sending} hasAccount={!!book.active}/>
           <SupercellCredential onSaved={()=>void refreshCollection()}/>
-          <Accounts tag={book.active} accounts={book.accounts} data={local} busy={busy||sending||!ready} feedback={feedback}
+          <Accounts tag={book.active} accounts={book.accounts} data={local} busy={busy||sending||!ready}
             onSelect={tag=>void selectAccount(tag)} onSave={saveAccount} onExport={()=>downloadSnapshot(local)}/></div>}
         {section!=='draftlab'&&<footer><span><ShieldCheck size={15}/> Brawl Ranked Data</span><span>Projeto de fãs independente · Arte Supercell · <a href="https://supercell.com/en/fan-content-policy/" target="_blank" rel="noreferrer">Política de fãs</a> · <a href="https://github.com/Brawlify/CDN" target="_blank" rel="noreferrer">Brawlify</a></span></footer>}
       </main>
     </div>
-    {syncProgress&&<SyncProgressCard progress={syncProgress} account={active.name}/>}
+    {(syncProgress||feedback)&&<div className="dashboard-toasts">
+      {syncProgress&&<SyncProgressCard progress={syncProgress} account={active.name}/>}
+      {feedback&&<FeedbackToast key={feedback} message={feedback} onDismiss={dismissFeedback}/>}
+    </div>}
     {match&&<MatchDetail key={match.id} match={match} raw={local.raw[match.id]} onClose={()=>setSelected(null)} onChange={saveEvidence}/>}
   </div></LiveMeta.Provider>;
 }

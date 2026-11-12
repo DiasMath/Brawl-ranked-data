@@ -6,10 +6,7 @@ export type LivePeriod = 'today' | 'week' | 'patch' | 'reference';
 export type LiveMap = { map: string | null; mode: string | null; sets: number; decisive: number; latest?: string|null; sample: PublicStats };
 export type LiveWindow = { label: string; start: string; end: string; latest: string | null; contexts: LiveMap[] };
 export type LiveReport = {
-  schema: 'brawl-live-1'; generated: string; patchSince: string | null;
-  status: { lastPersonal: string | null; lastSample: string | null; lastPossibleGap?: string | null; sampled: number; attempted: number;
-    newPersonal: number; errors: {part:string;code:number;detail?:string}[]; nextAllowed: string | null };
-  account: { format: 'supercell-brawl-v1'; player_tag: string; log_at?: string } | null;
+  patchSince?: string | null;
   windows: Partial<Record<Exclude<LivePeriod,'reference'>,LiveWindow>>;
 };
 

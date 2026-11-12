@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 
 from .config import collection_environment, collection_interval, service_token
 from .db import prepare_collection
-from .routers import accounts, analysis, collection, credentials
+from .routers import accounts, analysis, collection, credentials, meta_sample
 from .services.supercell import CollectionError
 
 
@@ -26,6 +26,7 @@ app = FastAPI(title="Brawl Ranked Data", docs_url=None, redoc_url=None, openapi_
 app.include_router(accounts.router)
 app.include_router(collection.router)
 app.include_router(credentials.router)
+app.include_router(meta_sample.router)
 app.include_router(analysis.router)
 
 

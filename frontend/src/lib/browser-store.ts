@@ -12,7 +12,7 @@ export type MetaMatchup = {
   rank_label: string | null; season: string | null; wins: number; games: number;
   source_name: string; source_url: string; period_start: string; period_end: string;
 };
-export type LocalData = { serverRunId?: number; dataset: Dataset; progress: Progress[]; matchups: MetaMatchup[]; raw: Record<string, unknown> };
+export type LocalData = { serverRunId?: number; serverHistoryVersion?: number; dataset: Dataset; progress: Progress[]; matchups: MetaMatchup[]; raw: Record<string, unknown> };
 export type AccountBook = { active: string; accounts: Account[] };
 
 type StoreName = 'data';
@@ -122,9 +122,13 @@ export function fromSnapshot(input: unknown, previous: LocalData): LocalData {
   ) as MetaMatchup[];
   const profile = !incoming.profile || (previous.dataset.profile && previous.dataset.profile.fetched_at > incoming.profile.fetched_at)
     ? previous.dataset.profile : incoming.profile;
+  const displayRank = (rank: string | null | undefined) =>
+    rank && /^\d+$/.test(rank) ? rankLabel(Number(rank)) : rank ?? null;
+  const matches = incoming.matches.map(match => ({...match, rank_label: displayRank(match.rank_label)}));
   return {
     ...previous,
-    dataset: { ...incoming, profile, matches: mergeBattles(previous.dataset.matches, incoming.matches),
+    dataset: { ...incoming, profile: profile ? {...profile, rank_label: displayRank(profile.rank_label)} : null,
+      matches: mergeBattles(previous.dataset.matches, matches),
       updates: [...new Map([...previous.dataset.updates, ...incoming.updates].map(v => [v.started_at, v])).values()]
         .sort((a,b) => b.started_at.localeCompare(a.started_at)).slice(0,100),
       meta: [...new Map([...previous.dataset.meta, ...incoming.meta].map(r => [`${sourceKey(r)}|${rowKey(r)}`, r])).values()],

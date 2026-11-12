@@ -2,16 +2,22 @@ import { useState } from 'react';
 import { ArrowDownRight, ArrowRight, ArrowUpRight, CalendarClock, Flag, Gauge, Plus, Target, TrendingUp, Trophy } from 'lucide-react';
 import type { LocalData, Progress } from '@/lib/browser-store';
 import { dateTime, localDay, normalize, number, percent, stats } from '@/lib/data';
-import type { Battle, Filters } from '@/lib/data';
+import type { Battle, Dataset, Filters } from '@/lib/data';
 import { gameRank, nextRank, RankArt, referenceRank, TrophyArt } from '@/components/game';
+
+export function profileProgress(profile: Dataset['profile']): Progress | null {
+  if (!profile || (profile.trophies == null && !profile.rank_label && profile.rank_score == null)) return null;
+  return { id: 'profile', at: profile.fetched_at, trophies: profile.trophies, score: profile.rank_score ?? null,
+    rank: profile.rank_label ?? null, season: profile.season ?? null, method: 'api', source: 'Perfil da API Supercell' };
+}
 
 export function progressSeries(local: LocalData) {
   const rows = [...local.progress];
   const { profile, matches } = local.dataset;
-  if (profile?.trophies != null && !rows.some(row => row.at === profile.fetched_at && row.trophies !== null)) {
-    rows.push({ id: 'profile', at: profile.fetched_at, trophies: profile.trophies, score: null,
-      rank: null, season: null, method: 'api', source: 'Perfil da API Supercell' });
-  }
+  const reading = profileProgress(profile);
+  const latest = rows.findLast(row => row.method === 'api' && row.id.startsWith('server:'));
+  if (reading && (!latest || latest.trophies !== reading.trophies || latest.rank !== reading.rank ||
+    latest.score !== reading.score || latest.season !== reading.season)) rows.push(reading);
   for (const match of matches) {
     if (!match.ranked || (!match.rank_label && match.rank_score === null)) continue;
     rows.push({ id: match.id, at: match.played_at, trophies: null, score: match.rank_score, rank: match.rank_label,

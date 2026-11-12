@@ -8,6 +8,7 @@ const routes = new Set([
   'GET /api/accounts', 'POST /api/accounts', 'GET /api/collection/status',
   'GET /api/collection/history', 'POST /api/sync',
   'GET /api/supercell/credential', 'POST /api/supercell/credential',
+  'GET /api/meta/sample', 'POST /api/meta/sample',
 ]);
 const headers = { 'Cache-Control': 'private, no-store' };
 
@@ -40,12 +41,13 @@ async function forward(request: NextRequest) {
   }
 
   const credential = path === '/api/supercell/credential';
+  const metaSample = path === '/api/meta/sample';
   let body: string | undefined;
   if (request.method === 'POST') {
     if (!request.headers.get('content-type')?.includes('application/json')) {
       return Response.json({ detail: 'Envie dados em JSON.' }, { status: 415, headers });
     }
-    body = path === '/api/accounts' || credential ? await request.text() : '{}';
+    body = path === '/api/accounts' || credential || metaSample ? await request.text() : '{}';
     if (body.length > (credential ? 8192 : 2048)) {
       return Response.json({ detail: 'Dados muito extensos.' }, { status: 413, headers });
     }
@@ -55,7 +57,7 @@ async function forward(request: NextRequest) {
     const target = new URL(path, base);
     const local = ['localhost', '127.0.0.1', '[::1]'].includes(target.hostname);
     if (target.protocol !== 'https:' && !(local && target.protocol === 'http:')) throw new Error('Origem inválida.');
-    if (path !== '/api/accounts' && !credential) {
+    if (path !== '/api/accounts' && !credential && !metaSample) {
       const tag = request.nextUrl.searchParams.get('tag');
       if (tag !== null) {
         if (!/^#?[0289PYLQGRJCUV]{3,16}$/i.test(tag)) return Response.json({ detail: 'Tag inválida.' }, { status: 400, headers });

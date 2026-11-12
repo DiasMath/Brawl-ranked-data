@@ -21,7 +21,11 @@ export type Meta = {
   ban_count: number | null; ban_total: number | null;
 };
 export type Dataset = {
-  schema: 1; exported_at: string; player_tag: string; profile: { name: string; fetched_at: string; trophies: number | null; icon_id?: number | null; owned_brawlers?: { name: string; power: number }[] } | null;
+  schema: 1; exported_at: string; player_tag: string; profile: {
+    name: string; fetched_at: string; trophies: number | null; icon_id?: number | null;
+    rank_label?: string | null; rank_score?: number | null; season?: string | null;
+    owned_brawlers?: { name: string; power: number }[];
+  } | null;
   matches: Battle[]; updates: Update[]; meta: Meta[];
 };
 export type Filters = { start: string; end: string; map_name: string; mode: string; player_brawler: string; rank_label: string; season: string };

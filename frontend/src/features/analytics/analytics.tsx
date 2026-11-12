@@ -4,7 +4,7 @@ import type { Battle, Filters } from '@/lib/data';
 import { dateTime, groupStats, localDay, modeName, normalize, number, percent, resultName, stats } from '@/lib/data';
 import { AccountIcon, findMap, MapImage, ModeIcon, Portrait, RankArt, TrophyArt } from '@/components/game';
 import type { Account, LocalData } from '@/lib/browser-store';
-import { progressSeries, progressionWindow, RankGoal, rankProgress, TrendChart } from '@/features/analytics/progression';
+import { profileProgress, progressSeries, progressionWindow, RankGoal, rankProgress, TrendChart } from '@/features/analytics/progression';
 import { byId, ordered, publicPicks, usePublicStats } from '@/lib/scouting';
 import type { PublicStats, ScoutingRow } from '@/lib/scouting';
 import { LiveMeta } from '@/lib/live';
@@ -112,10 +112,12 @@ export function Overview({ local, account, matches, filters, onSettings, onProgr
   onMeta:()=>void; onSync:()=>void; onMatch:(battle:Battle)=>void; onHistory:()=>void; busy:boolean; syncing:boolean; collectorLinked:boolean;
 }) {
   const rows=progressSeries(local);
-  const summary=rankProgress(rows);
+  const profile=local.dataset.profile;
+  const profileReading=profileProgress(profile);
+  const profileHasRank=Boolean(profileReading&&(profileReading.rank||profileReading.score!==null));
+  const summary=rankProgress(profileReading&&profileHasRank?[profileReading]:rows);
   const {current, rank}=summary;
   const trophy=rows.findLast(r=>r.trophies!==null);
-  const profile=local.dataset.profile;
   const s=stats(matches);
   const previous=local.dataset.updates.find(r=>r.status==='success');
   const filteredProgress = progressionWindow(rows,filters);
@@ -127,9 +129,9 @@ export function Overview({ local, account, matches, filters, onSettings, onProgr
     <div className="rank-summary-grid">
       <section className="command-hero overview-hero">
         <div className="hero-info"><div className="hero-profile"><AccountIcon id={profile?.icon_id}/><div><strong>{account.name}</strong>{account.name!==account.tag&&<span>{account.tag}</span>}</div></div>
-          <div className="hero-rank"><small>RANQUEADO · ÚLTIMA LEITURA</small><h2>{rank || 'Rank indisponível'}</h2>
+          <div className="hero-rank"><small>{profileHasRank?'RANQUEADO · PERFIL DA SUPERCELL':'RANQUEADO · ÚLTIMA LEITURA'}</small><h2>{rank || 'Rank indisponível'}</h2>
             <p>{current ? [current.score!=null?number(current.score)+' pontos':'',dateTime(current.at),current.season,current.rank?'':'divisão de referência'].filter(Boolean).join(' · ')
-              : 'Registre sua divisão e acompanhe a subida.'}</p></div>
+              : profile?'O último perfil recebido veio sem o rank atual.':'Sincronize a conta para consultar seu rank.'}</p></div>
           {!collectorLinked&&<button className="button small primary" onClick={onSettings} disabled={busy}>Ver status da coleta <ArrowRight size={15}/></button>}
           {collectorLinked&&!current&&<button className="button small primary" onClick={onSync} disabled={busy} aria-busy={syncing}>
             <RefreshCw size={15} aria-hidden="true"/>{syncing?'Sincronizando…':'Sincronizar conta'}</button>}
