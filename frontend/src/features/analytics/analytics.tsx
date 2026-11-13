@@ -1,10 +1,11 @@
 import { useContext, useState } from 'react';
-import { Activity, ArrowRight, ArrowUpRight, CalendarDays, Crosshair, Flame, MapPinned, Radio, RefreshCw, Swords, Trophy } from 'lucide-react';
+import { Activity, ArrowRight, ArrowUpRight, CalendarDays, Crosshair, MapPinned, Radio, RefreshCw, Swords, Trophy } from 'lucide-react';
 import type { Battle, Filters } from '@/lib/data';
-import { dateTime, groupStats, localDay, modeName, normalize, number, percent, resultName, stats } from '@/lib/data';
+import { dateTime, groupStats, localDay, modeName, normalize, number, percent, stats } from '@/lib/data';
 import { AccountIcon, findMap, MapImage, ModeIcon, Portrait, RankArt, TrophyArt } from '@/components/game';
 import type { Account, LocalData } from '@/lib/browser-store';
 import { profileProgress, progressSeries, progressionWindow, RankGoal, rankProgress, TrendChart } from '@/features/analytics/progression';
+import { RecentForm } from './recent-form';
 import { ProfileDetails } from '@/features/analytics/profile-details';
 import { byId, ordered, publicPicks, usePublicStats } from '@/lib/scouting';
 import type { PublicStats, ScoutingRow } from '@/lib/scouting';
@@ -49,31 +50,7 @@ export function PublicSpotlight({ onDraft, onMeta }: { onDraft:()=>void; onMeta:
   </section>;
 }
 
-const resultMarks={victory:'V',defeat:'D',draw:'E',unknown:'?'};
 const dayLabel=(day:string)=>day.slice(8)+'/'+day.slice(5,7);
-
-function RecentForm({matches,onMatch,onHistory}:{matches:Battle[];onMatch:(battle:Battle)=>void;onHistory:()=>void}) {
-  const recent=matches.slice(0,12);
-  const sample=stats(recent);
-  const lead=recent[0]?.result;
-  const stop=lead==='victory'||lead==='defeat'?matches.findIndex(b=>b.result!==lead):null;
-  const streak=stop===-1?matches.length:stop;
-  return <section className="card recent-form"><div className="card-head"><div><h2><Flame size={17}/> Forma recente</h2>
-    <p>{recent.length?`Últimos ${recent.length} registros · mais recente à direita`:'Resultados do Ranqueado no recorte'}</p></div>
-    <button className="button small subtle" onClick={onHistory}>Histórico <ArrowRight size={14}/></button></div>
-    {recent.length?<><div className="recent-results">{[...recent].reverse().map(b=>{
-      const key=b.result??'unknown';
-      const description=[resultName(b.result),b.player_brawler,b.map_name,dateTime(b.played_at)].filter(Boolean).join(' · ');
-      return <button key={b.id} className={key} title={description} aria-label={description} onClick={()=>onMatch(b)}>
-        <Portrait name={b.player_brawler}/><span>{resultMarks[key]}</span></button>;
-    })}</div>
-      <div className="form-stats"><div><strong>{percent(sample.rate)}</strong><small>Win rate · {number(sample.decided)} decisivos</small></div>
-        <div><strong>{streak===null?'—':number(streak)+' '+(lead==='victory'?(streak===1?'vitória':'vitórias'):(streak===1?'derrota':'derrotas'))}</strong>
-          <small>Sequência no recorte</small></div>
-        <div><strong>{number(sample.wins)}V · {number(sample.losses)}D</strong><small>{number(sample.draws)} empates · {number(sample.games-sample.decided-sample.draws)} sem resultado</small></div></div></>:
-      <div className="list-empty">Sem partidas ranqueadas no recorte.</div>}
-  </section>;
-}
 
 function RankedActivity({matches,filters}:{matches:Battle[];filters:Filters}) {
   const latest=filters.end|| (matches[0]?localDay(matches[0].played_at):null);
@@ -154,7 +131,8 @@ export function Overview({ local, account, matches, filters, onSettings, onProgr
       <div className="card game-metric"><span className="game-metric-icon orange"><Crosshair size={22}/></span><div><small>Brawlers usados</small>
         <strong>{s.games?number(new Set(matches.flatMap(b=>b.player_brawler?[normalize(b.player_brawler)]:[])).size):'—'}</strong><span>Picks identificados no recorte</span></div></div>
     </div>
-    <div className="two-col equal"><RecentForm matches={orderedMatches} onMatch={onMatch} onHistory={onHistory}/>
+    <div className="two-col equal"><RecentForm matches={orderedMatches} onMatch={onMatch}
+      action={<button className="button small subtle" onClick={onHistory}>Histórico <ArrowRight size={14}/></button>}/>
       <RankedActivity matches={orderedMatches} filters={filters}/></div>
     <div className="two-col equal"><TrendChart rows={trophyRows} field="trophies" label="Subida de troféus" note="Total da conta por data, independente da temporada"/>
       <TrendChart rows={filteredProgress.filter(row=>!current?.season||normalize(row.season)===normalize(current.season)||filters.season)}

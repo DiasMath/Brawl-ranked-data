@@ -9,6 +9,7 @@ import { accountInExternalScope, mapKey } from '@/lib/external-comparison';
 import { collectionRequest } from '@/lib/live';
 import { ordered } from '@/lib/scouting';
 import { AccountComparison } from '@/features/meta/external-account';
+import { RecentForm } from './recent-form';
 import { ReplayAnnotation } from './replay-annotation';
 import type { Snapshot } from '@/features/meta/external-meta';
 
@@ -99,6 +100,7 @@ function MapSheet({map, history, accountName, reviews, onOpen, onReview, onDraft
         <Portrait name={row.name}/><span><strong>{row.name}</strong><small>{percent(row.rate)} · {number(row.decided)} decisivas</small></span></div>)}</div>}
       {options.length>0&&<p className="section-note">Com base no seu histórico · Pick para repetir {options[0].name}{options[1]?` · Alternativa ${options[1].name}`:''}</p>}
     </section>
+    <RecentForm matches={map.rows} onMatch={match=>onOpen(match.id)}/>
     <section className="card coaching-card"><div className="card-head"><div><h2>Referência competitiva do mapa</h2>
       <p>{snapshot?`DraftMeta · Patch ${snapshot.patch_date.split('-').reverse().join('/')} · ${snapshot.start} a ${snapshot.end}`:loading?'Carregando snapshot…':'Aguardando snapshot do DraftMeta.'}</p></div>
       <button className="button small subtle" onClick={()=>void updateReference()} disabled={loading||updating}>{updating?'Atualizando…':'Atualizar referência'}</button></div>
