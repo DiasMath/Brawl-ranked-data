@@ -210,6 +210,14 @@ Pop-Location
 
 Se a fila estiver em pausa ou uma rodada estiver em andamento, aguarde a liberação. O modo manual da tela **Meta** também permite medir uma consulta de histórico usando uma tag pública. Confira os números antes de ativar ou aumentar a frequência do agendamento.
 
+### Indicadores do DraftMeta
+
+Em **Meta → DraftMeta**, selecione **Todos os mapas** ou um mapa e use **Atualizar do DraftMeta**. O FastAPI consulta a interface MCP pública, valida o recorte de todos os ranks contra o último patch e salva um snapshot por mapa e patch no PostgreSQL. Durante uma hora, a atualização reaproveita a cópia existente. A tela informa quando a cópia foi consultada. Se uma atualização falhar, a última cópia permanece disponível.
+
+A primeira versão usa tier list, win rate, amostra por brawler e variações de win rate e presença após o patch. A presença por mapa aparece para as entradas em que os dados de `map_info` conferem com a tier list. Presença é a proporção de partidas com o brawler. O MCP ainda não oferece ban rate observado. O histórico pessoal continua vindo da Supercell. A aba **Coleta própria e histórico** permanece disponível para consulta e para o Draft Lab atual.
+
+A migração `002_external_meta.sql` roda junto das demais na inicialização do backend. O teste manual da integração usa as configurações existentes, com saída HTTPS para `draftmeta.com`. Atualizações recorrentes em volume devem seguir os limites e condições da fonte. [Integração DraftMeta](https://draftmeta.com/ai) · [Termos do DraftMeta](https://draftmeta.com/terms)
+
 ## Referências
 
 - [Cron Jobs do Render](https://render.com/docs/cronjobs)

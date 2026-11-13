@@ -52,5 +52,6 @@ class CompetitivePeriodsTest(unittest.TestCase):
                 self.assertEqual(diagnostics["sample_records"], 6)
                 run = diagnostics["last_run"]
                 self.assertEqual([run[key] for key in ("profile_requests", "battlelog_requests", "ranking_requests", "added")], [1, 1, 1, 6])
-                cursor.execute("SELECT COUNT(*) AS total FROM schema_migrations")
+                cursor.execute("SELECT COUNT(*) AS total FROM schema_migrations WHERE version=%s",
+                               ("001_competitive_periods",))
                 self.assertEqual(cursor.fetchone()["total"], 1)

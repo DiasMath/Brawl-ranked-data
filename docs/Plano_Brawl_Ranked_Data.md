@@ -4,6 +4,8 @@
 
 **Andamento em 13/11/2026** · A primeira entrega implementa as janelas por patch e temporada, a tier list por recorte, a referência histórica separada e o diagnóstico de coleta e armazenamento. A migração foi exercitada em PostgreSQL descartável. A primeira rodada com credencial e banco do ambiente de destino, a ocupação real do Supabase e a confirmação dos bans no battlelog ficam para a validação operacional. As datas do catálogo representam janelas conservadoras quando o horário exato do patch ou da temporada não está confirmado.
 
+**Piloto de fonte externa** · Meta pode carregar um snapshot leve do DraftMeta por patch e mapa. O histórico das contas continua vindo da Supercell. Na prova, o recorte Masters+ começava antes do balanceamento e ficou fora do piloto. O recorte de todos os ranks passou na checagem de patch. Bans observados e matchups por patch e mapa dependem de cobertura adicional antes de alimentar a tabela ou o Draft Lab. A atualização é manual no piloto, com cache de uma hora por recorte.
+
 ## 1. Ponto de partida
 
 | Área | Existe no projeto | Próxima lacuna |

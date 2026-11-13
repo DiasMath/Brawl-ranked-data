@@ -825,3 +825,12 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
 .tier-row li { display: flex; align-items: center; gap: 5px; font-size: 11px; }
 .tier-row .portrait { width: 28px; height: 28px; }
 .tier-row small { display: block; font-size: 9px; color: var(--muted); }
+.tier-D { background: #b8cdf5; }
+.external-meta-card .card-head { flex-wrap: wrap; }
+.external-meta-card .card-head a { color: var(--lavender); font-size: 12px; }
+.meta-movements { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 10px; padding: 10px 14px 14px; }
+.meta-movements h3 { display: flex; align-items: center; gap: 5px; margin: 0 0 8px; font-size: 13px; }
+.meta-movements ul { list-style: none; padding: 0; margin: 0; }
+.meta-movements li { display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 11px; }
+.meta-movements li .portrait { width: 22px; height: 22px; }
+.meta-movements li strong { margin-left: auto; white-space: nowrap; }

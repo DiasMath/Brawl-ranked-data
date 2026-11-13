@@ -18,6 +18,7 @@ import { SyncProgressCard } from '@/features/collection/sync-progress';
 import { CounterFinder, DraftLab } from '@/features/draft/draft-lab';
 import { MatchDetail, MatchList } from '@/features/matches/match-history';
 import { MetaDashboard, MetaRankings, VisualRanking } from '@/features/meta/meta-dashboard';
+import { ExternalMeta } from '@/features/meta/external-meta';
 import { MetaView } from '@/features/meta/meta-comparison';
 import { SampleCollection } from '@/features/meta/sample-collection';
 import publicIndex from '@public/scouting/index.json';
@@ -30,10 +31,11 @@ export default function Dashboard() {
     setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveProgress, saveEvidence, refreshCollection} = useDashboard();
   const dismissFeedback=useCallback(()=>setFeedback(''),[setFeedback]);
   const [report,setReport]=useState<LiveReport|null>(null);
+  const [metaSource,setMetaSource]=useState<'external'|'own'>('external');
   const metaRevision=useRef(0);
   const firstMetaRead=useRef(true);
   const changePeriod=(value: typeof period)=>{firstMetaRead.current=false;setPeriod(value);};
-  const loadMeta=section==='meta'||section==='draft'||section==='draftlab';
+  const loadMeta=(section==='meta'&&metaSource==='own')||section==='draft'||section==='draftlab';
   useEffect(()=>{
     if(!loadMeta)return;
     const controller=new AbortController();
@@ -65,7 +67,7 @@ export default function Dashboard() {
   const comparedAccount=metaAccount.filter(match=>inMetaPeriod(match.played_at,period,report));
   const draft=draftStats(comparedAccount);
   const current=navigation.find(item=>item.key===section)!;
-  const filtersVisible=!['sources','draftlab'].includes(section);
+  const filtersVisible=!['sources','draftlab'].includes(section)&&!(section==='meta'&&metaSource==='external');
   const progressFilters={...emptyFilters,start:filters.start,end:filters.end,season:filters.season};
   const countFilters=Object.values(section==='meta'||section==='draft'?metaFilters:section==='progress'?progressFilters:filters).filter(Boolean).length;
   const dateError=Boolean(filters.start&&filters.end&&filters.end<filters.start);
@@ -168,14 +170,18 @@ export default function Dashboard() {
           </Card>
         </div>}
         {section==='meta'&&<div className="stack">
-          <MetaDashboard filters={metaFilters} matches={metaAccount}
+          <div className="view-tabs" aria-label="Fonte da meta">
+            <button aria-pressed={metaSource==='external'} onClick={()=>setMetaSource('external')}>DraftMeta</button>
+            <button aria-pressed={metaSource==='own'} onClick={()=>setMetaSource('own')}>Coleta própria e histórico</button>
+          </div>
+          {metaSource==='external'?<ExternalMeta/>:<><MetaDashboard filters={metaFilters} matches={metaAccount}
             onMap={map_name=>setFilters({...filters,map_name})}/>
           <SampleCollection tracking={report?.tracking} diagnostics={report?.diagnostics} notify={setFeedback} onCollected={sample=>{
             metaRevision.current++;
             if(firstMetaRead.current) setPeriod(defaultMetaPeriod(sample));
             firstMetaRead.current=false;
             setReport(sample);
-          }}/>{data.meta.length>0&&<MetaView data={data} filters={metaFilters}/>}</div>}
+          }}/>{data.meta.length>0&&<MetaView data={data} filters={metaFilters}/>}</>}</div>}
         {section==='sources'&&<div className="stack">
           <CollectorPanel server={server} serverError={serverError} battles={data.matches} onSync={()=>void sync()} syncing={sending} hasAccount={!!book.active}/>
           <SupercellCredential onSaved={()=>void refreshCollection()}/>
