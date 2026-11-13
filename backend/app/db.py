@@ -32,6 +32,18 @@ def prepare_collection():
         for statement in schema.split(";"):
             if statement.strip():
                 cursor.execute(statement)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version TEXT PRIMARY KEY,
+                applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("SELECT version FROM schema_migrations")
+        applied = {row["version"] for row in cursor.fetchall()}
+        for migration in sorted((ROOT / "migrations").glob("*.sql")):
+            if migration.stem not in applied:
+                cursor.execute(migration.read_text(encoding="utf-8"))
+                cursor.execute("INSERT INTO schema_migrations (version) VALUES (%s)", (migration.stem,))
         player = initial_account()
         if player:
             cursor.execute("INSERT INTO tracked_accounts (player_tag) VALUES (%s) ON CONFLICT DO NOTHING", (player,))

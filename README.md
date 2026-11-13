@@ -165,7 +165,7 @@ Em **Contas e dados**, cadastre cada jogador pela tag. O painel mostra a tag at�
 
 A Supercell fornece uma janela de até 25 partidas recentes por consulta. O banco acumula as partidas novas conforme são coletadas. O histórico mostra todos os modos por padrão e pode ser filtrado para exibir só as partidas identificadas como Ranqueado. Análises de Ranqueado dependem das partidas e campos que a fonte fornece.
 
-Em **Meta → Amostra de outros jogadores**, atualize até cinco históricos da classificação global da Supercell ou consulte uma tag pública específica. A coleta guarda as ranqueadas 3×3 completas em uma amostra independente das contas monitoradas. O painel calcula picks, win rate, confrontos e sinergias por mapa em janelas de hoje e sete dias. O histórico padrão da API mostra os times finais. As taxas de ban exigem uma fonte com listas explícitas.
+Em **Meta → Amostra de outros jogadores**, atualize até cinco históricos da classificação global da Supercell ou consulte uma tag pública específica. A coleta guarda as ranqueadas 3×3 completas em uma amostra independente das contas monitoradas. O painel calcula picks, win rate, confrontos e sinergias por mapa. A consulta manual alimenta as janelas Hoje e 7 dias. Os recortes por patch e temporada usam as partidas que a fila competitiva confirmou pelo Elo do perfil. O histórico padrão da API mostra os times finais. As taxas de ban exigem uma fonte com listas explícitas.
 
 ### Coleta recorrente da Meta
 
@@ -191,6 +191,24 @@ Cada perfil elegível acrescenta uma consulta de histórico. As classificações
 Na **Visão geral**, expanda **Perfil e coleção de brawlers** para ver recordes, nível, vitórias, clube, troféus e equipamentos do perfil quando a API enviar esses campos. O detalhe de partida mostra craque e colocação de Combate quando presentes e conserva o JSON original para consulta.
 
 Leituras manuais de rank, pontos e evidências continuam no navegador onde foram registradas. O histórico de outra origem, incluindo o antigo endereço `chatgpt.site`, fica onde foi registrado. A meta histórica permanece identificada por período e amostra. Se a Supercell retornar HTTP 429, a pausa vale para todas as contas que usam a mesma integração.
+
+### Meta por patch e medição da coleta
+
+A Meta abre no patch mais recente do catálogo. **Patch anterior** usa o mesmo corte de Elo observado no perfil. **Temporada** consolida os patches da janela cadastrada. A referência **Histórico 4–5/11** vem das séries decisivas do conjunto EliF77 e aparece com sua origem, período e unidade próprios. As tier lists usam a ordenação pelo limite inferior de Wilson, com pelo menos 30 resultados decisivos por brawler. Os tiers S, A, B e C correspondem a faixas relativas de posição no recorte.
+
+O FastAPI e os jobs aplicam as migrações pendentes em `backend/app/migrations/` ao iniciar. A primeira cria `brawl_lab.ranked_patches`, `brawl_lab.ranked_seasons` e `brawl_lab.meta_collection_runs`. Para registrar um novo patch, crie uma migração SQL numerada com a data e a fonte. Use o mesmo instante UTC em `earliest_at` e `latest_at` se o horário efetivo for confirmado. Quando só a data em UTC for conhecida, use a meia-noite desse dia como limite inferior e a meia-noite seguinte como limite superior. A tier list do patch anterior termina antes do primeiro limite. A do novo patch começa no segundo limite, inclusive. Para confirmar um horário depois, crie outra migração que atualize os dois limites do registro. Novas temporadas precisam de datas próprias no catálogo.
+
+Em **Meta → Amostra de outros jogadores**, confira o tamanho do banco, o tamanho das tabelas de partidas com índices e a última rodada manual ou agendada. As chamadas são tentativas do coletor competitivo, incluindo falhas. Compare partidas únicas recebidas e partidas novas para avaliar o rendimento. Uma leitura de perfil e uma de histórico contam separadamente.
+
+Para medir uma rodada no Windows com a chave de desenvolvimento cadastrada, execute na raiz do projeto:
+
+```powershell
+Push-Location .\backend
+.\.venv\Scripts\python.exe -m app.jobs.collect_meta --env-file .env.development.local --environment development --players-per-run 2 --regions global
+Pop-Location
+```
+
+Se a fila estiver em pausa ou uma rodada estiver em andamento, aguarde a liberação. O modo manual da tela **Meta** também permite medir uma consulta de histórico usando uma tag pública. Confira os números antes de ativar ou aumentar a frequência do agendamento.
 
 ## Referências
 

@@ -7,9 +7,9 @@ import { FeedbackToast } from '@/components/feedback-toast';
 import { AccountIcon, brawlers } from '@/components/game';
 import { dateTime, draftStats, emptyFilters, filtered, localDay, normalize, number } from '@/lib/data';
 import { downloadSnapshot } from '@/lib/browser-store';
-import { collectionRequest, LiveMeta } from '@/lib/live';
+import { collectionRequest, defaultMetaPeriod, inMetaPeriod, LiveMeta } from '@/lib/live';
 import type { LiveReport } from '@/lib/live';
-import { Overview, Performance } from '@/features/analytics/analytics';
+import { Overview, Performance, PublicMeta } from '@/features/analytics/analytics';
 import { Progression } from '@/features/analytics/progression';
 import { Accounts } from '@/features/collection/accounts';
 import { CollectorPanel, MetaPeriods } from '@/features/collection/collector-panel';
@@ -32,6 +32,7 @@ export default function Dashboard() {
   const [report,setReport]=useState<LiveReport|null>(null);
   const metaRevision=useRef(0);
   const firstMetaRead=useRef(true);
+  const changePeriod=(value: typeof period)=>{firstMetaRead.current=false;setPeriod(value);};
   const loadMeta=section==='meta'||section==='draft'||section==='draftlab';
   useEffect(()=>{
     if(!loadMeta)return;
@@ -45,8 +46,8 @@ export default function Dashboard() {
         const data=await collectionRequest<LiveReport>('/api/meta/sample',{signal:controller.signal});
         if(controller.signal.aborted||metaRevision.current!==revision)return;
         setReport(data);
-        if(firstMetaRead.current&&(data.windows.competitive||data.windows.week)){
-          setPeriod(data.windows.competitive?'competitive':'week');
+        if(firstMetaRead.current){
+          setPeriod(defaultMetaPeriod(data));
           firstMetaRead.current=false;
         }
       }catch{
@@ -61,7 +62,8 @@ export default function Dashboard() {
   const ranked=useMemo(()=>filtered(data.matches,filters,true),[data.matches,filters]);
   const metaAccount=filtered(data.matches,metaFilters,true);
   const shownMatches=useMemo(()=>rankedOnly?ranked:filtered(data.matches,filters,false),[data.matches,filters,ranked,rankedOnly]);
-  const draft=draftStats(ranked);
+  const comparedAccount=metaAccount.filter(match=>inMetaPeriod(match.played_at,period,report));
+  const draft=draftStats(comparedAccount);
   const current=navigation.find(item=>item.key===section)!;
   const filtersVisible=!['sources','draftlab'].includes(section);
   const progressFilters={...emptyFilters,start:filters.start,end:filters.end,season:filters.season};
@@ -84,7 +86,7 @@ export default function Dashboard() {
     return [key,[...new Map(values.filter((v):v is string=>Boolean(v)).map(v=>[normalize(v),v])).values()].sort((a,b)=>a.localeCompare(b,'pt-BR'))];
   })),[data,local.progress,section,rankedOnly,commonPublic,period,report]);
 
-  return <LiveMeta.Provider value={{report,period,setPeriod}}><div className={`shell lab-shell ${section==='draftlab'?'draft-shell':''}`}>
+  return <LiveMeta.Provider value={{report,period,setPeriod:changePeriod}}><div className={`shell lab-shell ${section==='draftlab'?'draft-shell':''}`}>
     {menuOpen&&<button className="mobile-scrim" aria-label="Fechar menu" onClick={()=>setMenuOpen(false)}/>}
     <aside className={`sidebar ${menuOpen?'open':''}`}>
       <button className="brand" onClick={()=>navigate('overview')}><span className="logo"><ShieldCheck size={23}/></span>
@@ -149,7 +151,8 @@ export default function Dashboard() {
         {section==='draft'&&<div className="stack">
           <MetaPeriods/>
           <MetaRankings map={filters.map_name} filters={metaFilters}/>
-          <CounterFinder matches={metaAccount} mode="" map={filters.map_name} filters={metaFilters} imported={local.matchups}/>
+          <PublicMeta filters={metaFilters} matches={metaAccount}/>
+          <CounterFinder matches={comparedAccount} mode="" map={filters.map_name} filters={metaFilters} imported={local.matchups}/>
           <div className="two-col equal">
             <VisualRanking title="Meus picks" metric="pick"
               rows={draft.picks?draft.rows.filter(r=>r.picks>0).map(r=>({name:r.label,value:r.picks/draft.picks,detail:number(r.picks)+' picks próprios'})):[]}
@@ -161,21 +164,18 @@ export default function Dashboard() {
           </div>
           <Card title="Drafts recentes" icon={History} sub="Composições dos registros ranqueados."
             action={<button className="button small subtle" onClick={()=>navigate('draftlab')}><FlaskConical size={15}/> Abrir Draft Lab</button>}>
-            <MatchList matches={ranked.filter(b=>b.players.some(p=>p.side==='ally')&&b.players.some(p=>p.side==='opponent'))} compact onOpen={b=>setSelected(b.id)}/>
+            <MatchList matches={comparedAccount.filter(b=>b.players.some(p=>p.side==='ally')&&b.players.some(p=>p.side==='opponent'))} compact onOpen={b=>setSelected(b.id)}/>
           </Card>
         </div>}
         {section==='meta'&&<div className="stack">
-          <SampleCollection tracking={report?.tracking} notify={setFeedback} onCollected={sample=>{
+          <MetaDashboard filters={metaFilters} matches={metaAccount}
+            onMap={map_name=>setFilters({...filters,map_name})}/>
+          <SampleCollection tracking={report?.tracking} diagnostics={report?.diagnostics} notify={setFeedback} onCollected={sample=>{
             metaRevision.current++;
+            if(firstMetaRead.current) setPeriod(defaultMetaPeriod(sample));
             firstMetaRead.current=false;
             setReport(sample);
-            if(sample.windows.week){
-              setPeriod(sample.windows.competitive?'competitive':'week');
-              setFilters(old=>({...old,map_name:'',player_brawler:'',season:'',rank_label:''}));
-            }
-          }}/>
-          <MetaDashboard filters={metaFilters} matches={metaAccount}
-          onMap={map_name=>setFilters({...filters,map_name})}/>{data.meta.length>0&&<MetaView data={data} filters={metaFilters}/>}</div>}
+          }}/>{data.meta.length>0&&<MetaView data={data} filters={metaFilters}/>}</div>}
         {section==='sources'&&<div className="stack">
           <CollectorPanel server={server} serverError={serverError} battles={data.matches} onSync={()=>void sync()} syncing={sending} hasAccount={!!book.active}/>
           <SupercellCredential onSaved={()=>void refreshCollection()}/>

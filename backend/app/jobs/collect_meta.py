@@ -24,7 +24,8 @@ def main():
         if result is None:
             LOG.info("Sem contas vencidas na fila, ou coleta em pausa ou em andamento.")
             return 0
-        LOG.info("%(checked)s perfis lidos · %(qualified)s qualificados · %(added)s partidas novas · %(failed)s falhas", result)
+        LOG.info("%(checked)s perfis lidos · %(qualified)s qualificados · %(requests)s chamadas · "
+                 "%(received)s partidas únicas · %(added)s novas · %(failed)s falhas", result)
         return 0
     except CollectionError as error:
         LOG.error("Coleta da Meta falhou (HTTP %s): %s", error.status_code, error.detail)

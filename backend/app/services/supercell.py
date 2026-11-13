@@ -1,5 +1,6 @@
 from email.utils import parsedate_to_datetime
 from ipaddress import IPv4Address
+from threading import Lock
 import re
 
 import httpx
@@ -20,6 +21,31 @@ def official_client(key):
         base_url="https://api.brawlstars.com/v1/", timeout=15,
         headers={"Authorization": f"Bearer {key}"}, follow_redirects=False,
     )
+
+
+class CountedCompetitiveClient:
+    """Count attempted calls at the transport boundary, including failed responses."""
+
+    def __init__(self, client):
+        self.client = client
+        self.profiles = 0
+        self.battlelogs = 0
+        self.rankings = 0
+        self.lock = Lock()
+
+    def get(self, path):
+        with self.lock:
+            if path.startswith("rankings/"):
+                self.rankings += 1
+            elif path.endswith("/battlelog"):
+                self.battlelogs += 1
+            else:
+                self.profiles += 1
+        return self.client.get(path)
+
+    @property
+    def total(self):
+        return self.profiles + self.battlelogs + self.rankings
 
 
 def reported_ipv4(error):

@@ -1,14 +1,14 @@
 import { useContext } from 'react';
 import { Activity, RefreshCw } from 'lucide-react';
 import { dateTime, number } from '@/lib/data';
-import { LiveMeta, observedDelay } from '@/lib/live';
-import type { LivePeriod, ServerCollection } from '@/lib/live';
+import { LiveMeta, metaPeriods, observedDelay } from '@/lib/live';
+import type { ServerCollection } from '@/lib/live';
 import type { Battle } from '@/lib/data';
 
 export function MetaPeriods() {
   const { report,period,setPeriod }=useContext(LiveMeta);
   return <div className="periods" aria-label="Janela da meta">
-    {([['competitive','Alto nível · 7 dias'],['today','Hoje'],['week','7 dias'],['patch','Desde o patch'],['reference','Histórico 4–5/11']] as [LivePeriod,string][]).filter(([key])=>key==='reference'||Boolean(report?.windows[key])).map(([key,label])=>
+    {metaPeriods(report).map(([key,label])=>
       <button key={key} className={period===key?'selected':''} aria-pressed={period===key} onClick={()=>setPeriod(key)}>{label}</button>)}
   </div>;
 }

@@ -7,9 +7,10 @@ from ..db import database
 from ..domain import ranked_reading, utc_now
 from ..repositories.accounts import list_accounts
 from ..repositories.history import retry_until
+from ..repositories.competitive import record_collection
 from .credentials import stored_token
 from .meta_sample import choose_players, discovered_players, player_battlelog, sample_battle, save_sample
-from .supercell import CollectionError, fetch, official_client
+from .supercell import CollectionError, CountedCompetitiveClient, fetch, official_client
 
 
 LOG = logging.getLogger("brawl.meta")
@@ -76,7 +77,8 @@ def collect_competitive_sample():
         cursor.execute("SELECT last_seed_at, seed_regions FROM meta_tracker_state WHERE singleton")
         state = cursor.fetchone()
         key = stored_token(cursor)
-        with official_client(key) as client:
+        with official_client(key) as raw_client:
+            client = CountedCompetitiveClient(raw_client)
             if (not state or not state["last_seed_at"] or state["seed_regions"] != seed_regions
                     or now - state["last_seed_at"] >= timedelta(hours=6)):
                 try:
@@ -84,7 +86,8 @@ def collect_competitive_sample():
                 except CollectionError as error:
                     if error.status_code == 429:
                         pause_tracker(cursor, error)
-                        connection.commit()
+                    record_collection(cursor, "scheduled", client, 0, 0, "error")
+                    connection.commit()
                     raise
                 if seeds:
                     enqueue_players(cursor, seeds, now)
@@ -104,6 +107,9 @@ def collect_competitive_sample():
             """, (now, batch_size))
             players = [row["player_tag"] for row in cursor.fetchall()]
             if not players:
+                if client.total:
+                    record_collection(cursor, "scheduled", client, 0, 0, "ok" if seeds else "error")
+                    connection.commit()
                 return None
             results = []
             with ThreadPoolExecutor(max_workers=5) as workers:
@@ -117,6 +123,7 @@ def collect_competitive_sample():
                         break
             players = players[:len(results)]
         added = qualified = failed = 0
+        received = set()
         discovered = set()
         first_error = None
         for player, result in zip(players, results):
@@ -131,6 +138,7 @@ def collect_competitive_sample():
             elo, battles, participants = result
             eligible = elo is not None and elo >= minimum
             qualified += int(eligible)
+            received.update(battles)
             added += save_sample(cursor, battles, elo)
             discovered.update(participants)
             interval = timedelta(minutes=15) if eligible else timedelta(hours=12)
@@ -144,7 +152,10 @@ def collect_competitive_sample():
                 INSERT INTO meta_tracker_state (singleton,last_run_at) VALUES (TRUE,%s)
                 ON CONFLICT (singleton) DO UPDATE SET last_run_at=EXCLUDED.last_run_at
             """, (utc_now(),))
+        status = "error" if failed == len(players) else "partial" if failed else "ok"
+        record_collection(cursor, "scheduled", client, len(received), added, status)
         connection.commit()
         if failed == len(players):
             raise first_error
-        return {"checked": len(players) - failed, "qualified": qualified, "added": added, "failed": failed}
+        return {"checked": len(players) - failed, "qualified": qualified, "added": added, "failed": failed,
+                "received": len(received), "requests": client.total}

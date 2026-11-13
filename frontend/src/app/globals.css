@@ -814,3 +814,14 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
 }
 .profile-details > summary { cursor: pointer; padding: 12px 14px; font-weight: 600; }
 .profile-details > .detail-grid { margin: 0 14px 12px; }
+
+.meta-period-summary .card-head { align-items: center; flex-wrap: wrap; }
+.meta-period-summary .card-head a { color: var(--lavender); font-size: 12px; }
+.meta-tier-list { overflow: hidden; }
+.tier-row { display: grid; grid-template-columns: 40px minmax(0,1fr); border-top: 1px solid var(--border); }
+.tier-letter { display: grid; place-items: center; color: #171322; font-size: 18px; }
+.tier-S { background: #ffaeac; }.tier-A { background: #ffce9d; }.tier-B { background: #f9e4a2; }.tier-C { background: #bbdfb0; }
+.tier-row ul { display: flex; flex-wrap: wrap; gap: 5px 12px; list-style: none; margin: 0; padding: 7px 9px; }
+.tier-row li { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+.tier-row .portrait { width: 28px; height: 28px; }
+.tier-row small { display: block; font-size: 9px; color: var(--muted); }

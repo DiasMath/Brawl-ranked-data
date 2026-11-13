@@ -2,6 +2,8 @@
 
 **Base da revisão** · código de `main` no commit `af962ea`, consultado em 12/11/2026. O plano descreve as entregas e seus critérios de aceite. A ocupação do Supabase, a cota consumida no Fixie e o formato dos bans reais no nosso coletor ainda dependem de medição.
 
+**Andamento em 13/11/2026** · A primeira entrega implementa as janelas por patch e temporada, a tier list por recorte, a referência histórica separada e o diagnóstico de coleta e armazenamento. A migração foi exercitada em PostgreSQL descartável. A primeira rodada com credencial e banco do ambiente de destino, a ocupação real do Supabase e a confirmação dos bans no battlelog ficam para a validação operacional. As datas do catálogo representam janelas conservadoras quando o horário exato do patch ou da temporada não está confirmado.
+
 ## 1. Ponto de partida
 
 | Área | Existe no projeto | Próxima lacuna |

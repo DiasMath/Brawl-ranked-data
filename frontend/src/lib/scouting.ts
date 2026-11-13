@@ -43,7 +43,7 @@ export function usePublicStats(mode: string | null, map: string | null, filters?
   const stored = period==='reference' ? null : report?.windows[period];
   const live=period==='today'&&stored?.end!==localDay(new Date().toISOString())?null:stored;
   const index:PublicIndex|null=period==='reference'?reference:live?{
-    source:period==='competitive'?'Amostra com Elo confirmado · Supercell':'Amostra de outros jogadores · Supercell',
+    source:live.minimum_elo!=null||period==='competitive'?'Amostra com Elo de perfil · Supercell':'Amostra de outros jogadores · Supercell',
     url:'https://developer.brawlstars.com/', start:live.start, end:live.end, season:'',
     unit:'registros', latest:live.latest, contexts:live.contexts.map((c,i)=>({...c,key:'live'+i})),
   }:null;

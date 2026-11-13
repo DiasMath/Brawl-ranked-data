@@ -7,7 +7,7 @@ import { byModeId, brawlers, findMap, MapImage, maps, ModeIcon, pickableModes, P
 import { accountCounters, draftPicks, ordered, publicCounters, publicPicks, usePublicStats } from '@/lib/scouting';
 import type { ScoutingRow } from '@/lib/scouting';
 import type { MetaMatchup } from '@/lib/browser-store';
-import { LiveMeta } from '@/lib/live';
+import { LiveMeta, metaPeriods } from '@/lib/live';
 import type { LivePeriod } from '@/lib/live';
 
 type Side = 'team'|'enemy';
@@ -65,7 +65,7 @@ export function DraftLab({ matches,profile,defaultMap }: {
   const rail=useRef<HTMLDivElement>(null);
   const drag=useRef<{id:number; x:number; offset:number; moved:boolean}|null>(null);
   const suppressClick=useRef(false);
-  const {period,setPeriod}=useContext(LiveMeta);
+  const {period,setPeriod,report}=useContext(LiveMeta);
   useEffect(()=>{
     const element=rail.current;
     if(!element)return;
@@ -253,7 +253,7 @@ export function DraftLab({ matches,profile,defaultMap }: {
         <header className="draft-panel-title"><h2><Target size={15}/> Recomendações</h2>
           <select aria-label="Fonte das recomendações" value={source} onChange={e=>setSource(e.target.value as typeof source)}><option value="public">Meta</option><option value="account">Minha conta</option></select></header>
         {source==='public'&&<select className="draft-period-select" aria-label="Período das recomendações" value={period} onChange={e=>setPeriod(e.target.value as LivePeriod)}>
-          <option value="reference">Histórico 4–5/11 · pré-patch</option></select>}
+          {metaPeriods(report).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select>}
         <div className="tabs">{(['picks','bans','counters'] as Advice[]).map(t=><button key={t} aria-pressed={advice===t} onClick={()=>setAdvice(t)}>
           {t==='picks'?'Picks':t==='bans'?'Bans':'Counters'}</button>)}</div>
         <div className="draft-suggestions">

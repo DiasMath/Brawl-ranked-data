@@ -8,7 +8,7 @@ import { profileProgress, progressSeries, progressionWindow, RankGoal, rankProgr
 import { ProfileDetails } from '@/features/analytics/profile-details';
 import { byId, ordered, publicPicks, usePublicStats } from '@/lib/scouting';
 import type { PublicStats, ScoutingRow } from '@/lib/scouting';
-import { LiveMeta } from '@/lib/live';
+import { inMetaPeriod, LiveMeta } from '@/lib/live';
 
 type RankRow = ScoutingRow & { mode?: string | null };
 
@@ -214,22 +214,18 @@ function TableComparison({ publicSample, setCount, own, brawler, unit }: {
 export function PublicMeta({ filters, matches }: { filters: Filters; matches: Battle[] }) {
   const {report,period}=useContext(LiveMeta);
   const meta=usePublicStats(null,filters.map_name||null,filters);
-  const aligned=meta.index?matches.filter(b=>{
-    const day=localDay(b.played_at);
-    return day>=meta.index!.start&&day<=meta.index!.end&&
-      (period!=='patch'||!report?.patchSince||b.played_at>=report.patchSince);
-  }):[];
+  const aligned=matches.filter(b=>inMetaPeriod(b.played_at,period,report));
+  const dated=period!=='reference' && Boolean(report?.windows[period]?.start_at);
   const historical=period==='reference';
   const last=meta.context?.latest??meta.index?.latest;
-  return <section className="card"><div className="card-head"><div><h2><Radio size={17}/> Meta por mapa</h2><p>{meta.context?
+  return <section className="card"><div className="card-head"><div><h2><Radio size={17}/> Estatísticas por brawler</h2><p>{meta.context?
     `${number(meta.context.sets)} ${meta.index?.unit??'séries'} · ${meta.context.map||'Todos os mapas'}${last?' · Última partida '+dateTime(last):''}`:
     'Win rate, pick rate e ban rate por brawler'}</p></div>
     <span className={`tag ${historical?'hypothesis':'confirmed'}`}>{historical?'Pré-patch de 11/11':'Amostra da coleta'}</span></div>
     {meta.sample&&meta.context&&meta.context.sets>0?<TableComparison key={period+':'+filters.map_name} publicSample={meta.sample}
       setCount={meta.context.sets} own={aligned} brawler={filters.player_brawler} unit={meta.index?.unit??'séries'}/>:
-      <div className="list-empty"><Trophy size={18}/>{meta.loading?'Carregando amostra…':period==='patch'&&!report?.patchSince
-        ?'O recorte deste patch está indisponível.':'Sem partidas coletadas para o período e filtros atuais.'}</div>}
-    {!historical&&period!=='patch'&&<p className="section-note">Janela por data de Brasília. Pode incluir partidas de antes e depois de um balanceamento no mesmo dia.</p>}
+      <div className="list-empty"><Trophy size={18}/>{meta.loading?'Carregando amostra…':'Sem partidas coletadas para o período e filtros atuais.'}</div>}
+    {!historical&&!dated&&<p className="section-note">Janela por data de Brasília. Pode incluir partidas de antes e depois de um balanceamento no mesmo dia.</p>}
     {meta.index&&<div className="scout-foot"><a href={meta.index.url} target="_blank" rel="noreferrer">{meta.index.source}</a>
       {' · '+meta.index.start+' a '+meta.index.end+' · Pick rate por espaço de escolha. Ban rate por registro com lista explícita.'}</div>}
     {!historical&&<p className="section-note">A coleta própria é uma amostra de jogadores de ranking de troféus e participantes encontrados nos battle logs. <a href="https://brawlhub.gg/meta/" target="_blank" rel="noreferrer">Consultar referência externa no BrawlHub</a></p>}

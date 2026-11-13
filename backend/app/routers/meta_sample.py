@@ -5,10 +5,11 @@ from ..db import database
 from ..domain import tag, utc_now
 from ..repositories.accounts import list_accounts
 from ..repositories.history import retry_until
+from ..repositories.competitive import collection_diagnostics, record_collection
 from ..services.credentials import stored_token
 from ..services.meta_sample import choose_players, sample_players, sample_report, save_sample
 from ..services.meta_tracker import enqueue_players, pause_tracker
-from ..services.supercell import CollectionError, official_client
+from ..services.supercell import CollectionError, CountedCompetitiveClient, official_client
 
 
 router = APIRouter()
@@ -21,7 +22,11 @@ class SampleRequest(BaseModel):
 @router.get("/api/meta/sample")
 def read_sample():
     with database() as (_, cursor):
-        return sample_report(cursor)
+        return report_with_diagnostics(cursor)
+
+
+def report_with_diagnostics(cursor):
+    return {**sample_report(cursor), "diagnostics": collection_diagnostics(cursor)}
 
 
 @router.post("/api/meta/sample")
@@ -43,8 +48,10 @@ def collect_sample(request: SampleRequest):
             raise HTTPException(422, "Escolha a tag de um jogador de fora das contas monitoradas.")
         key = stored_token(cursor)
         players = [requested] if requested else []
+        client = None
         try:
-            with official_client(key) as client:
+            with official_client(key) as raw_client:
+                client = CountedCompetitiveClient(raw_client)
                 if not requested:
                     players = choose_players(client, excluded)
                 if not players:
@@ -53,9 +60,12 @@ def collect_sample(request: SampleRequest):
         except CollectionError as error:
             if error.status_code == 429:
                 pause_tracker(cursor, error)
+            if client and client.total:
+                record_collection(cursor, "manual", client, 0, 0, "error")
                 connection.commit()
             raise
         added = save_sample(cursor, battles)
         enqueue_players(cursor, players, utc_now())
+        record_collection(cursor, "manual", client, len(battles), added, "partial" if failed else "ok")
         return {"players": len(players), "failed": failed, "received": len(battles), "added": added,
-                "report": sample_report(cursor)}
+                "report": report_with_diagnostics(cursor)}

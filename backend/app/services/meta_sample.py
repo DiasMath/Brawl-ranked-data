@@ -1,11 +1,12 @@
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from itertools import permutations
 
 from ..config import meta_min_elo
-from ..domain import encoded, iso, obj, parse_battle, tag
+from ..domain import encoded, iso, obj, parse_battle, tag, utc_now
+from ..repositories.competitive import BRASILIA, competitive_periods, public_period, sampled_battles
 from .supercell import CollectionError, fetch
 
 
@@ -146,33 +147,39 @@ def summarize_context(rows, mode, map_name):
     }
 
 
+def window_contexts(rows):
+    if not rows:
+        return []
+    groups = defaultdict(list)
+    for row in rows:
+        groups[row["mode"], row["map_name"]].append(row)
+    return [summarize_context(rows, None, None),
+            *(summarize_context(group, *key) for key, group in groups.items())]
+
+
 def sample_report(cursor):
     minimum = meta_min_elo()
-    cursor.execute("SELECT (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::date AS today")
-    today = cursor.fetchone()["today"]
-    cursor.execute("""
-        SELECT played_at, map_name, mode, team_a, team_b, winner, observed_elo,
-               ((played_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo')::date AS day
-        FROM meta_sample_battles
-        WHERE played_at >= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - INTERVAL '8 days'
-    """)
-    rows = cursor.fetchall()
+    now = utc_now()
+    today = now.replace(tzinfo=UTC).astimezone(BRASILIA).date()
+    week_start = today - timedelta(days=6)
+    week_start_utc = datetime.combine(week_start, datetime.min.time(), BRASILIA).astimezone(UTC).replace(tzinfo=None)
+    periods = competitive_periods(cursor, now)
+    start_times = [week_start_utc, *(period["start_at"] for period in periods.values())]
+    rows = sampled_battles(cursor, min(start_times), now)
+    competitive = [row for row in rows if (row["observed_elo"] or 0) >= minimum]
     windows = {}
-    for key, label, days in (("today", "Hoje", 0), ("week", "7 dias", 6),
-                             ("competitive", "Alto nível · 7 dias", 6)):
-        start = today - timedelta(days=days)
-        selected = [row for row in rows if start <= row["day"] <= today]
-        if key == "competitive":
-            selected = [row for row in selected if (row["observed_elo"] or 0) >= minimum]
-        if not selected:
-            continue
-        groups = defaultdict(list)
-        for row in selected:
-            groups[row["mode"], row["map_name"]].append(row)
-        contexts = [summarize_context(selected, None, None)]
-        contexts.extend(summarize_context(group, *group_key) for group_key, group in groups.items())
-        windows[key] = {"label": label, "start": start.isoformat(), "end": today.isoformat(),
-                        "latest": contexts[0]["latest"], "contexts": contexts}
+    for key, label, start in (("today", "Hoje", today), ("week", "7 dias", week_start),
+                              ("competitive", "Alto nível · 7 dias", week_start)):
+        source = competitive if key == "competitive" else rows
+        contexts = window_contexts([row for row in source if start <= row["day"] <= today])
+        if contexts:
+            windows[key] = {"label": label, "start": start.isoformat(), "end": today.isoformat(),
+                            "latest": contexts[0]["latest"], "contexts": contexts}
+    for key, period in periods.items():
+        contexts = window_contexts([row for row in competitive
+                                    if period["start_at"] <= row["played_at"] < period["end_at"]])
+        windows[key] = {**public_period(period), "latest": contexts[0]["latest"] if contexts else None,
+                        "contexts": contexts, "minimum_elo": minimum}
     cursor.execute("""
         SELECT COUNT(*) AS queued,
                COUNT(*) FILTER (WHERE last_checked_at IS NOT NULL) AS checked,
