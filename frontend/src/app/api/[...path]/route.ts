@@ -70,6 +70,11 @@ async function forward(request: NextRequest) {
       const map = request.nextUrl.searchParams.get('map') ?? '';
       if (map.length > 100) return Response.json({ detail: 'Mapa inválido.' }, { status: 400, headers });
       if (map) target.searchParams.set('map', map);
+      const patch = request.nextUrl.searchParams.get('patch');
+      if (patch !== null) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(patch)) return Response.json({ detail: 'Patch inválido.' }, { status: 400, headers });
+        target.searchParams.set('patch', patch);
+      }
     }
     if (path === '/api/collection/history') {
       const after = request.nextUrl.searchParams.get('after') ?? '0';

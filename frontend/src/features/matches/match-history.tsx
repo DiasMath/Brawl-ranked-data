@@ -91,7 +91,7 @@ export function MatchDetail({ match, raw, onClose, onChange }: { match: Battle; 
       <label>Rank observado<input name="rank" maxLength={60} /></label>
       <label>Pontos de rank<input name="score" type="number" min={0} max={2147483647} /></label>
       <label>Temporada<input name="season" maxLength={100} /></label>
-      <label>Bans separados por vírgulas<input name="bans" /></label>
+      <label>Lista completa de bans, separados por vírgulas<input name="bans" /></label>
       <label className="checkbox"><input name="noBans" type="checkbox" /> A evidência confirma ausência de bans</label>
       <label>Referência da evidência<input name="source" required minLength={3} maxLength={400} /></label>
       <button className="button primary" disabled={saving}>Salvar evidência</button>

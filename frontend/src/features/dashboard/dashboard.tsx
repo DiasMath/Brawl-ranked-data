@@ -18,6 +18,7 @@ import { SyncProgressCard } from '@/features/collection/sync-progress';
 import { CounterFinder, DraftLab } from '@/features/draft/draft-lab';
 import { MatchDetail, MatchList } from '@/features/matches/match-history';
 import { MetaDashboard, MetaRankings, VisualRanking } from '@/features/meta/meta-dashboard';
+import { AccountBans } from '@/features/meta/external-account';
 import { ExternalMeta } from '@/features/meta/external-meta';
 import { MetaView } from '@/features/meta/meta-comparison';
 import { SampleCollection } from '@/features/meta/sample-collection';
@@ -159,10 +160,7 @@ export default function Dashboard() {
             <VisualRanking title="Meus picks" metric="pick"
               rows={draft.picks?draft.rows.filter(r=>r.picks>0).map(r=>({name:r.label,value:r.picks/draft.picks,detail:number(r.picks)+' picks próprios'})):[]}
               empty="Sincronize a conta para ver seus picks."/>
-            <VisualRanking title="Bans observados na minha conta" metric="ban"
-              rows={draft.drafts?draft.rows.filter(r=>r.bans>0).sort((a,b)=>b.bans-a.bans)
-                .map(r=>({name:r.label,value:r.bans/draft.drafts,detail:number(r.bans)+' em '+number(draft.drafts)+' listas'})):[]}
-              empty={draft.drafts?'Nenhum ban registrado nas listas conhecidas.':'Sem listas explícitas no histórico da conta.'}/>
+            <AccountBans matches={comparedAccount} selectedMap={filters.map_name||null}/>
           </div>
           <Card title="Drafts recentes" icon={History} sub="Composições dos registros ranqueados."
             action={<button className="button small subtle" onClick={()=>navigate('draftlab')}><FlaskConical size={15}/> Abrir Draft Lab</button>}>
@@ -174,7 +172,7 @@ export default function Dashboard() {
             <button aria-pressed={metaSource==='external'} onClick={()=>setMetaSource('external')}>DraftMeta</button>
             <button aria-pressed={metaSource==='own'} onClick={()=>setMetaSource('own')}>Coleta própria e histórico</button>
           </div>
-          {metaSource==='external'?<ExternalMeta/>:<><MetaDashboard filters={metaFilters} matches={metaAccount}
+          {metaSource==='external'?<ExternalMeta matches={data.player_tag===active.tag?data.matches:[]} accountName={active.name}/>:<><MetaDashboard filters={metaFilters} matches={metaAccount}
             onMap={map_name=>setFilters({...filters,map_name})}/>
           <SampleCollection tracking={report?.tracking} diagnostics={report?.diagnostics} notify={setFeedback} onCollected={sample=>{
             metaRevision.current++;

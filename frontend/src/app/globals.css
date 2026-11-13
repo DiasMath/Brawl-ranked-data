@@ -834,3 +834,4 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
 .meta-movements li { display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 11px; }
 .meta-movements li .portrait { width: 22px; height: 22px; }
 .meta-movements li strong { margin-left: auto; white-space: nowrap; }
+.external-meta-card .external-map-preview { width: 68px; height: 58px; object-fit: contain; margin: 0 12px; }

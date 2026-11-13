@@ -104,8 +104,11 @@ def format_snapshot(tier_list, changes, map_name=None, map_info=None):
             raise ValueError("Tier inválido")
         seen.add(label)
         tiers.append({"tier": label, "brawlers": [brawler_row(row) for row in tier["brawlers"]]})
-    if not any(tier["brawlers"] for tier in tiers):
-        raise ValueError("Tier list vazia")
+    rows = [row for tier in tiers for row in tier["brawlers"]]
+    if not rows or len({row["name"].casefold() for row in rows}) != len(rows):
+        raise ValueError("Tier list vazia ou duplicada")
+    if any(row["games"] > battles for row in rows):
+        raise ValueError("Amostra de brawler excede o recorte")
     picks = []
     if map_info and map_info["map"] == map_name:
         ranked = {row["name"]: row for tier in tiers for row in tier["brawlers"]}
@@ -114,6 +117,10 @@ def format_snapshot(tier_list, changes, map_name=None, map_info=None):
             presence = rate(row["pickRate"])
             if parsed == ranked.get(parsed["name"]) and abs(100 * parsed["games"] / battles - presence) <= 0.06:
                 picks.append({"name": parsed["name"], "pick_rate": presence})
+    # DraftMeta counts presence per match. Use the published counts only when the
+    # tier response reconciles to all six choices in every drafted match.
+    presence = ([{"name": row["name"], "pick_rate": 100 * row["games"] / battles} for row in rows]
+                if sum(row["games"] for row in rows) == 6 * battles else None)
     movements = None
     if not map_name:
         movements = {"previous": previous, "source_url": source_link(changes["link"])}
@@ -124,7 +131,7 @@ def format_snapshot(tier_list, changes, map_name=None, map_info=None):
                                   "games": positive_count(row["games"])} for row in changes[key]]
     return {"provider": "DraftMeta", "patch_date": patch_date, "map": map_name, "source_url": source_link(tier_list["link"]),
             "start": current["start"], "end": current["end"], "battles": battles, "tiers": tiers,
-            "map_picks": picks, "movements": movements}
+            "map_picks": picks, "presence": presence, "movements": movements}
 
 
 def fetch_snapshot(map_name=None):

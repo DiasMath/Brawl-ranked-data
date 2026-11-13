@@ -214,7 +214,11 @@ Se a fila estiver em pausa ou uma rodada estiver em andamento, aguarde a libera�
 
 Em **Meta → DraftMeta**, selecione **Todos os mapas** ou um mapa e use **Atualizar do DraftMeta**. O FastAPI consulta a interface MCP pública, valida o recorte de todos os ranks contra o último patch e salva um snapshot por mapa e patch no PostgreSQL. Durante uma hora, a atualização reaproveita a cópia existente. A tela informa quando a cópia foi consultada. Se uma atualização falhar, a última cópia permanece disponível.
 
-A primeira versão usa tier list, win rate, amostra por brawler e variações de win rate e presença após o patch. A presença por mapa aparece para as entradas em que os dados de `map_info` conferem com a tier list. Presença é a proporção de partidas com o brawler. O MCP ainda não oferece ban rate observado. O histórico pessoal continua vindo da Supercell. A aba **Coleta própria e histórico** permanece disponível para consulta e para o Draft Lab atual.
+A primeira versão usa tier list, win rate, amostra por brawler e variações de win rate e presença após o patch. Presença é a proporção de partidas com o brawler. O painel usa as contagens consolidadas quando elas somam exatamente seis escolhas por partida. Quando a lista é parcial, usa as taxas publicadas em `map_info` que conferem com a tier list. O MCP ainda não oferece ban rate observado. O histórico pessoal continua vindo da Supercell. A aba **Coleta própria e histórico** permanece disponível para consulta e para o Draft Lab atual.
+
+A comparação usa a conta selecionada, o mapa e a janela do snapshot. As datas publicadas são interpretadas em UTC e as partidas posteriores à consulta ficam fora do recorte. Mostra as amostras dos dois lados e a diferença em pontos percentuais a partir de 10 partidas decisivas da conta. O seletor de patch permite abrir snapshots já salvos.
+
+**Bans observados nas minhas partidas** calcula taxas a partir de listas conhecidas, com filtro de mapa e cobertura. Uma lista explicitamente vazia entra no denominador e um campo ausente fica fora. Para acrescentar uma lista completa a uma partida antiga, use **Partidas → Registrar evidência**.
 
 A migração `002_external_meta.sql` roda junto das demais na inicialização do backend. O teste manual da integração usa as configurações existentes, com saída HTTPS para `draftmeta.com`. Atualizações recorrentes em volume devem seguir os limites e condições da fonte. [Integração DraftMeta](https://draftmeta.com/ai) · [Termos do DraftMeta](https://draftmeta.com/terms)
 
