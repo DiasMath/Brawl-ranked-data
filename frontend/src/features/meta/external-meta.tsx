@@ -16,13 +16,15 @@ export type Snapshot = Window & {
   map_picks: { name: string; pick_rate: number }[];
   presence?: { name: string; pick_rate: number }[] | null;
   movements: {
-    previous: Window; source_url: string; win_risers: Movement[]; win_fallers: Movement[];
+    current?: Window; previous: Window; source_url: string; win_risers: Movement[]; win_fallers: Movement[];
     pick_risers: Movement[]; pick_fallers: Movement[];
   } | null;
 };
 
-const mapOptions = [...new Set(maps.filter(m => !m.disabled && pickableModes.some(mode => mode.id === m.mode))
-  .map(m => m.name))].sort((a,b) => a.localeCompare(b));
+type Coverage = { patch_date: string; updated_at: string;
+  maps: { name: string; status: 'updated'|'unavailable'|'pending'; saved: boolean }[] };
+type ExternalResponse = { snapshot: Snapshot|null; patches: string[]; coverage?: Coverage|null; saved_maps?: string[] };
+const fallbackMaps = maps.filter(m => !m.disabled && pickableModes.some(mode => mode.id === m.mode)).map(m => m.name);
 const dateLabel = (day: string) => day.split('-').reverse().join('/');
 const points = (value: number) => `${value > 0 ? '+' : ''}${value.toLocaleString('pt-BR')} p.p.`;
 
@@ -35,6 +37,7 @@ function Changes({ data }: { data: NonNullable<Snapshot['movements']> }) {
   ] as const;
   return <section className="card external-meta-card">
     <div className="card-head"><div><h2>Mudanças após o patch</h2>
+      {data.current&&<p>{dateLabel(data.current.start)} a {dateLabel(data.current.end)} · {number(data.current.battles)} partidas</p>}
       <p>Contra {dateLabel(data.previous.start)} a {dateLabel(data.previous.end)} · {number(data.previous.battles)} partidas</p></div>
       <a href={data.source_url} target="_blank" rel="noreferrer">Metodologia e dados</a></div>
     <div className="meta-movements">{groups.map(({title, rows, key, icon:Icon})=><div key={title}>
@@ -49,6 +52,8 @@ export function ExternalMeta({matches,accountName}: {matches:Battle[]; accountNa
   const [map,setMap] = useState('');
   const [patch,setPatch] = useState('');
   const [patches,setPatches] = useState<string[]>([]);
+  const [coverage,setCoverage] = useState<Coverage|null>(null);
+  const [savedMaps,setSavedMaps] = useState<string[]>([]);
   const [snapshot,setSnapshot] = useState<Snapshot|null>(null);
   const [loading,setLoading] = useState(true);
   const [refreshing,setRefreshing] = useState(false);
@@ -60,11 +65,13 @@ export function ExternalMeta({matches,accountName}: {matches:Battle[]; accountNa
     setMessage('');
     const params=new URLSearchParams({map});
     if(patch) params.set('patch',patch);
-    void collectionRequest<{snapshot:Snapshot|null;patches:string[]}>(`/api/meta/external?${params}`, {signal:controller.signal})
+    void collectionRequest<ExternalResponse>(`/api/meta/external?${params}`, {signal:controller.signal})
       .then(data=>{
         if(controller.signal.aborted) return;
         setSnapshot(data.snapshot);
         setPatches(data.patches??[]);
+        setCoverage(data.coverage??null);
+        setSavedMaps(data.saved_maps??[]);
       })
       .catch(error=>{if(!controller.signal.aborted) setMessage(error.message);})
       .finally(()=>{if(!controller.signal.aborted) setLoading(false);});
@@ -85,6 +92,10 @@ export function ExternalMeta({matches,accountName}: {matches:Battle[]; accountNa
     } finally {setRefreshing(false);}
   }
   const current = (snapshot?.map ?? '') === map && (!patch||snapshot?.patch_date===patch) ? snapshot : null;
+  const mapOptions=[...new Set([...(coverage?.maps.map(item=>item.name)??fallbackMaps),...savedMaps,...(map?[map]:[])])]
+    .sort((a,b)=>a.localeCompare(b));
+  const missing=coverage?.maps.filter(item=>!item.saved)??[];
+  const stale=coverage?.maps.filter(item=>item.saved&&item.status!=='updated')??[];
   const accountMatches=useMemo(()=>current?accountInExternalScope(matches,current):[],[matches,current]);
   const pickRates = new Map((current?.presence??current?.map_picks)?.map(row=>[row.name,row.pick_rate]));
   return <div className="stack">
@@ -99,9 +110,14 @@ export function ExternalMeta({matches,accountName}: {matches:Battle[]; accountNa
           <option value="">Último salvo</option>{patches.map(day=><option value={day} key={day}>{dateLabel(day)}</option>)}
         </select></label>
         <button className="button primary" onClick={()=>void refresh()} disabled={loading||refreshing||!!patch} aria-busy={refreshing}>
-          <RefreshCw size={15}/> {refreshing?'Consultando…':'Atualizar do DraftMeta'}
+          <RefreshCw size={15}/> {refreshing?'Consultando…':'Atualizar este recorte'}
         </button>
       </div>
+      {coverage&&<p className="section-note">
+        Patch {dateLabel(coverage.patch_date)} · {coverage.maps.length-missing.length} de {coverage.maps.length} mapas com dados salvos · Última rodada {dateTime(coverage.updated_at)}
+        {missing.length>0&&<small className="meta-coverage-detail">Sem snapshot neste patch · {missing.map(item=>item.name).join(', ')}</small>}
+        {stale.length>0&&<small className="meta-coverage-detail">Com cópia anterior à última rodada · {stale.map(item=>item.name).join(', ')}</small>}
+      </p>}
       {map&&<MapImage map={findMap(map)} className="external-map-preview"/>}
       {message&&<p className="section-note" role="status">{message}</p>}
       {current?<p className="section-note">Patch de {dateLabel(current.patch_date)} · {dateLabel(current.start)} a {dateLabel(current.end)} · {number(current.battles)} partidas · Consultado em {dateTime(current.fetched_at)}{!current.fresh?' · Última cópia salva':''}</p>:

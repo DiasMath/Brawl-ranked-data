@@ -855,3 +855,5 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
   .coaching-map-row { grid-template-columns: 36px minmax(0,1fr) 44px; }
   .coaching-map-row .rate-track { display: none; }
 }
+
+.meta-coverage-detail { display: block; margin-top: 4px; }

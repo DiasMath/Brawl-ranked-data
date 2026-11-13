@@ -15,6 +15,7 @@ Painel privado do Ranqueado de Brawl Stars. Use Next.js, FastAPI e PostgreSQL no
 | `backend/` | FastAPI, coleta oficial, esquema PostgreSQL e histórico persistente |
 | `render.yaml` | Blueprint opcional para a API do Render |
 | `render.cron.yaml` | Blueprint opcional para criar o Cron Job pago separadamente |
+| `Agendar-DraftMeta.ps1` | Atualiza a Meta geral e todos os mapas do pool ranqueado do DraftMeta |
 | `Agendar-Partidas.ps1` | Testa ou registra a coleta pessoal de contas escolhidas no Windows |
 | `Agendar-Meta.ps1` | Registra e inicia a coleta competitiva no Agendador de Tarefas do Windows |
 | `Preparar-Ambiente.ps1` | Gera as credenciais próprias do painel e preenche os arquivos locais de ambiente |
@@ -234,6 +235,18 @@ A comparação usa a conta selecionada, o mapa e a janela do snapshot. As datas 
 **Bans observados nas minhas partidas** calcula taxas a partir de listas conhecidas, com filtro de mapa e cobertura. Uma lista explicitamente vazia entra no denominador e um campo ausente fica fora. Para acrescentar uma lista completa a uma partida antiga, use **Partidas → Registrar evidência**.
 
 A migração `002_external_meta.sql` roda junto das demais na inicialização do backend. O teste manual da integração usa as configurações existentes, com saída HTTPS para `draftmeta.com`. Atualizações recorrentes em volume devem seguir os limites e condições da fonte. [Integração DraftMeta](https://draftmeta.com/ai) · [Termos do DraftMeta](https://draftmeta.com/terms)
+
+### Atualização completa do DraftMeta
+
+Na raiz do Windows, execute:
+
+```powershell
+.\Agendar-DraftMeta.ps1 -TestarAgora
+.\Agendar-DraftMeta.ps1
+Get-Content .\backend\.venv\draftmeta-coleta-development.log -Tail 20
+```
+
+A tarefa roda a cada 60 minutos, com o Windows ligado e seu usuário conectado. O job atualiza a tier list geral e consulta todos os mapas do pool ranqueado publicado pelo DraftMeta, com todos os ranks. O filtro de mapa é só para navegação. **Meta → DraftMeta** mostra a cobertura do patch, os mapas sem snapshot e os que ficaram com a cópia anterior. Um HTTP 429 interrompe a rodada e preserva os snapshots já salvos. O comando equivalente para um executor que já tenha `DATABASE_URL` configurado é `python -m app.jobs.collect_draftmeta`, a partir de `backend`.
 
 ### Revisão por mapa e sessões
 

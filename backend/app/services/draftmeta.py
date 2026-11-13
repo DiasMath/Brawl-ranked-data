@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from datetime import date
 from urllib.parse import urlparse
 
@@ -91,8 +92,6 @@ def format_snapshot(tier_list, changes, map_name=None, map_info=None):
     if tier_list["population"] != expected or previous["end"] >= patch_date or current["start"] < patch_date:
         raise ValueError("Janelas incompatíveis entre as consultas")
     battles = positive_count(tier_list["battles"])
-    if (not map_name and battles != current["battles"]) or (map_name and battles > current["battles"]):
-        raise ValueError("Amostras incompatíveis entre as consultas")
     expected_scope = tier_list["scope"].startswith(f"{map_name} (") if map_name else tier_list["scope"] == "all modes"
     if not expected_scope:
         raise ValueError("Mapa retornado é diferente do solicitado")
@@ -123,7 +122,7 @@ def format_snapshot(tier_list, changes, map_name=None, map_info=None):
                 if sum(row["games"] for row in rows) == 6 * battles else None)
     movements = None
     if not map_name:
-        movements = {"previous": previous, "source_url": source_link(changes["link"])}
+        movements = {"current": current, "previous": previous, "source_url": source_link(changes["link"])}
         for target, key in (("win_risers", "winRisers"), ("win_fallers", "winFallers"),
                             ("pick_risers", "pickRisers"), ("pick_fallers", "pickFallers")):
             movements[target] = [{"name": row["brawler"], "win_change": rate(row["winChange"], -100),
@@ -134,18 +133,13 @@ def format_snapshot(tier_list, changes, map_name=None, map_info=None):
             "map_picks": picks, "presence": presence, "movements": movements}
 
 
-def fetch_snapshot(map_name=None):
+@contextmanager
+def draftmeta_session():
     try:
         with httpx.Client(timeout=9, follow_redirects=False) as http:
             client = DraftMetaClient(http)
             client.initialize()
-            changes = client.call("meta_changes", update="latest")
-            arguments = {"rank": "all", "per_tier": 30}
-            if map_name:
-                arguments["map"] = map_name
-            tier_list = client.call("tier_list", **arguments)
-            map_info = client.call("map_info", map=map_name, limit=15) if map_name else None
-        return format_snapshot(tier_list, changes, map_name, map_info)
+            yield client
     except httpx.HTTPStatusError as error:
         if error.response.status_code == 429:
             raise CollectionError(429, "Limite de consultas ao DraftMeta atingido. Tente novamente mais tarde.") from error
@@ -154,3 +148,29 @@ def fetch_snapshot(map_name=None):
         raise CollectionError(502, "O DraftMeta está temporariamente indisponível.") from error
     except (ValueError, KeyError, TypeError, AttributeError) as error:
         raise CollectionError(502, "O DraftMeta ainda não publicou amostras compatíveis para este recorte.") from error
+
+
+def read_tier(client, changes, map_name=None, *, include_map_info=False):
+    arguments = {"rank": "all", "per_tier": 30}
+    if map_name:
+        arguments["map"] = map_name
+    tier = client.call("tier_list", **arguments)
+    snapshot = format_snapshot(tier, changes, map_name)
+    if map_name and include_map_info and snapshot["presence"] is None:
+        map_info = client.call("map_info", map=map_name, limit=15)
+        snapshot = format_snapshot(tier, changes, map_name, map_info)
+    return snapshot
+
+
+def ranked_pool(client):
+    rows = client.call("current_rotation")["rankedPool"]
+    names = list(dict.fromkeys(row["map"].strip() for row in rows))
+    if not names or any(not name or len(name)>100 for name in names):
+        raise ValueError("Catálogo ranqueado inválido")
+    return names
+
+
+def fetch_snapshot(map_name=None):
+    with draftmeta_session() as client:
+        changes = client.call("meta_changes", update="latest")
+        return read_tier(client, changes, map_name, include_map_info=True)
