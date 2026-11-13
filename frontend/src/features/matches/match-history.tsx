@@ -3,6 +3,8 @@ import { ChevronDown, ChevronLeft, ChevronRight, FileJson, List, Swords, X } fro
 import { Empty, Pill } from '@/components/dashboard-ui';
 import { findMap, MapImage, ModeIcon, ModeLabel, Portrait, RankArt } from '@/components/game';
 import { dateTime, modeName, number, resultName } from '@/lib/data';
+import { ReplayAnnotation } from '@/features/analytics/replay-annotation';
+import type { ReplayReview } from '@/lib/coaching';
 import type { Battle } from '@/lib/data';
 
 const pageSize = 15;
@@ -30,7 +32,10 @@ export function MatchList({ matches, onOpen, compact = false }: { matches: Battl
 }
 
 export type Evidence = { rank_label: string|null; rank_score: number|null; season: string|null; bans: string[]|null; evidence:string };
-export function MatchDetail({ match, raw, onClose, onChange }: { match: Battle; raw: unknown; onClose: () => void; onChange: (record:Evidence) => Promise<void> }) {
+export function MatchDetail({ match, raw, review, onClose, onChange, onReview }: {
+  match: Battle; raw: unknown; review?: ReplayReview; onClose: () => void;
+  onChange: (record:Evidence) => Promise<void>; onReview: (value:ReplayReview) => Promise<void>;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [rawOpen, setRawOpen] = useState(false);
   const [evidenceOpen, setEvidenceOpen] = useState(false);
@@ -96,6 +101,7 @@ export function MatchDetail({ match, raw, onClose, onChange }: { match: Battle; 
       <label>Referência da evidência<input name="source" required minLength={3} maxLength={400} /></label>
       <button className="button primary" disabled={saving}>Salvar evidência</button>
     </form>}
+    {match.ranked&&<ReplayAnnotation review={review} onSave={onReview}/>}
     {rawOpen && raw !== undefined && <pre className="raw">{JSON.stringify(raw, null, 2)}</pre>}
     </div></dialog>;
 }

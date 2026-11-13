@@ -10,7 +10,7 @@ import { collectionRequest } from '@/lib/live';
 
 type Movement = { name: string; win_change: number; pick_change: number; games: number };
 type Window = { start: string; end: string; battles: number };
-type Snapshot = Window & {
+export type Snapshot = Window & {
   provider: string; patch_date: string; map: string | null; source_url: string; fetched_at: string; fresh: boolean;
   tiers: { tier: string; brawlers: BrawlerStats[] }[];
   map_picks: { name: string; pick_rate: number }[];

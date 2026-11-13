@@ -222,6 +222,12 @@ A comparação usa a conta selecionada, o mapa e a janela do snapshot. As datas 
 
 A migração `002_external_meta.sql` roda junto das demais na inicialização do backend. O teste manual da integração usa as configurações existentes, com saída HTTPS para `draftmeta.com`. Atualizações recorrentes em volume devem seguir os limites e condições da fonte. [Integração DraftMeta](https://draftmeta.com/ai) · [Termos do DraftMeta](https://draftmeta.com/terms)
 
+### Revisão por mapa e sessões
+
+Em **Desempenho**, abra um mapa para ver suas últimas 10 partidas decisivas e as 10 anteriores, os brawlers usados e a comparação com o snapshot do DraftMeta. Os rankings dos mapas exigem 10 partidas decisivas. Para revisar, abra as fichas de vitória e derrota ou o detalhe de qualquer ranqueada. As observações vêm do replay assistido no jogo e ficam salvas por conta neste navegador. O plano da próxima sessão registra um ajuste e acompanha os resultados das partidas coletadas entre o início e a conclusão. A exportação do histórico inclui essas anotações.
+
+Em **Progressão → Sessões do Ranqueado**, as partidas são agrupadas por temporada e dia de Brasília, com uma nova sessão após pelo menos uma hora de intervalo. Primeiro, último e pico de Elo são mostrados quando há leituras registradas no intervalo da sessão e na mesma temporada.
+
 ## Referências
 
 - [Cron Jobs do Render](https://render.com/docs/cronjobs)

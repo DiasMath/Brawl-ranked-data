@@ -6,6 +6,7 @@ import type { Account, AccountBook, LocalData, Progress } from '@/lib/browser-st
 import { collectionRequest } from '@/lib/live';
 import type { LivePeriod, ServerCollection, SyncProgress } from '@/lib/live';
 import type { Evidence } from '@/features/matches/match-history';
+import type { ReplayReview, TrainingPlan } from '@/lib/coaching';
 import type { Section } from './navigation';
 
 const historyVersion=3;
@@ -215,6 +216,25 @@ export function useDashboard() {
       await persist({...previous,progress:[...previous.progress,record]});
     } finally {setBusy(false);}
   }
+  async function saveCoaching(change: { review: {id:string; value:ReplayReview} } | { training: TrainingPlan }) {
+    if(!book.active) throw new Error('Cadastre uma conta para salvar a análise.');
+    if(busy||processing.current) throw new Error('Aguarde a atualização em andamento.');
+    processing.current=true;
+    setBusy(true);
+    try {
+      const previous=await loadLocal(book.active);
+      if('review' in change){
+        if(!previous.dataset.matches.some(row=>row.id===change.review.id)) throw new Error('Partida indisponível.');
+        await persist({...previous,reviews:{...previous.reviews,[change.review.id]:change.review.value}});
+      }else{
+        const now=new Date().toISOString();
+        const prior=previous.training?.focus===change.training.focus?previous.training:undefined;
+        await persist({...previous,training:{...change.training,startedAt:prior?.startedAt??now,
+          completedAt:change.training.completed?(prior?.completedAt??now):undefined}});
+      }
+    } finally {processing.current=false;setBusy(false);}
+  }
+
   async function saveEvidence(record:Evidence){
     if(!match)return;
     if(busy||processing.current)throw new Error('Aguarde a atualização em andamento.');
@@ -243,6 +263,6 @@ export function useDashboard() {
 
   return {section, filters, setFilters, book, local, period, setPeriod, server, serverError,
     sending, syncProgress, feedback, setFeedback, ready, busy, menuOpen, setMenuOpen, rankedOnly, setRankedOnly,
-    setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveProgress, saveEvidence,
+    setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveProgress, saveEvidence, saveCoaching,
     refreshCollection:()=>refreshServer.current()};
 }

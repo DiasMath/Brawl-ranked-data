@@ -10,6 +10,7 @@ import { downloadSnapshot } from '@/lib/browser-store';
 import { collectionRequest, defaultMetaPeriod, inMetaPeriod, LiveMeta } from '@/lib/live';
 import type { LiveReport } from '@/lib/live';
 import { Overview, Performance, PublicMeta } from '@/features/analytics/analytics';
+import { MapTraining } from '@/features/analytics/map-performance';
 import { Progression } from '@/features/analytics/progression';
 import { Accounts } from '@/features/collection/accounts';
 import { CollectorPanel, MetaPeriods } from '@/features/collection/collector-panel';
@@ -29,9 +30,10 @@ import { useDashboard } from './use-dashboard';
 export default function Dashboard() {
   const {section, filters, setFilters, book, local, period, setPeriod, server, serverError,
     sending, syncProgress, feedback, setFeedback, ready, busy, menuOpen, setMenuOpen, rankedOnly, setRankedOnly,
-    setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveProgress, saveEvidence, refreshCollection} = useDashboard();
+    setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveProgress, saveEvidence, saveCoaching, refreshCollection} = useDashboard();
   const dismissFeedback=useCallback(()=>setFeedback(''),[setFeedback]);
   const [report,setReport]=useState<LiveReport|null>(null);
+  const [draftTarget,setDraftTarget]=useState({map:'',revision:0});
   const [metaSource,setMetaSource]=useState<'external'|'own'>('external');
   const metaRevision=useRef(0);
   const firstMetaRead=useRef(true);
@@ -147,9 +149,16 @@ export default function Dashboard() {
         {section==='matches'&&<Card title="Histórico de partidas" icon={List} sub={`${number(shownMatches.length)} no recorte · ${number(data.matches.length)} no histórico${shownMatches[0]?' · Mais recente '+dateTime(shownMatches[0].played_at):''} · Horário de Brasília`}
           action={<label className="switch-label"><input type="checkbox" checked={rankedOnly} onChange={e=>setRankedOnly(e.target.checked)}/> Só ranqueadas</label>}>
           <MatchList key={JSON.stringify([filters,rankedOnly])} matches={shownMatches} onOpen={b=>setSelected(b.id)}/></Card>}
-        {section==='performance'&&<Performance rows={ranked} filters={filters}/>}
+        {section==='performance'&&<div className="stack">
+          <MapTraining key={book.active} rows={ranked} history={data.matches} accountName={active.name}
+            selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training}
+            onOpen={setSelected} onReview={(id,value)=>saveCoaching({review:{id,value}})}
+            onPlan={training=>saveCoaching({training})}
+            onDraft={map=>{setDraftTarget(target=>({map,revision:target.revision+1}));navigate('draftlab');}}/>
+          <Performance rows={ranked}/>
+        </div>}
         <div className="draft-surface" hidden={section!=='draftlab'}>
-          <DraftLab key={book.active} matches={data.matches.filter(b=>b.ranked)} profile={data.profile} defaultMap={filters.map_name}/>
+          <DraftLab key={`${book.active}:${draftTarget.revision}`} matches={data.matches.filter(b=>b.ranked)} profile={data.profile} defaultMap={draftTarget.map||filters.map_name}/>
         </div>
         {section==='draft'&&<div className="stack">
           <MetaPeriods/>
@@ -192,6 +201,7 @@ export default function Dashboard() {
       {syncProgress&&<SyncProgressCard progress={syncProgress} account={active.name}/>}
       {feedback&&<FeedbackToast key={feedback} message={feedback} onDismiss={dismissFeedback}/>}
     </div>}
-    {match&&<MatchDetail key={match.id} match={match} raw={local.raw[match.id]} onClose={()=>setSelected(null)} onChange={saveEvidence}/>}
+    {match&&<MatchDetail key={match.id} match={match} raw={local.raw[match.id]} review={local.reviews?.[match.id]} onClose={()=>setSelected(null)} onChange={saveEvidence}
+      onReview={value=>saveCoaching({review:{id:match.id,value}})}/>}
   </div></LiveMeta.Provider>;
 }

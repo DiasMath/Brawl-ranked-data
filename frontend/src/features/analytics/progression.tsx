@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ArrowDownRight, ArrowRight, ArrowUpRight, CalendarClock, Flag, Gauge, Plus, Target, TrendingUp, Trophy } from 'lucide-react';
+import { rankedSessions } from '@/lib/coaching';
 import type { LocalData, Progress } from '@/lib/browser-store';
 import { dateTime, localDay, normalize, number, percent, stats } from '@/lib/data';
 import type { Battle, Dataset, Filters } from '@/lib/data';
@@ -101,6 +102,25 @@ export function TrendChart({ rows, field, label, note }: { rows: Progress[]; fie
     </div>}
     {points.length>0&&<p className="trend-foot">{number(points.length)} {points.length===1?'leitura':'leituras'} · máximo observado {number(max)}
       {paths.length>1&&' · quebras por temporada ou temporada ausente'}</p>}
+  </section>;
+}
+
+function SessionHistory({matches,readings}: {matches:Battle[];readings:Progress[]}) {
+  const [limit,setLimit]=useState(10);
+  const sessions=useMemo(()=>rankedSessions(matches,readings),[matches,readings]);
+  return <section className="card account-card"><div className="card-head"><div><h2><CalendarClock size={17}/> Sessões do Ranqueado</h2>
+    <p>Uma pausa de uma hora, a virada do dia em Brasília ou a mudança de temporada inicia outra sessão.</p></div></div>
+    {sessions.length?<><div className="table-wrap"><table><thead><tr><th>Sessão</th><th>Resultados</th><th>Win rate</th>
+      <th>Primeiro e último Elo observado</th><th>Pico observado</th></tr></thead><tbody>{sessions.slice(0,limit).map(session=><tr key={session.first.id}>
+      <td>{dateTime(session.first.played_at)}{session.last.id!==session.first.id&&<small>Até {dateTime(session.last.played_at)}</small>}</td>
+      <td>{session.summary.wins} V · {session.summary.losses} D · {session.summary.draws} E<small>{session.summary.games} partidas</small></td>
+      <td>{percent(session.summary.rate)}</td><td>{session.firstScore===null?'—':number(session.firstScore)}
+        {session.observed>1&&session.lastScore!==null?` → ${number(session.lastScore)}`:''}<small>{session.observed} leituras</small></td>
+      <td>{session.peak===null?'—':number(session.peak)}</td>
+    </tr>)}</tbody></table></div>
+    <p className="section-note">O Elo usa as leituras feitas no intervalo da sessão, com a mesma temporada registrada.</p>
+    {limit<sessions.length&&<button className="button small subtle" onClick={()=>setLimit(limit+10)}>Mostrar mais sessões</button>}</>:
+    <p className="section-note">Nenhuma partida ranqueada no recorte.</p>}
   </section>;
 }
 
@@ -219,6 +239,7 @@ export function Progression({ local, filters, matches, onSave }: {
       <p className="section-note">{net !== null && net <= 0 ? 'O saldo esperado é zero ou negativo com esses valores.' :
         'A estimativa conta partidas decisivas (vitórias e derrotas). O Elo real varia conforme adversários e resultado da série.'}</p>
     </section>
+    <SessionHistory matches={matches} readings={visible}/>
     {milestones.length>0&&<section className="card"><div className="card-head"><div><h2><Flag size={17}/> Divisões registradas</h2>
       <p>Últimas mudanças de divisão nas leituras do período</p></div></div>
       <ol className="rank-milestones">{milestones.map(row=><li key={row.id}><RankArt rank={row.rank}/><div>

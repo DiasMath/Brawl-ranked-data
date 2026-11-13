@@ -166,17 +166,10 @@ export function Overview({ local, account, matches, filters, onSettings, onProgr
   </div>;
 }
 
-export function Performance({ rows, filters }: { rows: Battle[]; filters: Filters }) {
-  const maps = accountGroups(rows,b=>b.map_name,3);
+export function Performance({ rows }: { rows: Battle[] }) {
   const brawlers = accountGroups(rows,b=>b.player_brawler,3);
-  const scope = [filters.map_name,filters.mode && modeName(filters.mode)].filter(Boolean).join(' · ');
-  return <div className="stack">
-    <div className="performance-note">Ordenação considera a taxa de vitória e o tamanho da amostra. Mínimo de 3 registros decisivos por item.{scope?' Recorte: '+scope+'.':''}</div>
-    <div className="two-col equal"><Ranking rows={ordered(brawlers)} kind="brawler" title="Melhores brawlers"/>
-      <Ranking rows={ordered(brawlers,true)} kind="brawler" title="Piores brawlers"/></div>
-    <div className="two-col equal"><Ranking rows={ordered(maps)} kind="map" title="Melhores mapas"/>
-      <Ranking rows={ordered(maps,true)} kind="map" title="Piores mapas"/></div>
-  </div>;
+  return <div className="two-col equal"><Ranking rows={ordered(brawlers)} kind="brawler" title="Melhores brawlers"/>
+    <Ranking rows={ordered(brawlers,true)} kind="brawler" title="Piores brawlers"/></div>;
 }
 
 function TableComparison({ publicSample, setCount, own, brawler, unit }: {
