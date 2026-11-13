@@ -4,11 +4,11 @@ import json
 from ..domain import integer, iso, obj, ranked_reading, string, utc_now
 
 
-def latest_run(cursor, player, successful=False):
+def latest_run(cursor, player, successful=False, *, scheduled=False):
     cursor.execute(
-        "SELECT id, started_at, finished_at, status, received, added, message, phase, processed "
+        "SELECT id, started_at, finished_at, status, received, added, message, phase, processed, origin "
         "FROM update_log WHERE player_tag=%s " + ("AND status='success' " if successful else "") +
-        "ORDER BY id DESC LIMIT 1", (player,),
+        ("AND origin='scheduled' " if scheduled else "") + "ORDER BY id DESC LIMIT 1", (player,),
     )
     return cursor.fetchone()
 

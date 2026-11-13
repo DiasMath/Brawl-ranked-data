@@ -15,6 +15,7 @@ Painel privado do Ranqueado de Brawl Stars. Use Next.js, FastAPI e PostgreSQL no
 | `backend/` | FastAPI, coleta oficial, esquema PostgreSQL e histórico persistente |
 | `render.yaml` | Blueprint opcional para a API do Render |
 | `render.cron.yaml` | Blueprint opcional para criar o Cron Job pago separadamente |
+| `Agendar-Partidas.ps1` | Testa ou registra a coleta pessoal de contas escolhidas no Windows |
 | `Agendar-Meta.ps1` | Registra e inicia a coleta competitiva no Agendador de Tarefas do Windows |
 | `Preparar-Ambiente.ps1` | Gera as credenciais próprias do painel e preenche os arquivos locais de ambiente |
 | `Iniciar-Backend.ps1` | Executa o FastAPI no Windows com o arquivo do ambiente selecionado |
@@ -74,13 +75,25 @@ Em seguida, o comando abre duas janelas, uma com os logs do FastAPI na porta 878
 
 Abra `http://127.0.0.1:3000` e entre com `BRAWL_SITE_USER` e `BRAWL_SITE_PASSWORD` de `frontend/.env.development.local`. Em **Contas e dados**, adicione um jogador pela tag. Com a chave configurada, a primeira consulta da conta selecionada começa automaticamente. Use **Sincronizar agora** para buscar uma atualização. Se precisar confirmar que o FastAPI subiu, acesse `http://127.0.0.1:8787/health`.
 
-O ambiente local começa sem agendamento. Para executar o coletor em segundo plano, adicione `BRAWL_SCHEDULED_PLAYER_TAG` ao arquivo do backend com a tag de uma conta já cadastrada. Execute o comando a partir de `backend/`.
+### Agendar a coleta pessoal no Windows
+
+Abra o painel local, cadastre as contas desejadas e valide a chave da Supercell para o IP público do Windows. Na raiz do projeto, substitua `TAG_DA_CONTA` pela tag cadastrada, teste uma rodada e depois registre a tarefa.
 
 ```powershell
-.\.venv\Scripts\python.exe -m dotenv -f .env.development.local run -- .\.venv\Scripts\python.exe -m app.jobs.collect
+.\Agendar-Partidas.ps1 -Tags 'TAG_DA_CONTA' -TestarAgora
+.\Agendar-Partidas.ps1 -Tags 'TAG_DA_CONTA' -IntervaloMinutos 5
 ```
 
-Esse comando também pode ser agendado pelo Agendador de Tarefas do Windows enquanto a máquina estiver ligada. Nesse caso, ajuste `BRAWL_COLLECTION_INTERVAL_SECONDS` para o intervalo programado e reinicie o FastAPI.
+Para duas contas, informe `-Tags 'TAG_DA_CONTA','TAG_DA_SEGUNDA_CONTA'`, substituindo a segunda tag pela real. A tarefa usa `backend/.env.development.local` e grava no banco indicado em `DATABASE_URL`. Se quiser que o painel publicado leia essas partidas, o Windows e o Render precisam usar o mesmo banco. A chave usada pelo Windows continua sendo a do ambiente local escolhido.
+
+O script valida o cadastro das contas e a credencial, solicita a primeira execução e repete a cada cinco minutos por padrão. O Windows deve estar ligado e o usuário conectado. O Next.js e o FastAPI locais podem estar fechados. Para mudar tags ou intervalo, execute novamente o comando de registro. Para manter o indicador de atraso coerente com o agendamento, ajuste `BRAWL_COLLECTION_INTERVAL_SECONDS` no ambiente do FastAPI que atende o painel. Cinco minutos correspondem a `300`.
+
+```powershell
+Get-ScheduledTaskInfo -TaskName 'Brawl Ranked Data - Partidas (development)'
+Get-Content .\backend\.venv\partidas-coleta-development.log -Tail 20
+```
+
+A tela **Contas e dados** mostra a última coleta agendada bem-sucedida. Uma execução com zero novas partidas pode indicar que o histórico da API ainda não mudou. Se houver uma possível lacuna, o painel sinaliza a data em que ela foi detectada. A coleta agendada consulta apenas as tags escolhidas. O botão manual continua consultando somente a conta selecionada.
 
 ## Produção na Vercel e no Render
 
@@ -122,7 +135,7 @@ Para migrar um deploy existente, configure `BRAWL_CREDENTIAL_KEY` no Render, rem
 
 #### Coleta agendada opcional no Render
 
-Crie um **Cron Job** no mesmo repositório. Use a mesma `DATABASE_URL`, `BRAWL_CREDENTIAL_KEY` e `BRAWL_ENVIRONMENT=production` no Cron Job e no Web Service. Defina `BRAWL_SCHEDULED_PLAYER_TAG` no Cron Job para escolher uma única conta cadastrada. Sem essa variável, o job encerra sem consultar a Supercell. O cron usa a chave cadastrada em produção. Autorize na chave a saída dos serviços que farão consultas. O token `BRAWL_SERVICE_TOKEN` é usado somente na Vercel e no Web Service.
+Crie um **Cron Job** no mesmo repositório. Use a mesma `DATABASE_URL`, `BRAWL_CREDENTIAL_KEY` e `BRAWL_ENVIRONMENT=production` no Cron Job e no Web Service. Defina `BRAWL_SCHEDULED_PLAYER_TAGS` no Cron Job com as tags cadastradas, separadas por vírgula. A variável antiga `BRAWL_SCHEDULED_PLAYER_TAG` continua funcionando para uma conta. Sem tags e com a coleta competitiva desativada, o job encerra sem consultar a Supercell. O cron usa a chave cadastrada em produção. Autorize na chave a saída dos serviços que farão consultas. O token `BRAWL_SERVICE_TOKEN` é usado somente na Vercel e no Web Service.
 
 | Campo | Valor |
 | --- | --- |

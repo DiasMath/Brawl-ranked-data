@@ -18,17 +18,17 @@ export function CollectorPanel({ battles, onSync, syncing, server, serverError, 
 }) {
   const delay=observedDelay(battles);
   if(server){
-    const automatic=server.interval_seconds>0;
+    const automatic=Boolean(server.last_scheduled_success);
     const retrying=server.retry_until&&Date.parse(server.retry_until)>Date.now();
     const attempt=server.last_attempt;
-    const delayed=Boolean(server.last_success && automatic &&
-      Date.now()-Date.parse(server.last_success)>server.interval_seconds*3000);
+    const delayed=Boolean(server.last_scheduled_success && server.interval_seconds>0 &&
+      Date.now()-Date.parse(server.last_scheduled_success)>server.interval_seconds*3000);
     const failed=attempt?.status==='error';
     const status=failed?'Falha na última coleta':delayed?'Coleta atrasada':
-      server.last_success?(automatic?'Coleta em dia':'Última coleta concluída'):'Aguardando coleta';
+      server.last_success?'Última coleta concluída':'Aguardando coleta';
     return <section className="card collector-panel">
-      <div className="card-head"><div><h2><Activity size={17}/> {automatic?'Coleta automática':'Coleta manual'}</h2>
-        <p>Servidor · {server.player_tag}{automatic?' · intervalo esperado '+number(server.interval_seconds/60)+' min':''}</p></div>
+      <div className="card-head"><div><h2><Activity size={17}/> Coleta pessoal</h2>
+        <p>Servidor · {server.player_tag}{automatic&&server.interval_seconds>0?' · intervalo esperado '+number(server.interval_seconds/60)+' min':''}</p></div>
         <span className={`tag ${server.last_success&&!delayed&&!failed?'confirmed':'hypothesis'}`}>{status}</span></div>
       <div className="collector-controls">
         <button className="button primary" onClick={onSync} disabled={syncing||!server.configured||!!retrying} aria-busy={syncing}>
@@ -37,7 +37,9 @@ export function CollectorPanel({ battles, onSync, syncing, server, serverError, 
       <div className="collector-readings">
         <div><span>Última coleta bem-sucedida</span><strong>{dateTime(server.last_success)}</strong></div>
         <div><span>Partida mais recente recebida</span><strong>{dateTime(server.last_battle)}</strong></div>
-        <div><span>Última tentativa</span><strong>{dateTime(attempt?.started_at??null)}</strong></div>
+        <div><span>Última tentativa</span><strong>{dateTime(attempt?.started_at??null)}</strong>
+          {attempt?.origin&&<small>{attempt.origin==='scheduled'?'Agendada':'Manual'}</small>}</div>
+        <div><span>Última coleta agendada bem-sucedida</span><strong>{dateTime(server.last_scheduled_success??null)}</strong></div>
         <div><span>Atraso observado</span><strong>{delay.median!==null?`${delay.median} min`:'—'}</strong>
           {delay.count>0&&<small>P90 {delay.p90} min · {number(delay.count)} registros</small>}</div>
       </div>

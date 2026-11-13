@@ -62,9 +62,9 @@ def collect_account(player, *, scheduled=False):
                 "UPDATE update_log SET status='error', finished_at=%s, message='Atualização interrompida' "
                 "WHERE player_tag=%s AND status='running'", (utc_now(), player)
             )
-            cursor.execute("INSERT INTO update_log (player_tag, started_at, status, phase) "
-                           "VALUES (%s,%s,'running','profile') RETURNING id",
-                           (player, utc_now()))
+            cursor.execute("INSERT INTO update_log (player_tag, started_at, status, phase, origin) "
+                           "VALUES (%s,%s,'running','profile',%s) RETURNING id",
+                           (player, utc_now(), "scheduled" if scheduled else "manual"))
             run_id = cursor.fetchone()["id"]
             connection.commit()
             received = None
