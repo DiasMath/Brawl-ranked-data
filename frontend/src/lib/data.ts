@@ -55,6 +55,8 @@ const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
 export const localDay = (value: string) => dayFormatter.format(new Date(value));
 export const dateTime = (value: string | null) => value ? dateTimeFormatter.format(new Date(value)) : '—';
 export const number = (value: number) => new Intl.NumberFormat('pt-BR').format(value);
+export const durationLabel = (seconds: number) => seconds<60 ? `${seconds} s` :
+  `${Math.floor(seconds/60)} min ${String(seconds%60).padStart(2,'0')} s`;
 export const percent = (value: number | null) => value === null ? '—' : new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 1, minimumFractionDigits: 1, style: 'percent',
 }).format(value);

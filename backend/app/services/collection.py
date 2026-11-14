@@ -1,9 +1,10 @@
 from datetime import timedelta
+import json
 
 import psycopg
 
 from ..db import database
-from ..domain import encoded, integer, parse_battle, ranked_reading, utc_now
+from ..domain import encoded, integer, merge_battle_log, parse_battle, ranked_reading, utc_now
 from ..repositories.history import latest_run, remember_retry, retry_until
 from .credentials import stored_token
 from .supercell import CollectionError, fetch, official_client
@@ -16,9 +17,12 @@ BATTLE_FIELDS = (
 
 
 def save_battle(cursor, battle):
+    cursor.execute("SELECT raw FROM battles WHERE id=%s FOR UPDATE", (battle["id"],))
+    previous = cursor.fetchone()
+    if previous:
+        item = merge_battle_log(json.loads(previous["raw"]), json.loads(battle["raw"]))
+        battle = parse_battle(item, battle["player_tag"])
     values = [battle[field] for field in BATTLE_FIELDS]
-    cursor.execute("SELECT id FROM battles WHERE id=%s FOR UPDATE", (battle["id"],))
-    existing = cursor.fetchone() is not None
     updates = ", ".join(
         f"{field}=COALESCE(EXCLUDED.{field}, battles.{field})" for field in BATTLE_FIELDS[3:]
     )
@@ -33,7 +37,7 @@ def save_battle(cursor, battle):
             "brawler_id, brawler, power, side) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             [(battle["id"], *player) for player in battle["players"]],
         )
-    return int(not existing)
+    return int(previous is None)
 
 
 def publish_progress(connection, cursor, run_id, phase, received=None, processed=None):

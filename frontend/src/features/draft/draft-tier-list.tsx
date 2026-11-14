@@ -1,3 +1,4 @@
+import { useId, useState } from 'react';
 import { Ban, Check, ChevronDown, Trophy } from 'lucide-react';
 import { brawlers, Portrait } from '@/components/game';
 import { normalize, number, percent } from '@/lib/data';
@@ -8,6 +9,8 @@ export function DraftTierList({ meta, compact = false, banned, picked, onPick, d
   meta: ReturnType<typeof useDraftMeta>; compact?: boolean; banned?: Set<string>; picked?: Set<string>;
   onPick?: (name: string)=>void; disabled?: (name: string)=>boolean;
 }) {
+  const id=useId();
+  const [open,setOpen]=useState(true);
   const snapshot = meta.snapshot ?? meta.general;
   const ranked = draftMetaPicks(snapshot);
   const known = new Map(ranked.map(row=>[normalize(row.name),row]));
@@ -40,10 +43,12 @@ export function DraftTierList({ meta, compact = false, banned, picked, onPick, d
       </div>;
     })}
   </>;
-  return compact ? <details className="draft-tier-list" open>
-    <summary><Trophy size={14}/> Tier list <small>{snapshot?.map ?? 'Geral'}</small><ChevronDown size={14}/></summary>
-    <div className="draft-tier-rows" tabIndex={0} aria-label="Classificação dos brawlers">{body}</div>
-  </details> : <section className="card meta-tier-list draft-tier-expanded">
+  return compact ? <section className="draft-tier-list" data-open={open}>
+    <button type="button" className="draft-tier-toggle" aria-expanded={open} aria-controls={id} onClick={()=>setOpen(value=>!value)}>
+      <Trophy size={14}/> Tier list <small>{snapshot?.map ?? 'Geral'}</small><ChevronDown size={14}/>
+    </button>
+    <div id={id} className="draft-tier-rows" hidden={!open} tabIndex={0} aria-label="Classificação dos brawlers">{open&&body}</div>
+  </section> : <section className="card meta-tier-list draft-tier-expanded">
     <div className="card-head"><div><h2><Trophy size={16}/> Tier list</h2></div></div>{body}
   </section>;
 }

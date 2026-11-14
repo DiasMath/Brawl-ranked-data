@@ -14,17 +14,31 @@ export type MatchSeries = {
 
 function lineup(battle: Battle) {
   if (!battle.ranked || !battle.mode || (!battle.event_id && !battle.map_name) || battle.players.length !== 6) return null;
-  const groups: Record<Battle['players'][number]['side'], string[]> = {self:[], ally:[], opponent:[], unknown:[]};
-  const tags = new Set<string>();
+  const players = new Map<string,Battle['players'][number]>();
+  const counts = {self:0, ally:0, opponent:0, unknown:0};
   for (const player of battle.players) {
     const tag = normalize(player.player_tag), name = normalize(player.brawler);
-    if (!tag || tags.has(tag) || (!player.brawler_id && !name)) return null;
-    tags.add(tag);
-    groups[player.side].push(tag+'|'+(player.brawler_id ?? name));
+    if (!tag || players.has(tag) || (!player.brawler_id && !name)) return null;
+    players.set(tag,player);
+    counts[player.side]++;
   }
-  if (groups.self.length !== 1 || groups.ally.length !== 2 || groups.opponent.length !== 3) return null;
-  return JSON.stringify([battle.api_type, battle.mode, battle.event_id || draftMetaMapKey(battle.map_name ?? ''),
-    groups.self, groups.ally.sort(), groups.opponent.sort()]);
+  return counts.self===1&&counts.ally===2&&counts.opponent===3?players:null;
+}
+
+function sameMap(first: Battle, second: Battle) {
+  if(first.event_id&&second.event_id)return first.event_id===second.event_id;
+  const name=draftMetaMapKey(first.map_name??'');
+  return !!name&&name===draftMetaMapKey(second.map_name??'');
+}
+
+function sameLineup(first: ReturnType<typeof lineup>, second: ReturnType<typeof lineup>) {
+  if(!first||!second)return false;
+  return [...first].every(([tag,player])=>{
+    const next=second.get(tag);
+    if(!next||next.side!==player.side)return false;
+    if(player.brawler_id&&next.brawler_id)return player.brawler_id===next.brawler_id;
+    return !!player.brawler&&normalize(player.brawler)===normalize(next.brawler);
+  });
 }
 
 function makeSeries(rounds: Battle[], wins: number, losses: number): MatchSeries {
@@ -36,14 +50,16 @@ function makeSeries(rounds: Battle[], wins: number, losses: number): MatchSeries
 export function matchSeries(battles: Battle[]): MatchSeries[] {
   const sorted = [...battles].sort((a,b)=>Date.parse(a.played_at)-Date.parse(b.played_at));
   const series: MatchSeries[] = [];
-  let rounds: Battle[] = [], signature: string|null = null, wins = 0, losses = 0;
+  let rounds: Battle[] = [], signature: ReturnType<typeof lineup> = null, wins = 0, losses = 0;
   for (const battle of sorted) {
     const key = lineup(battle);
     const previous = rounds.at(-1);
     const gap = previous ? (Date.parse(battle.played_at)-Date.parse(previous.played_at))/1000 : 0;
     // Allow a long round plus the break. Without durations use a bounded time window.
     const limit = Math.min(360,Math.max(240,(previous?.duration_seconds??0)+60,(battle.duration_seconds??0)+60));
-    if (previous && (!key || key !== signature || !(gap > 0 && gap <= limit) || wins === 2 || losses === 2)) {
+    if (previous && (previous.api_type!==battle.api_type || normalize(previous.mode)!==normalize(battle.mode)
+        || !sameMap(previous,battle) || !sameLineup(signature,key)
+        || !(gap > 0 && gap <= limit) || wins === 2 || losses === 2)) {
       series.push(makeSeries(rounds,wins,losses));
       rounds = [];
       wins = 0;
@@ -56,6 +72,11 @@ export function matchSeries(battles: Battle[]): MatchSeries[] {
   }
   if (rounds.length) series.push(makeSeries(rounds,wins,losses));
   return series.reverse();
+}
+
+export function seriesDuration(match: MatchSeries) {
+  if(match.rounds.some(round=>round.duration_seconds==null))return null;
+  return match.rounds.reduce((total,round)=>total+(round.duration_seconds??0),0);
 }
 
 export function seriesInScope(series: MatchSeries[], battles: Battle[]) {

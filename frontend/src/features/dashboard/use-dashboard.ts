@@ -8,7 +8,7 @@ import type { LivePeriod, ServerCollection, SyncProgress } from '@/lib/live';
 import type { ReplayReview, TrainingPlan } from '@/lib/coaching';
 import type { Section } from './navigation';
 
-const historyVersion=5;
+const historyVersion=6;
 
 export function useDashboard() {
   const [section,setSection]=useState<Section>('overview');

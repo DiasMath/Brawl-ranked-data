@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Crosshair, Flame, TrendingUp } from 'lucide-react';
+import { Clock3, Crosshair, Flame, Star, TrendingUp } from 'lucide-react';
 import { useDataTooltip } from '@/components/data-tooltip';
 import { findMap, MapImage, ModeIcon, Portrait } from '@/components/game';
 import type { ReactNode } from 'react';
 import type { Battle } from '@/lib/data';
-import { matchKd } from '@/lib/match-series';
+import { matchKd, seriesDuration } from '@/lib/match-series';
 import type { MatchElo, MatchSeries } from '@/lib/match-series';
-import { dateTime, modeName, number, percent, resultName, stats } from '@/lib/data';
+import { dateTime, durationLabel, modeName, number, percent, resultName, stats } from '@/lib/data';
 
 const marks = { victory: 'V', defeat: 'D', draw: 'E', unknown: '?' };
 
@@ -16,6 +16,8 @@ function ResultDot({ match, elo, onMatch }: {match:MatchSeries; elo?:MatchElo; o
   const result=match.result??'unknown';
   const label=rounds.length>1&&!match.result?'Resultado em aberto':resultName(match.result);
   const kd=matchKd(match);
+  const duration=seriesDuration(match);
+  const star=latest.star_player?.name??latest.star_player?.tag;
   const delta=elo?elo.after-elo.before:0;
   const score=latest.score_source?null:latest.rank_score;
   return <li><button type="button" className={result}
@@ -30,11 +32,13 @@ function ResultDot({ match, elo, onMatch }: {match:MatchSeries; elo?:MatchElo; o
         <div className="image-label preview-brawler"><Portrait name={latest.player_brawler}/><span>{latest.player_brawler??'Brawler indisponível'}
           <small>{dateTime(latest.played_at)}</small></span></div>
       </div>
-      {(elo||score!=null||kd)&&<div className="preview-match-metrics">
+      {(elo||score!=null||kd||duration!=null||star)&&<div className="preview-match-metrics">
         {(elo||score!=null)&&<div><small><TrendingUp size={13}/> Elo</small><strong>{elo?`${delta>0?'+':''}${number(delta)}`:number(score!)}</strong>
           <small>{elo?`${number(elo.before)} → ${number(elo.after)} · Estimativa`:'Pontuação · Supercell'}</small></div>}
         {kd&&<div><small><Crosshair size={13}/> K/D final</small><strong>{number(kd.kills)} / {number(kd.deaths)}</strong>
           <small>Eliminações / mortes</small></div>}
+        {duration!=null&&<div><small><Clock3 size={13}/> Tempo de jogo</small><strong>{durationLabel(duration)}</strong></div>}
+        {star&&<div><small><Star size={13}/> {rounds.length>1?'Craque da última rodada':'Craque da partida'}</small><strong>{star}</strong></div>}
       </div>}
     </>,'recent-match-preview')}
   </li>;

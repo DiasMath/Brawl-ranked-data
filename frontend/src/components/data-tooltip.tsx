@@ -1,6 +1,45 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { FocusEvent, KeyboardEvent, PointerEvent, ReactNode } from 'react';
+
+function TooltipCard({ id, anchor, className, children }: {
+  id: string; anchor: Element; className: string; children: ReactNode;
+}) {
+  const ref=useRef<HTMLDivElement>(null);
+  useLayoutEffect(()=>{
+    const card=ref.current;
+    if(!card)return;
+    const viewport=document.documentElement;
+    const place=()=>{
+      const width=viewport.clientWidth||window.innerWidth;
+      const height=viewport.clientHeight||window.innerHeight;
+      const margin=8, gap=7;
+      card.style.width=`${Math.min(278,width-2*margin)}px`;
+      card.style.maxHeight=`${height-2*margin}px`;
+      const {width:w,height:h}=card.getBoundingClientRect();
+      const rect=anchor.getBoundingClientRect();
+      const clamp=(value:number,size:number,limit:number)=>Math.max(margin,Math.min(limit-size-margin,value));
+      let x=rect.left+(rect.width-w)/2;
+      let y=rect.top-gap-h;
+      if(y<margin){
+        y=rect.bottom+gap;
+        if(y+h>height-margin){
+          if(rect.right+gap+w<=width-margin)x=rect.right+gap;
+          else if(rect.left-gap-w>=margin)x=rect.left-gap-w;
+          y=rect.top+(rect.height-h)/2;
+        }
+      }
+      card.style.left=`${clamp(x,w,width)}px`;
+      card.style.top=`${clamp(y,h,height)}px`;
+      card.style.visibility='visible';
+    };
+    place();
+    const resize=new ResizeObserver(place);
+    resize.observe(card);
+    return ()=>resize.disconnect();
+  },[anchor]);
+  return <div ref={ref} id={id} role="tooltip" className={`data-tooltip ${className}`}>{children}</div>;
+}
 
 export function useDataTooltip() {
   const id=useId();
@@ -26,12 +65,7 @@ export function useDataTooltip() {
   });
   function render(content:ReactNode,className='') {
     if(!anchor)return null;
-    const rect=anchor.getBoundingClientRect();
-    const width=Math.min(278,window.innerWidth-16);
-    const above=rect.top>=250;
-    const left=Math.max(8,Math.min(window.innerWidth-width-8,rect.left+(rect.width-width)/2));
-    return createPortal(<div id={id} role="tooltip" className={`data-tooltip ${className}`} data-above={above}
-      style={{left,top:above?rect.top-7:rect.bottom+7}}>{content}</div>,document.body);
+    return createPortal(<TooltipCard id={id} anchor={anchor} className={className}>{content}</TooltipCard>,document.body);
   }
   return {anchor,trigger,render,close};
 }

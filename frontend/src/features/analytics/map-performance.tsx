@@ -43,7 +43,7 @@ function MatchReview({match,review,onOpen,onSave}: {match:Battle;review?:ReplayR
       return <div className="coaching-team" key={side}><span>{side==='ally'?'Sua equipe':'Adversários'}</span>
         {players.length?players.map((player,index)=><Portrait key={index} name={player.brawler} id={player.brawler_id} alt={player.brawler??'Brawler'}/>):'—'}</div>;
     })}
-    <p className="section-note">Bans · {match.bans===null?'Indisponíveis':match.bans.join(', ')||'Nenhum registrado'}</p>
+    {match.bans!==null&&!match.bans_source&&<p className="section-note">Bans · {match.bans.join(', ')||'Nenhum registrado'}</p>}
     <ReplayAnnotation review={review} onSave={value=>onSave(match.id,value)}/>
   </section>;
 }

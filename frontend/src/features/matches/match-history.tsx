@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, List, Swords, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Clock3, List, Star, Swords, X } from 'lucide-react';
 import { Empty, Pill } from '@/components/dashboard-ui';
 import { findMap, MapImage, ModeIcon, ModeLabel, Portrait, RankArt } from '@/components/game';
-import { dateTime, modeName, number, resultName, safeLink } from '@/lib/data';
+import { dateTime, durationLabel, modeName, number, resultName, safeLink } from '@/lib/data';
 import { ReplayAnnotation } from '@/features/analytics/replay-annotation';
 import type { ReplayReview } from '@/lib/coaching';
 import type { Battle } from '@/lib/data';
-import { matchKd, seriesBans, seriesRank } from '@/lib/match-series';
+import { matchKd, seriesBans, seriesDuration, seriesRank } from '@/lib/match-series';
 import type { MatchElo, MatchSeries } from '@/lib/match-series';
 
 const pageSize = 15;
@@ -32,6 +32,7 @@ export function MatchList({ matches, elo, onOpen, compact = false }: {
     {showKd&&<th>K/D</th>}{showRank&&<th>Rank</th>}<th aria-label="Detalhes" /></tr></thead><tbody>{visible.map(series => {
       const {id,latest:b,result,rounds,wins,losses}=series;
       const kd=matchKd(series);
+      const duration=seriesDuration(series);
       const rank=seriesRank(series);
       const estimatedRank=elo?.get(id)?.rank;
       const rankLabel=rank?.rank_label??estimatedRank;
@@ -39,7 +40,8 @@ export function MatchList({ matches, elo, onOpen, compact = false }: {
       <td>{dateTime(b.played_at)}</td><td><span className="image-label"><ModeIcon mode={b.mode}/><span><strong>{b.map_name ?? '—'}</strong><small>{modeName(b.mode)}</small></span></span></td>
       <td><span className="image-label"><Portrait name={b.player_brawler}/>{b.player_brawler ?? '—'}</span></td><td>
         <Pill kind={resultTone(result)}>{rounds.length>1&&!result?'Resultado em aberto':resultName(result)}</Pill>
-        {rounds.length>1&&<small title="Agrupamento inferido a partir do histórico">{wins}–{losses} · {rounds.length} rodadas</small>}</td>
+        {rounds.length>1&&<small title="Agrupamento inferido a partir do histórico">{wins}–{losses} · {rounds.length} rodadas</small>}
+        {duration!=null&&<small>{durationLabel(duration)}</small>}</td>
       {showKd&&<td>{kd?`${number(kd.kills)} / ${number(kd.deaths)}`:null}</td>}
       {showRank&&<td>{rankLabel&&<span className="image-label inline-rank">
         <RankArt rank={rankLabel}/><span>{rankLabel}{!rank&&<small>Estimativa · Perfil</small>}</span></span>}</td>}<td><button className="icon-button" aria-label={`Detalhar partida de ${dateTime(b.played_at)}`}
@@ -66,6 +68,7 @@ export function MatchDetail({ match, series, elo, onRound, raw, review, onClose,
   }, []);
   const groups = [...new Set(match.players.map(p => p.team_index))];
   const grouped = series && series.rounds.length>1 ? series : null;
+  const duration=series?seriesDuration(series):match.duration_seconds;
   const totalKd=grouped?matchKd(grouped):null;
   const rank=series?seriesRank(series,match):(!match.rank_source?match:undefined);
   const bans=series?seriesBans(series,match):(!match.bans_source?match:undefined);
@@ -89,8 +92,8 @@ export function MatchDetail({ match, series, elo, onRound, raw, review, onClose,
     <div className="detail-status"><Pill kind={resultTone(grouped ? grouped.result : match.result)}>{grouped && !grouped.result?'Resultado em aberto':resultName(grouped ? grouped.result : match.result)}</Pill>
       <Pill kind={match.ranked ? 'accent' : 'neutral'}>{grouped ? 'Série ranqueada' : match.ranked ? 'Ranqueado' : match.api_type ?? 'Tipo indisponível'}</Pill>
       {grouped&&<strong>{grouped.wins}–{grouped.losses}</strong>}
+      {duration!=null&&<span className="image-label"><Clock3 size={15}/>{durationLabel(duration)} de jogo</span>}
       {!grouped&&<>
-      {match.duration_seconds !== null && <span>{match.duration_seconds}s</span>}
       {match.placement!=null&&<span>{number(match.placement)}º lugar</span>}
       {match.trophy_change!=null&&<span>{match.trophy_change>0?'+':''}{match.trophy_change} troféus</span>}</>}</div>
     {grouped&&<section className="match-rounds" aria-label="Rodadas da série">
@@ -101,7 +104,8 @@ export function MatchDetail({ match, series, elo, onRound, raw, review, onClose,
           if(round.id===match.id)return;
           setRawOpen(false);onRound?.(round.id);
         }}>
-        <span>Rodada {index+1}<small>{dateTime(round.played_at)}{round.duration_seconds!=null?` · ${round.duration_seconds}s`:''}</small></span>
+        <span>Rodada {index+1}<small>{dateTime(round.played_at)}{round.duration_seconds!=null?` · ${durationLabel(round.duration_seconds)}`:''}</small>
+          {(round.star_player?.name||round.star_player?.tag)&&<small>Craque · {round.star_player.name??round.star_player.tag}</small>}</span>
         {round.kd&&!round.kd.reference&&<span aria-label="Eliminações e mortes">{round.kd.kills} / {round.kd.deaths}</span>}
         <Pill kind={resultTone(round.result)}>{resultName(round.result)}</Pill>
       </button>)}
@@ -113,7 +117,7 @@ export function MatchDetail({ match, series, elo, onRound, raw, review, onClose,
         <small>Estimativa por leituras do perfil</small></dd></div>}
       {match.ranked&&fields.map(({label,value,note})=><div key={label}><dt>{label}</dt><dd>
         {typeof value==='number'?number(value):value}<small>{note}</small></dd></div>)}
-      {star&&<div><dt>{grouped?'Craque da rodada':'Craque da partida'}</dt><dd>{star}</dd></div>}
+      {star&&<div><dt>{grouped?'Craque da rodada':'Craque da partida'}</dt><dd className="image-label"><Star size={15}/>{star}</dd></div>}
     </dl>}
     {groups.length ? groups.map(group => {
       const members = match.players.filter(p => p.team_index === group);

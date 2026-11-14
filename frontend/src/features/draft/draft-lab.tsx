@@ -1,3 +1,4 @@
+import { gsap } from 'gsap';
 import type { CSSProperties, PointerEvent } from 'react';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, Bomb, Check, ChevronDown, ChevronLeft, ChevronRight, Crosshair, Flame, HeartPulse, Map as MapIcon, Search, Shield, SlidersHorizontal, Swords, Target, Undo2, X } from 'lucide-react';
@@ -50,7 +51,8 @@ function pickOrder(first:Side): Slot[] {
   const second=first==='team'?'enemy':'team';
   return [{side:first,index:0},{side:second,index:0},{side:second,index:1},{side:first,index:1},{side:first,index:2},{side:second,index:2}];
 }
-const classIcons={Assassin:Swords,Tank:Shield,'Damage Dealer':Flame,Controller:SlidersHorizontal,Marksman:Crosshair,Artillery:Bomb,Support:HeartPulse};
+const classIcons={Tank:Shield,Assassin:Swords,Support:HeartPulse,Controller:SlidersHorizontal,'Damage Dealer':Flame,Marksman:Crosshair,Artillery:Bomb};
+const classNames: Record<string,string>={Controller:'Controladores', 'Damage Dealer':'Damage Dealers', Marksman:'Snipers', Artillery:'Lançadores'};
 const banOrder:Slot[] = [0,1,2].flatMap(index=>[{side:'blueBan',index},{side:'redBan',index}] as Slot[]);
 
 export function DraftLab({ matches,profile,defaultMap,active=true }: {
@@ -78,9 +80,8 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
   const roster=useRef<HTMLElement>(null);
   const rail=useRef<HTMLDivElement>(null);
   const drag=useRef<{id:number; x:number; offset:number; moved:boolean; samples:{x:number;at:number}[]}|null>(null);
-  const momentum=useRef<number|null>(null);
+  const tween=useRef<gsap.core.Tween|null>(null);
   const wheelTarget=useRef<{left:number;at:number}|null>(null);
-  const wheelFrame=useRef<number|null>(null);
   const suppressClick=useRef(false);
   const {period,setPeriod,report}=useContext(LiveMeta);
   useEffect(()=>{
@@ -178,7 +179,6 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
     }
   },[active,compactView,phase,slot,mapOpen,complete]);
   useEffect(()=>{if(rail.current)rail.current.scrollLeft=0;},[query]);
-  useEffect(()=>stopMomentum,[query,active,compactView]);
   useEffect(()=>{
     const element=rail.current;
     if(!element)return;
@@ -194,16 +194,20 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
     return()=>{resize.disconnect();element.removeEventListener('scroll',update);};
   },[groupCounts,rosterRows]);
 
-  function stopMomentum(){
-    if(momentum.current!==null)window.cancelAnimationFrame(momentum.current);
-    momentum.current=null;
+  function animateScroll(element:HTMLDivElement, position:number, duration:number){
+    const left=Math.max(0,Math.min(element.scrollWidth-element.clientWidth,position));
+    tween.current?.kill();
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      element.scrollLeft=left;
+      return;
+    }
+    tween.current=gsap.to(element,{scrollLeft:left,duration,ease:'power3.out',overwrite:'auto'});
   }
   function startDrag(event:PointerEvent<HTMLDivElement>){
     if(event.pointerType!=='mouse'||event.button!==0)return;
-    stopMomentum();
+    tween.current?.kill();
     wheelTarget.current=null;
     const element=event.currentTarget;
-    element.scrollTo({left:element.scrollLeft,behavior:'instant'});
     suppressClick.current=false;
     drag.current={id:event.pointerId,x:event.clientX,offset:element.scrollLeft,moved:false,
       samples:[{x:event.clientX,at:event.timeStamp}]};
@@ -229,59 +233,43 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
     drag.current=null;
     const last=current.samples.at(-1)!;
     const first=current.samples.find(sample=>last.at-sample.at<=105&&sample.at<last.at)??current.samples[0];
-    let velocity=Math.max(-3,Math.min(3,(first.x-last.x)/Math.max(12,last.at-first.at)));
-    if(!current.moved||event.timeStamp-last.at>110||Math.abs(velocity)<.06||
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    const velocity=Math.max(-3,Math.min(3,(first.x-last.x)/Math.max(12,last.at-first.at)));
+    if(!current.moved||event.type==='pointercancel'||event.timeStamp-last.at>110||Math.abs(velocity)<.06)return;
     const element=event.currentTarget;
-    let previous=performance.now(), position=element.scrollLeft;
-    function glide(now:number){
-      const elapsed=Math.max(0,Math.min(32,now-previous));
-      previous=now;
-      position+=velocity*elapsed;
-      const max=element.scrollWidth-element.clientWidth;
-      element.scrollLeft=Math.max(0,Math.min(max,position));
-      velocity*=Math.exp(-elapsed/185);
-      momentum.current=Math.abs(velocity)>.025&&position>0&&position<max?window.requestAnimationFrame(glide):null;
-    }
-    momentum.current=window.requestAnimationFrame(glide);
+    animateScroll(element,element.scrollLeft+velocity*230,.72);
   }
   useEffect(()=>{
     const element=rail.current;
     if(!element||!active)return;
     function wheel(event:WheelEvent){
-      stopMomentum();
-      if(!element||event.ctrlKey||event.shiftKey||Math.abs(event.deltaX)>=Math.abs(event.deltaY))return;
+      if(!element||event.ctrlKey)return;
+      if(event.shiftKey||Math.abs(event.deltaX)>=Math.abs(event.deltaY)){
+        tween.current?.kill();
+        wheelTarget.current=null;
+        return;
+      }
       const max=element.scrollWidth-element.clientWidth;
       if(max<=0)return;
       const previous=wheelTarget.current;
-      const base=previous&&event.timeStamp-previous.at<220?previous.left:element.scrollLeft;
+      const base=previous&&event.timeStamp-previous.at<400?previous.left:element.scrollLeft;
       const unit=event.deltaMode===1?16:event.deltaMode===2?element.clientWidth:1;
       const left=Math.max(0,Math.min(max,base+event.deltaY*unit));
       event.preventDefault();
       wheelTarget.current={left,at:event.timeStamp};
-      if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){
-        element.scrollTo({left,behavior:'instant'});
-        return;
-      }
-      if(wheelFrame.current===null)wheelFrame.current=window.requestAnimationFrame(()=>{
-        wheelFrame.current=null;
-        if(wheelTarget.current)element.scrollTo({left:wheelTarget.current.left,behavior:'smooth'});
-      });
+      animateScroll(element,left,.38);
     }
     element.addEventListener('wheel',wheel,{passive:false});
     return ()=>{
       element.removeEventListener('wheel',wheel);
-      if(wheelFrame.current!==null)window.cancelAnimationFrame(wheelFrame.current);
-      wheelFrame.current=null;
+      tween.current?.kill();
       wheelTarget.current=null;
     };
   },[active,query,compactView]);
   function stepRoster(direction:number){
     const element=rail.current;
     if(!element)return;
-    stopMomentum();
     const distance=Math.max(100,element.clientWidth*.8);
-    element.scrollBy({left:direction*distance,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+    animateScroll(element,element.scrollLeft+direction*distance,.44);
   }
 
   const mapPages=Math.max(1,Math.ceil(distinctMaps.length/7));
@@ -447,12 +435,12 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
           <button aria-label="Rolar brawlers para a direita" disabled={!scrollEdges.right} onClick={()=>stepRoster(1)}><ChevronRight size={16}/></button></div></div>
       <div ref={rail} className="draft-roster-rail" aria-label="Faixa de brawlers por classe" tabIndex={0}
         onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={finishDrag}
-        onPointerCancel={()=>{drag.current=null;stopMomentum();}} onLostPointerCapture={()=>{drag.current=null;}}
+        onPointerCancel={()=>{drag.current=null;tween.current?.kill();}} onLostPointerCapture={()=>{drag.current=null;}}
         onDragStart={event=>event.preventDefault()}
         onClickCapture={e=>{if(suppressClick.current&&e.detail){e.preventDefault();e.stopPropagation();suppressClick.current=false;}}}
         onKeyDown={e=>{if(e.target===e.currentTarget&&(e.key==='ArrowRight'||e.key==='ArrowLeft')){e.preventDefault();stepRoster(e.key==='ArrowRight'?1:-1);}}}>
         {groups.map(({key,Icon,entries})=><section className="draft-class" key={key}>
-          <h3><Icon size={16}/>{roleName(key)} <span>{entries.length}</span></h3>
+          <h3><Icon size={16}/>{classNames[key]??roleName(key)} <span>{entries.length}</span></h3>
           <div className="draft-class-grid" style={{gridTemplateRows:`repeat(${Math.min(rosterRows,entries.length)}, var(--roster-tile))`}}>
             {entries.map(b=>{
               const key=normalize(b.name);

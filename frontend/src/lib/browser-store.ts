@@ -72,6 +72,20 @@ const int = (value: unknown) => typeof value === 'number' && Number.isSafeIntege
 const count = (value: unknown) => { const n = int(value); return n !== null && n >= 0 ? n : null; };
 const rankLabel = (value: unknown) => txt(value) ?? rankTable.find(r=>r.id===value)?.label ?? null;
 const list = (input: unknown): unknown[] => Array.isArray(input) ? input : [];
+const lineupCoverage=(players: Battle['players'])=>players.filter(p=>p.player_tag&&(p.brawler||p.brawler_id)).length;
+
+function archivedLineup(battle: Record<string,unknown>, account: string): Battle['players'] {
+  if(!Array.isArray(battle.teams)||!battle.teams.every(team=>Array.isArray(team)))return [];
+  const teams=battle.teams.map(team=>list(team).map(record));
+  const owners=teams.flatMap((team,index)=>team.some(player=>player.tag===account)?[index]:[]);
+  if(owners.length!==1)return [];
+  return teams.flatMap((team,index)=>team.map(player=>{
+    const brawler=record(player.brawler);
+    return {team_index:index,player_tag:txt(player.tag),player_name:txt(player.name),
+      brawler:txt(brawler.name),brawler_id:count(brawler.id),power:count(brawler.power),
+      side:player.tag===account?'self':index===owners[0]?'ally':'opponent'};
+  }));
+}
 
 export function mergeBattles(previous: Battle[], incoming: Battle[]) {
   const map = new Map(previous.map(row => [row.id, row]));
@@ -81,7 +95,8 @@ export function mergeBattles(previous: Battle[], incoming: Battle[]) {
     map.set(next.id, {
       ...old, ...next, event_id: next.event_id ?? old.event_id, map_name: next.map_name ?? old.map_name,
       mode: next.mode ?? old.mode, result: next.result ?? old.result, player_brawler: next.player_brawler ?? old.player_brawler,
-      trophy_change: next.trophy_change ?? old.trophy_change,
+      trophy_change: next.trophy_change ?? old.trophy_change, duration_seconds: next.duration_seconds ?? old.duration_seconds,
+      star_player: next.star_player?.tag || next.star_player?.name ? next.star_player : old.star_player,
       kd: next.kd ?? old.kd, elo_evidence: next.elo_evidence ?? old.elo_evidence,
       first_seen_at: old.first_seen_at && (!next.first_seen_at || old.first_seen_at < next.first_seen_at)
         ? old.first_seen_at : next.first_seen_at,
@@ -97,7 +112,7 @@ export function mergeBattles(previous: Battle[], incoming: Battle[]) {
       score_source: next.rank_score !== null ? next.score_source : old.score_source,
       season_source: next.season !== null ? next.season_source : old.season_source,
       bans_source: next.bans !== null ? next.bans_source : old.bans_source,
-      players: next.players.length ? next.players : old.players,
+      players: next.players.length&&lineupCoverage(next.players)>=lineupCoverage(old.players)?next.players:old.players,
     });
   }
   return [...map.values()].sort((a, b) => b.played_at.localeCompare(a.played_at));
@@ -126,17 +141,35 @@ export function fromSnapshot(input: unknown, previous: LocalData): LocalData {
     ? previous.dataset.profile : incoming.profile;
   const displayRank = (rank: string | null | undefined) =>
     rank && /^\d+$/.test(rank) ? rankLabel(Number(rank)) : rank ?? null;
-  const matches = incoming.matches.map(match => ({...match, rank_label: displayRank(match.rank_label)}));
+  const archive = { ...previous.raw, ...Object.fromEntries(rawEntries) };
+  const matches = mergeBattles(previous.dataset.matches, incoming.matches.map(match => ({
+    ...match, rank_label: displayRank(match.rank_label),
+  }))).map(match=>{
+    const fresh=record(record(archive[match.id]).battle);
+    const saved=record(record(previous.raw[match.id]).battle);
+    const star=record(fresh.starPlayer);
+    const fallbackStar=record(saved.starPlayer);
+    const observedStar=txt(star.tag)||txt(star.name)?star:fallbackStar;
+    const tag=txt(observedStar.tag);
+    const name=txt(observedStar.name)??(tag&&tag===fallbackStar.tag?txt(fallbackStar.name):null);
+    const candidates=[match.players,archivedLineup(fresh,incoming.player_tag),archivedLineup(saved,incoming.player_tag)];
+    const players=candidates.reduce((best,team)=>lineupCoverage(team)>lineupCoverage(best)?team:best);
+    return {...match,
+      duration_seconds:match.duration_seconds??count(fresh.duration)??count(saved.duration),
+      star_player:match.star_player?.tag||match.star_player?.name?match.star_player:tag||name?{tag,name}:null,
+      players,
+    };
+  });
   return {
     ...previous,
     dataset: { ...incoming, profile: profile ? {...profile, rank_label: displayRank(profile.rank_label)} : null,
-      matches: mergeBattles(previous.dataset.matches, matches),
+      matches,
       updates: [...new Map([...previous.dataset.updates, ...incoming.updates].map(v => [v.started_at, v])).values()]
         .sort((a,b) => b.started_at.localeCompare(a.started_at)).slice(0,100),
       meta: [...new Map([...previous.dataset.meta, ...incoming.meta].map(r => [`${sourceKey(r)}|${rowKey(r)}`, r])).values()],
     },
     progress: [...new Map([...previous.progress, ...importedProgress].map(p => [p.id, p])).values()],
-    raw: { ...previous.raw, ...Object.fromEntries(rawEntries) },
+    raw: archive,
     matchups: [...new Map([...previous.matchups, ...importedMatchups].map(r => [`${sourceKey(r)}|${rowKey(r)}|${normalize(r.opponent)}`,r])).values()],
   };
 }

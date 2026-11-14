@@ -87,6 +87,63 @@ def encoded(value):
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
 
+def with_known(previous, current):
+    return {**obj(previous), **{key: value for key, value in obj(current).items() if value is not None}}
+
+
+def merge_members(previous, current):
+    known = {string(obj(member).get("tag")): obj(member) for member in previous if obj(member).get("tag")}
+    current_tags = {string(obj(member).get("tag")) for member in current}
+    if not known.keys() <= current_tags:
+        return previous
+    merged = []
+    for entry in current:
+        member = obj(entry)
+        old = known.get(string(member.get("tag")), {})
+        updated = with_known(old, member)
+        for key in ("brawler", "statistics"):
+            if obj(old.get(key)) or obj(member.get(key)):
+                updated[key] = with_known(old.get(key), member.get(key))
+        merged.append(updated)
+    return merged
+
+
+def member_tags(team):
+    return {tag for member in team if (tag := string(obj(member).get("tag")))}
+
+
+def merge_battle_log(previous, current):
+    """Preserve observations already saved for the same account and battle time."""
+    old, fresh = obj(previous.get("battle")), obj(current.get("battle"))
+    battle = with_known(old, fresh)
+    old_star, new_star = obj(old.get("starPlayer")), obj(fresh.get("starPlayer"))
+    if old_star and not (string(new_star.get("tag")) or string(new_star.get("name"))):
+        battle["starPlayer"] = old_star
+    elif old_star.get("tag") and old_star.get("tag") == new_star.get("tag"):
+        battle["starPlayer"] = with_known(old_star, new_star)
+    old_teams, new_teams = old.get("teams"), fresh.get("teams")
+    if isinstance(old_teams, list) and all(isinstance(team, list) for team in old_teams):
+        if not isinstance(new_teams, list) or len(new_teams) < len(old_teams) or not all(
+            isinstance(team, list) for team in new_teams
+        ):
+            battle["teams"] = old_teams
+        else:
+            known_teams = [(tags, team) for team in old_teams if (tags := member_tags(team))]
+            fresh_tags = [member_tags(team) for team in new_teams]
+            if all(any(tags <= current for current in fresh_tags) for tags, _ in known_teams):
+                battle["teams"] = [
+                    merge_members(next((members for tags, members in known_teams if tags <= current), []), team)
+                    for current, team in zip(fresh_tags, new_teams)
+                ]
+            else:
+                battle["teams"] = old_teams
+    old_players, new_players = old.get("players"), fresh.get("players")
+    if isinstance(old_players, list) and isinstance(new_players, list):
+        battle["players"] = merge_members(old_players, new_players)
+    return {**with_known(previous, current), "event": with_known(previous.get("event"), current.get("event")),
+            "battle": battle}
+
+
 def parse_battle(item, account):
     played = battle_time(item["battleTime"])
     event = obj(item.get("event"))

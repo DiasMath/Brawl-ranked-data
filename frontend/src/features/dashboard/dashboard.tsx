@@ -11,6 +11,7 @@ import { collectionRequest, defaultMetaPeriod, inMetaPeriod, LiveMeta } from '@/
 import type { LiveReport } from '@/lib/live';
 import { Overview, Performance, PublicMeta } from '@/features/analytics/analytics';
 import { MapTraining } from '@/features/analytics/map-performance';
+import { ModePerformance } from '@/features/analytics/mode-performance';
 import { Progression } from '@/features/analytics/progression';
 import { Accounts } from '@/features/collection/accounts';
 import { CollectorPanel, MetaPeriods } from '@/features/collection/collector-panel';
@@ -69,12 +70,12 @@ export default function Dashboard() {
     return ()=>{controller.abort();window.clearInterval(timer);};
   },[loadMeta]);
   const metaFilters={...filters,start:'',end:'',rank_label:'',season:period==='reference'?filters.season:''};
-  const ranked=useMemo(()=>filtered(data.matches,filters,true),[data.matches,filters]);
   const metaAccount=filtered(data.matches,metaFilters,true);
   const series=useMemo(()=>matchSeries(data.matches),[data.matches]);
   const elo=useMemo(()=>matchEloChanges(series,local.progress),[series,local.progress]);
   const historySeries=section==='matches'?filteredSeries(series,data.matches,filters,rankedOnly,elo):[];
-  const rankedSeries=section==='overview'?filteredSeries(series,data.matches,filters,true,elo):[];
+  const rankedSeries=section==='overview'||section==='performance'?filteredSeries(series,data.matches,filters,true,elo):[];
+  const performanceRows=section==='performance'?rankedSeries.map(match=>({...match.latest,result:match.result})):[];
   const selectedSeries=match&&series.find(item=>item.rounds.some(round=>round.id===match.id));
   const comparedAccount=metaAccount.filter(match=>inMetaPeriod(match.played_at,period,report));
   const draft=draftStats(comparedAccount);
@@ -164,12 +165,13 @@ export default function Dashboard() {
           action={<label className="switch-label"><input type="checkbox" checked={rankedOnly} onChange={e=>setRankedOnly(e.target.checked)}/> Só ranqueadas</label>}>
           <MatchList key={JSON.stringify([filters,rankedOnly])} matches={historySeries} elo={elo} onOpen={b=>setSelected(b.id)}/></Card>}
         {section==='performance'&&<div className="stack">
-          <MapTraining key={book.active} rows={ranked} history={data.matches} elo={elo} accountName={active.name}
+          <ModePerformance key={book.active} rows={performanceRows}/>
+          <MapTraining key={book.active} rows={performanceRows} history={data.matches} elo={elo} accountName={active.name}
             selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training}
             onOpen={setSelected} onReview={(id,value)=>saveCoaching({review:{id,value}})}
             onPlan={training=>saveCoaching({training})}
             onDraft={map=>{setDraftTarget(target=>({map,revision:target.revision+1}));navigate('draftlab');}}/>
-          <Performance rows={ranked}/>
+          <Performance rows={performanceRows}/>
         </div>}
         <div className="draft-surface" hidden={section!=='draftlab'}>
           <DraftLab active={section==='draftlab'} key={`${book.active}:${draftTarget.revision}`} matches={data.matches.filter(b=>b.ranked)} profile={data.profile} defaultMap={draftTarget.map||filters.map_name}/>
