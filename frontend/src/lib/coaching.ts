@@ -70,7 +70,7 @@ export function brawlerMapPerformance(matches: MatchSeries[], brawler: string) {
   });
 }
 
-export function brawlerOpponents(matches: MatchSeries[], brawler: string) {
+export function brawlerMatchups(matches: MatchSeries[], brawler: string, side:'ally'|'opponent') {
   const groups=new Map<string,{name:string;battles:Battle[]}>();
   const own=matches.map(seriesBattle).filter(battle=>normalize(battle.player_brawler)===brawler)
     .sort((a,b)=>b.played_at.localeCompare(a.played_at));
@@ -79,7 +79,7 @@ export function brawlerOpponents(matches: MatchSeries[], brawler: string) {
     const seen=new Set<string>();
     for(const player of battle.players){
       const name=player.brawler?.trim();
-      if(player.side!=='opponent'||!name)continue;
+      if(player.side!==side||!name)continue;
       const key=normalize(name);
       if(seen.has(key))continue;
       seen.add(key);

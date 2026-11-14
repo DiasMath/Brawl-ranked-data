@@ -12,6 +12,7 @@ Lista de trabalho do Brawl Ranked Data, em ordem de execução no ambiente local
 | 6 | Alinhar os indicadores pessoais de draft e meta | Concluída no código e validada em teste | Calcular os picks e bans por série. Dar aos indicadores pessoais um recorte por temporada ou histórico inteiro e mostrar a cobertura dos bans. Usar séries nas comparações da conta com a meta. |
 | 7 | Levar os resultados por brawler e mapa ao Draft Lab | Concluída no código e validada em teste | Mostrar win rate, pick rate e amostra por mapa para o brawler escolhido. Abrir o Draft Lab no mapa e na temporada da ficha, com a fonte pessoal e a aba Picks. |
 | 8 | Detalhar os confrontos do brawler | Concluída no código e validada em teste | Mostrar vitórias, derrotas e cobertura por adversário. Respeitar a temporada, o mapa e o modo da ficha e abrir diretamente o detalhe da última vitória ou derrota do confronto. |
+| 9 | Analisar os aliados do brawler | Concluída no código e validada em teste | Mostrar o desempenho observado com cada aliado no mesmo recorte da ficha, com resultados decisivos e links para a última vitória e derrota disponíveis. |
 
 ## Critérios para os dados
 
@@ -76,3 +77,9 @@ O botão da tabela abre o **Draft Lab** no mapa da linha, com a mesma temporada 
 A tabela **Confrontos** em **Desempenho → Evolução por brawler** mostra o resultado da equipe quando enfrentou cada adversário no recorte. O mesmo adversário conta uma vez por série, mesmo quando aparece em mais de uma rodada. A cobertura informa quantas séries registraram ao menos um adversário. O win rate usa os resultados decisivos e a ordenação leva em conta o tamanho da amostra.
 
 Os testes confirmaram a deduplicação, o tratamento de séries em aberto e sem composição, o filtro de temporada, a ordenação e a abertura de uma vitória por 2–1 diretamente no histórico.
+
+## Validação da etapa 9
+
+Em **Desempenho → Evolução por brawler**, alterne entre **Adversários** e **Aliados**. A aba de aliados mostra o win rate da equipe quando o brawler esteve no mesmo time, com vitórias, derrotas e cobertura. Ela abre ordenada por melhor aproveitamento, levando em conta o tamanho da amostra. Cada aba mantém sua própria ordenação.
+
+O teste verificou que aliados, adversários e o próprio pick entram nos grupos corretos. Também conferiu a deduplicação por série, a amostra com temporada selecionada, a troca de abas e a abertura da partida pelo aliado.
