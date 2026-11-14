@@ -41,6 +41,7 @@ export default function Dashboard() {
   const dismissFeedback=useCallback(()=>setFeedback(''),[setFeedback]);
   const [report,setReport]=useState<LiveReport|null>(null);
   const [draftTarget,setDraftTarget]=useState<{map:string;season?:string;revision:number}>({map:'',revision:0});
+  const [trainingTarget,setTrainingTarget]=useState<{tag:string;map:string;brawler:string}>();
   const [metaSource,setMetaSource]=useState<'external'|'own'>('external');
   const [exporting,setExporting]=useState(false);
   function openDraft(map:string, season?:string) {
@@ -191,11 +192,13 @@ export default function Dashboard() {
             matches={filteredSeries(series,data.matches,{
               ...emptyFilters,map_name:filters.map_name,mode:filters.mode,rank_label:filters.rank_label,
             },true,elo)} initialSeason={filters.season} initialBrawler={filters.player_brawler} mapFilter={filters.map_name}
-            onDraft={openDraft} onMatch={setSelected}/>
+            onDraft={openDraft} onMatch={setSelected}
+            onTrain={(map,brawler)=>setTrainingTarget({tag:book.active,map,brawler})}/>
           <MapTraining rows={performanceRows} history={rankedHistory} elo={elo} accountName={active.name}
             selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training}
+            seed={trainingTarget?.tag===book.active?trainingTarget:undefined}
             onOpen={setSelected} onReview={(id,value)=>saveCoaching({review:{id,value}})}
-            onPlan={training=>saveCoaching({training})}
+            onPlan={async training=>{await saveCoaching({training});setTrainingTarget(undefined);}}
             onDraft={openDraft}/>
           <Performance rows={performanceRows}/>
         </div>}

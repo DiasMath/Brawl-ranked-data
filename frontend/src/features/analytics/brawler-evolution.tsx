@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Crosshair, FlaskConical } from 'lucide-react';
+import { Crosshair, Flag, FlaskConical } from 'lucide-react';
 import { Card } from '@/components/dashboard-ui';
 import { PagedTable } from '@/components/data-table';
 import { ModeIcon, Portrait } from '@/components/game';
@@ -16,10 +16,11 @@ const options=(values:(string|null|undefined)[], key:(value:string)=>string=norm
 const ownMode=(match:MatchSeries)=>normalize(match.latest.mode);
 const ownMap=(match:MatchSeries)=>mapKey(match.latest.map_name);
 
-export function BrawlerEvolution({ matches, initialSeason, initialBrawler, mapFilter, onDraft, onMatch }: {
+export function BrawlerEvolution({ matches, initialSeason, initialBrawler, mapFilter, onDraft, onMatch, onTrain }: {
   matches:MatchSeries[]; initialSeason:string; initialBrawler:string; mapFilter:string;
   onDraft:(map:string,season:string)=>void;
   onMatch:(id:string)=>void;
+  onTrain:(map:string,brawler:string)=>void;
 }) {
   const [season,setSeason]=useState(normalize(initialSeason));
   const [mode,setMode]=useState('');
@@ -103,13 +104,17 @@ export function BrawlerEvolution({ matches, initialSeason, initialBrawler, mapFi
       </div></div>
       {byMap.length?<PagedTable label={`${selected.label} por mapa`} rows={byMap}
         pageKey={JSON.stringify([selectedKey,season,activeMode,activeMap])}
-        headings={<><th>Mapa</th><th>Win rate</th><th>Pick rate pessoal</th><th>Draft</th></>}
+        headings={<><th>Mapa</th><th>Win rate</th><th>Pick rate pessoal</th><th>Ações</th></>}
         renderRow={row=><tr key={row.key}>
           <td><span className="image-label"><ModeIcon mode={row.mode}/><span><strong>{row.name}</strong><small>{modeName(row.mode)}</small></span></span></td>
           <td><strong>{percent(row.rate)}</strong><small>{number(row.wins)} V · {number(row.losses)} D</small></td>
           <td><strong>{percent(row.picks/row.known)}</strong><small>{number(row.picks)} de {number(row.known)} partidas com pick identificado</small></td>
-          <td><button type="button" className="button small subtle" aria-label={`Abrir Draft Lab em ${row.name}`}
-            onClick={()=>onDraft(row.name,seasonLabel)}><FlaskConical size={14}/> Abrir Draft Lab</button></td>
+          <td><div className="actions">
+            <button type="button" className="button small subtle" aria-label={`Abrir Draft Lab em ${row.name}`}
+              onClick={()=>onDraft(row.name,seasonLabel)}><FlaskConical size={14}/> Abrir Draft Lab</button>
+            <button type="button" className="button small subtle" aria-label={`Treinar com ${selected.label} em ${row.name}`}
+              onClick={()=>onTrain(row.name,selected.label)}><Flag size={14}/> Treinar</button>
+          </div></td>
         </tr>}/>:<p className="section-note">Sem mapas identificados para este brawler no recorte.</p>}
       {matchups&&<section aria-label="Confrontos do brawler">
         <div className="card-head"><div>

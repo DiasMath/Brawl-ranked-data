@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Flag, MapPinned, Swords, Target } from 'lucide-react';
 import { findMap, MapImage, ModeIcon, Portrait } from '@/components/game';
 import { dateTime, groupStats, modeName, normalize, number, percent, resultName } from '@/lib/data';
 import type { Battle } from '@/lib/data';
-import type { ReplayReview, TrainingPlan } from '@/lib/coaching';
-import { MAP_MIN_GAMES, mapPerformance, reviewPair, trainingResults } from '@/lib/coaching';
+import type { ReplayReview, TrainingPlan, TrainingScope } from '@/lib/coaching';
+import { MAP_MIN_GAMES, mapPerformance, reviewPair, trainingProgress } from '@/lib/coaching';
 import { accountInExternalScope, mapKey } from '@/lib/external-comparison';
 import { collectionRequest } from '@/lib/live';
 import { ordered } from '@/lib/scouting';
@@ -122,13 +122,41 @@ function MapSheet({map, history, elo, accountName, reviews, onOpen, onReview, on
   </>;
 }
 
-function SessionPlan({strong,weak,plan,history,onChoose,onSave}: {
-  strong?:MapPerformance; weak?:MapPerformance; plan?:TrainingPlan; history:MatchSeries[];
+function SessionPlan({strong,weak,plan,seed,history,onChoose,onSave}: {
+  strong?:MapPerformance; weak?:MapPerformance; plan?:TrainingPlan; seed?:TrainingScope; history:MatchSeries[];
   onChoose:(key:string)=>void; onSave:(plan:TrainingPlan)=>Promise<void>;
 }) {
   const [message,setMessage]=useState('');
   const [saving,setSaving]=useState(false);
-  const observed=plan?.startedAt?trainingResults(history,plan):null;
+  const focusField=useRef<HTMLInputElement>(null);
+  const mapField=useRef<HTMLSelectElement>(null);
+  const brawlerField=useRef<HTMLSelectElement>(null);
+  const completedField=useRef<HTMLInputElement>(null);
+  const options=useMemo(()=>{
+    const maps=new Map<string,string>();
+    const brawlers=new Map<string,string>();
+    for(const match of history){
+      const {map_name,player_brawler}=seriesBattle(match);
+      if(map_name)maps.set(mapKey(map_name),map_name);
+      if(player_brawler)brawlers.set(normalize(player_brawler),player_brawler);
+    }
+    if(plan?.map)maps.set(mapKey(plan.map),plan.map);
+    if(plan?.brawler)brawlers.set(normalize(plan.brawler),plan.brawler);
+    const sorted=(values:Map<string,string>)=>[...values].sort((a,b)=>a[1].localeCompare(b[1],'pt-BR'));
+    return {maps:sorted(maps),brawlers:sorted(brawlers)};
+  },[history,plan?.map,plan?.brawler]);
+  const progress=useMemo(()=>plan?.startedAt?trainingProgress(history,plan):null,[history,plan]);
+  const observed=progress?.observed;
+  const reference=progress?.reference;
+  const difference=observed?.rate!=null&&reference?.rate!=null?Math.round((observed.rate-reference.rate)*1000)/10:null;
+  useEffect(()=>{
+    if(!seed)return;
+    if(mapField.current)mapField.current.value=mapKey(seed.map??null);
+    if(brawlerField.current)brawlerField.current.value=normalize(seed.brawler);
+    if(completedField.current)completedField.current.checked=false;
+    focusField.current?.focus();
+  },[seed]);
+  const clearCompleted=()=>{if(completedField.current)completedField.current.checked=false;};
   const suggestion=weak?`Rever uma derrota em ${weak.name} e testar um ajuste de cada vez.`:'Rever uma partida e escolher um ajuste para testar.';
   return <section className="card coaching-card"><div className="card-head"><div><h2><Flag size={17}/> Próxima sessão</h2>
     <p>Escolha um ajuste que você consegue observar durante a partida.</p></div></div>
@@ -136,29 +164,42 @@ function SessionPlan({strong,weak,plan,history,onChoose,onSave}: {
       {strong&&<button className="button small subtle" onClick={()=>onChoose(strong.key)}>Consolidar · {strong.name}</button>}
       {weak&&<button className="button small subtle" onClick={()=>onChoose(weak.key)}>Treinar · {weak.name}</button>}
     </div>
-    <form className="coaching-form" onSubmit={async event=>{
+    <form key={JSON.stringify([plan?.focus,plan?.map,plan?.brawler])} className="coaching-form" onSubmit={async event=>{
       event.preventDefault();
       const form=new FormData(event.currentTarget);
       const focus=String(form.get('focus')??'').trim();
+      const map=options.maps.find(([key])=>key===form.get('map'))?.[1];
+      const brawler=options.brawlers.find(([key])=>key===form.get('brawler'))?.[1];
       if(!focus||saving)return;
       setSaving(true);setMessage('');
-      try{await onSave({focus,completed:form.has('completed')});setMessage('Plano salvo neste navegador.');}
+      try{await onSave({focus,map,brawler,completed:form.has('completed')});setMessage('Plano salvo neste navegador.');}
       catch(error){setMessage(error instanceof Error?error.message:'Falha ao salvar o plano.');}
       finally{setSaving(false);}
     }}>
-      <label>Ajuste para testar<input name="focus" maxLength={240} required defaultValue={plan?.focus??''} placeholder={suggestion}/></label>
-      <label className="checkbox"><input name="completed" type="checkbox" defaultChecked={plan?.completed??false}/> Consegui executar o ajuste</label>
+      <label>Ajuste para testar<input ref={focusField} name="focus" maxLength={240} required defaultValue={plan?.focus??''}
+        onChange={clearCompleted} placeholder={suggestion}/></label>
+      <label>Mapa do treino<select ref={mapField} name="map" defaultValue={mapKey(plan?.map??null)} onChange={clearCompleted}>
+        <option value="">Todos os mapas</option>{options.maps.map(([key,label])=><option key={key} value={key}>{label}</option>)}
+      </select></label>
+      <label>Brawler do treino<select ref={brawlerField} name="brawler" defaultValue={normalize(plan?.brawler)} onChange={clearCompleted}>
+        <option value="">Todos os brawlers</option>{options.brawlers.map(([key,label])=><option key={key} value={key}>{label}</option>)}
+      </select></label>
+      <label className="checkbox"><input ref={completedField} name="completed" type="checkbox" defaultChecked={plan?.completed??false}/> Consegui executar o ajuste</label>
       <div className="actions"><button className="button small subtle" disabled={saving}>{saving?'Salvando…':'Salvar plano'}</button>
         {message&&<span role="status" className="muted">{message}</span>}</div>
     </form>
-    {observed&&<p className="section-note">Desde que você salvou o ajuste{plan?.completed?' até marcar como concluído':''} · {number(observed.games)} ranqueadas · {number(observed.wins)} V · {number(observed.losses)} D · {percent(observed.rate)} de win rate</p>}
+    {observed&&<><p className="section-note">Treino salvo · {plan?.map||'Todos os mapas'} · {plan?.brawler||'Todos os brawlers'}<br/>
+      Desde que você salvou o ajuste{plan?.completed?' até marcar como concluído':''} · {number(observed.games)} ranqueadas · {number(observed.wins)} V · {number(observed.losses)} D · {percent(observed.rate)} de win rate</p>
+      {reference?.rate!=null?<p className="section-note">Antes do treino, no mesmo recorte · {number(reference.decided)} {reference.decided===1?'decisiva':'decisivas'} · {percent(reference.rate)} de win rate
+        {difference!==null&&` · Variação ${difference>0?'+':''}${number(difference)} p.p.`}</p>:
+        observed.decided>0&&<p className="section-note">Sem partidas decisivas anteriores nesse recorte para comparar.</p>}</>}
   </section>;
 }
 
-export function MapTraining({rows,history,elo,accountName,reviews,plan,selectedMap,onOpen,onReview,onPlan,onDraft}: {
+export function MapTraining({rows,history,elo,accountName,reviews,plan,seed,selectedMap,onOpen,onReview,onPlan,onDraft}: {
   rows:Battle[]; history:MatchSeries[]; elo:Map<string,MatchElo>; accountName:string; reviews:Record<string,ReplayReview>; plan?:TrainingPlan;
   selectedMap:string; onOpen:(id:string)=>void; onReview:(id:string,review:ReplayReview)=>Promise<void>;
-  onPlan:(plan:TrainingPlan)=>Promise<void>; onDraft:(map:string)=>void;
+  onPlan:(plan:TrainingPlan)=>Promise<void>; onDraft:(map:string)=>void; seed?:TrainingScope;
 }) {
   const maps=useMemo(()=>mapPerformance(rows),[rows]);
   const [map,setMap]=useState('');
@@ -182,6 +223,6 @@ export function MapTraining({rows,history,elo,accountName,reviews,plan,selectedM
     </section>
     {active&&<MapSheet key={active.key} map={active} history={history} elo={elo} accountName={accountName} reviews={reviews}
       onOpen={onOpen} onReview={onReview} onDraft={onDraft}/>}
-    <SessionPlan history={history} strong={strong} weak={weak} plan={plan} onChoose={setMap} onSave={onPlan}/>
+    <SessionPlan history={history} strong={strong} weak={weak} plan={plan} seed={seed} onChoose={setMap} onSave={onPlan}/>
   </>;
 }

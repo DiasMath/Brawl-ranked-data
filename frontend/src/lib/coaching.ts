@@ -11,7 +11,8 @@ export const replayTags = [
 ] as const;
 export type ReplayTag = typeof replayTags[number];
 export type ReplayReview = { tag: ReplayTag; note: string };
-export type TrainingPlan = { focus: string; completed: boolean; startedAt?: string; completedAt?: string };
+export type TrainingScope = { map?: string; brawler?: string };
+export type TrainingPlan = TrainingScope & { focus: string; completed: boolean; startedAt?: string; completedAt?: string };
 export const MAP_MIN_GAMES = 10;
 const FORM_SIZE = 10;
 const SESSION_GAP = 60 * 60 * 1000;
@@ -147,12 +148,30 @@ export function rankedSessions(matches: MatchSeries[], readings: Progress[]) {
   }).reverse();
 }
 
-export function trainingResults(matches: MatchSeries[], plan: TrainingPlan) {
+export function saveTrainingPlan(plan: TrainingPlan, previous: TrainingPlan | undefined, at: string): TrainingPlan {
+  const same = previous && previous.focus===plan.focus && mapKey(previous.map??null)===mapKey(plan.map??null) &&
+    normalize(previous.brawler)===normalize(plan.brawler);
+  return {...plan,startedAt:same?previous.startedAt??at:at,
+    completedAt:plan.completed?(same?previous.completedAt??at:at):undefined};
+}
+
+export function trainingProgress(matches: MatchSeries[], plan: TrainingPlan) {
   const start=Date.parse(plan.startedAt??'');
   const end=plan.completedAt?Date.parse(plan.completedAt):Infinity;
-  return stats(matches.filter(match=>{
+  const map=mapKey(plan.map??null);
+  const brawler=normalize(plan.brawler);
+  const after:MatchSeries[]=[];
+  const before:MatchSeries[]=[];
+  for(const match of matches){
+    if(!match.latest.ranked || (map && mapKey(match.latest.map_name)!==map))continue;
+    const pick=match.rounds.findLast(round=>normalize(round.player_brawler))?.player_brawler;
+    if(brawler && normalize(pick)!==brawler)continue;
     const first=Date.parse(match.rounds[0].played_at);
     const last=Date.parse(match.latest.played_at);
-    return match.latest.ranked&&first>=start&&last<=end;
-  }));
+    if(first>=start&&last<=end)after.push(match);
+    else if(last<start&&(match.result==='victory'||match.result==='defeat'))before.push(match);
+  }
+  const observed=stats(after);
+  const reference=stats(before.sort((a,b)=>b.latest.played_at.localeCompare(a.latest.played_at)).slice(0,observed.decided));
+  return {observed, reference};
 }
