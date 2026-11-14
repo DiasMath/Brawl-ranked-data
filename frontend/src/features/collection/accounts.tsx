@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { ArrowDownToLine, History, Plus, UserRound } from 'lucide-react';
-import type { Account, LocalData } from '@/lib/browser-store';
-import { dateTime, number } from '@/lib/data';
+import { Plus, UserRound } from 'lucide-react';
+import type { Account } from '@/lib/browser-store';
+import { UpdateHistory } from './update-history';
 
-export function Accounts({ tag, accounts, data, busy, onExport, onSelect, onSave }: {
-  tag:string; accounts:Account[]; data:LocalData; busy:boolean; onExport:()=>void;
+export function Accounts({ tag, accounts, revision, busy, onExport, onSelect, onSave }: {
+  tag:string; accounts:Account[]; revision:string; busy:boolean; onExport:()=>void;
   onSelect:(tag:string)=>void; onSave:(tag:string)=>Promise<void>;
 }) {
   const [adding,setAdding]=useState(false);
@@ -40,13 +40,6 @@ export function Accounts({ tag, accounts, data, busy, onExport, onSelect, onSave
         {error&&<p className="feedback" role="alert">{error}</p>}
       </form>}
     </section>
-    <section className="card"><div className="card-head"><div><h2><History size={17}/> Histórico de atualizações</h2>
-      <p>{active?'Até 100 execuções para '+active.name:'Selecione uma conta monitorada.'}</p></div>
-      <button className="button small subtle" disabled={busy||!tag} onClick={onExport}><ArrowDownToLine size={15}/> Exportar histórico</button></div>
-      {data.dataset.updates.length?<div className="table-wrap"><table><thead><tr><th>Data e hora</th><th>Status</th><th>Recebidas</th><th>Novas</th><th>Detalhe</th></tr></thead>
-        <tbody>{data.dataset.updates.map(u=><tr key={u.started_at}><td>{dateTime(u.started_at)}</td><td><span className={`tag ${u.status==='success'?'confirmed':u.status==='error'?'unavailable':'hypothesis'}`}>
-          {u.status==='success'?'Concluída':u.status==='error'?'Falhou':'Em andamento'}</span></td><td>{u.received!==null?number(u.received):'—'}</td>
-          <td>{u.added!==null?number(u.added):'—'}</td><td>{u.message||'—'}</td></tr>)}</tbody></table></div>:
-        <p className="section-note">A primeira tentativa de sincronização aparecerá aqui.</p>}</section>
+    <UpdateHistory key={tag} tag={tag} name={active?.name} revision={revision} busy={busy} onExport={onExport}/>
   </div>;
 }

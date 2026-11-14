@@ -1,12 +1,12 @@
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from ..config import collection_interval
 from ..db import database
 from ..domain import iso, utc_now
-from ..repositories.history import dataset, latest_run, retry_until
+from ..repositories.history import dataset, latest_run, retry_until, update_page
 from ..services.collection import collect_account
 from ..services.credentials import credential_status
 from .accounts import require_player
@@ -58,8 +58,16 @@ def collection_history(after: int = 0, tag: str | None = None):
         player = require_player(cursor, tag)
         latest = latest_run(cursor, player, successful=True)
         run_id = latest["id"] if latest else 0
-        snapshot = dataset(cursor, player, after_run=after if 0 < after <= run_id else 0, include_archive=True)
+        snapshot = dataset(cursor, player, after_run=after if 0 < after <= run_id else 0,
+                           include_archive=True, include_updates=False)
         return {"run_id": run_id, "snapshot": snapshot}
+
+
+@router.get("/api/collection/updates")
+def collection_updates(tag: str | None = None, before: int | None = Query(None, gt=0, le=999_999_999_999_999),
+                       limit: int = Query(15, ge=1, le=100)):
+    with database() as (_, cursor):
+        return update_page(cursor, require_player(cursor, tag), before, limit)
 
 
 @router.get("/api/dataset")

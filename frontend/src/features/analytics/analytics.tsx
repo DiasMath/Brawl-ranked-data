@@ -1,3 +1,4 @@
+import { PagedTable } from '@/components/data-table';
 import { useContext, useState } from 'react';
 import { Activity, ArrowRight, ArrowUpRight, CalendarDays, Crosshair, MapPinned, Radio, RefreshCw, Swords, Trophy } from 'lucide-react';
 import type { Battle, Filters } from '@/lib/data';
@@ -188,15 +189,15 @@ function TableComparison({ publicSample, setCount, own, brawler, unit }: {
     <div className="meta-table-options"><span>Ordenar por</span><select className="standalone" aria-label="Ordenar a meta" value={metric} onChange={e=>setOrder(e.target.value as typeof order)}>
       <option value="win">Melhores picks · win rate e amostra</option><option value="pick">Pick rate</option>{banKnown>0&&<option value="ban">Ban rate</option>}</select>
       {banKnown>0&&<span>{number(banKnown)} de {number(setCount)} registros com bans explícitos</span>}</div>
-    <div className="table-wrap"><table><thead><tr><th>Brawler</th><th>Win rate</th><th>Amostra · {unit}</th><th>Pick rate</th>{banKnown>0&&<th>Ban rate</th>}
-      <th>Win rate · conta</th><th>Registros da conta</th></tr></thead><tbody>{display.map(r=>{
+    {display.length?<PagedTable label="Estatísticas por brawler" rows={display} pageKey={JSON.stringify([metric,brawler])} headings={<><th>Brawler</th><th>Win rate</th><th>Amostra · {unit}</th><th>Pick rate</th>{banKnown>0&&<th>Ban rate</th>}
+      <th>Win rate · conta</th><th>Registros da conta</th></>} renderRow={r=>{
         const a=accounts.get(normalize(r.name));
         return <tr key={r.name}><td><span className="image-label"><Portrait name={r.name}/>{r.name}</span></td><td>{percent(r.games?r.wins/r.games:null)}</td>
           <td>{number(r.games)}{r.games>0&&r.games<30&&<small>Amostra pequena</small>}</td>
           <td>{percent(setCount?(r.pickCount??0)/(setCount*6):null)}</td>
           {banKnown>0&&<td>{percent((banByName.get(normalize(r.name))??0)/banKnown)}</td>}
           <td>{percent(a?a.wins/a.games:null)}</td><td>{a?number(a.games):'—'}</td></tr>;
-      })}</tbody></table>{!display.length&&<p className="section-note">Sem observações para este recorte.</p>}</div>
+      }}/>:<p className="section-note">Sem observações para este recorte.</p>}
   </>;
 }
 

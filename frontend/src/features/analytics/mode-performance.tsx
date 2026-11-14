@@ -1,3 +1,4 @@
+import { PagedTable } from '@/components/data-table';
 import { useMemo, useState } from 'react';
 import { BarChart3, Clock3, RotateCcw } from 'lucide-react';
 import { Card, Empty } from '@/components/dashboard-ui';
@@ -44,12 +45,9 @@ function WinRate({ row }: { row: ReturnType<typeof stats> }) {
 
 function BrawlerTable({ title, rows, worst=false }: { title:string; rows:BrawlerStats[]; worst?:boolean }) {
   return <div className="mode-brawler-table"><h3>{title}</h3>
-    {rows.length?<div className="table-wrap" tabIndex={0} role="region" aria-label={title}><table>
-      <thead><tr><th>Brawler</th><th>Win rate</th><th>Partidas</th></tr></thead>
-      <tbody>{sortBrawlers(rows,worst).map(row=><tr key={row.label}><td><span className="image-label">
+    {rows.length?<PagedTable label={title} rows={sortBrawlers(rows,worst)} headings={<><th>Brawler</th><th>Win rate</th><th>Partidas</th></>} renderRow={row=><tr key={row.label}><td><span className="image-label">
         <Portrait name={row.label}/>{row.label}</span></td><td><WinRate row={{...row,games:row.total}}/></td>
-        <td>{number(row.total)}</td></tr>)}</tbody>
-    </table></div>:<p className="muted">Sem brawlers identificados neste recorte.</p>}
+        <td>{number(row.total)}</td></tr>}/>:<p className="muted">Sem brawlers identificados neste recorte.</p>}
   </div>;
 }
 
@@ -125,21 +123,18 @@ export function ModePerformance({ matches }: { matches:MatchSeries[] }) {
         {[{label:'Modos',entries:modes,selected:activeMode,select:(id:string)=>{setMode(id);setMap('');setPick('');},map:false},
           {label:'Mapas',entries:maps,selected:activeMap,select:(id:string)=>{setMap(id);setPick('');},map:true}].map(group=>
           <div key={group.label}><h3>{group.label}</h3>{group.entries.length?
-            <div className="table-wrap" tabIndex={0} role="region" aria-label={group.label}><table>
-              <thead><tr><th>{group.map?'Mapa':'Modo'}</th><th>Win rate</th><th>Partidas</th></tr></thead>
-              <tbody>{group.entries.map(row=><tr key={row.id}><td><button type="button" className="text-button image-label"
+            <PagedTable label={group.label} rows={group.entries} pageKey={group.map?activeMode:''} headings={<><th>{group.map?'Mapa':'Modo'}</th><th>Win rate</th><th>Partidas</th></>} renderRow={row=><tr key={row.id}><td><button type="button" className="text-button image-label"
                 aria-pressed={group.selected===row.id} onClick={()=>group.select(group.selected===row.id?'':row.id)}>
                 <ModeIcon mode={row.battle.mode}/>{group.map?row.battle.map_name:modeName(row.battle.mode)}</button></td>
-                <td><WinRate row={row}/></td><td>{number(row.games)}</td></tr>)}</tbody>
-            </table></div>:<p className="muted">Nenhum registro identificado.</p>}</div>)}
+                <td><WinRate row={row}/></td><td>{number(row.games)}</td></tr>}/>:<p className="muted">Nenhum registro identificado.</p>}</div>)}
       </div>
       <div className="mode-filters mode-matchup-filter"><label>Seu brawler nos confrontos<select value={activePick} onChange={e=>setPick(e.target.value)}>
         <option value="">Todos os seus brawlers</option>
         {picks.map(row=><option key={row.label}>{row.label}</option>)}
       </select></label></div>
       <div className="mode-tables">
-        <BrawlerTable title="Com quem você ganha" rows={picks}/>
-        <BrawlerTable title={activePick?`Contra quem ${activePick} tem mais dificuldade`:'Contra quem você perde'} rows={enemyRows} worst/>
+        <BrawlerTable key={JSON.stringify(['picks',activeMode,activeMap])} title="Com quem você ganha" rows={picks}/>
+        <BrawlerTable key={JSON.stringify(['opponents',activeMode,activeMap,activePick])} title={activePick?`Contra quem ${activePick} tem mais dificuldade`:'Contra quem você perde'} rows={enemyRows} worst/>
       </div>
       <p className="section-note">Os confrontos mostram o resultado da sua equipe quando o adversário estava do outro lado. Os destaques exigem pelo menos três partidas decisivas e levam em conta o tamanho da amostra.</p>
     </>:<Empty icon={BarChart3} title="Sem partidas ranqueadas no recorte"/>}

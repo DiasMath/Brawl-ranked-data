@@ -13,6 +13,20 @@ def latest_run(cursor, player, successful=False, *, scheduled=False):
     return cursor.fetchone()
 
 
+def update_page(cursor, player, before=None, limit=15):
+    bound = " AND id<%s" if before is not None else ""
+    params = (player, before, limit + 1) if before is not None else (player, limit + 1)
+    cursor.execute(
+        "SELECT id, started_at, finished_at, status, received, added, message FROM update_log "
+        f"WHERE player_tag=%s{bound} ORDER BY id DESC LIMIT %s", params,
+    )
+    records = cursor.fetchall()
+    rows = records[:limit]
+    for row in rows:
+        row["started_at"], row["finished_at"] = iso(row["started_at"]), iso(row["finished_at"])
+    return {"rows": rows, "next_cursor": rows[-1]["id"] if len(records) > limit else None}
+
+
 def retry_until(cursor):
     cursor.execute("""
         SELECT GREATEST(
@@ -32,7 +46,7 @@ def remember_retry(cursor, player, error):
     )
 
 
-def dataset(cursor, player, after_run=0, include_archive=False):
+def dataset(cursor, player, after_run=0, include_archive=False, include_updates=True):
     cursor.execute("SELECT player_name, fetched_at, raw FROM account_profile WHERE player_tag=%s", (player,))
     profile = cursor.fetchone()
     changed = (" AND (o.last_run_id>%s OR e.recorded_at >= "
@@ -101,11 +115,7 @@ def dataset(cursor, player, after_run=0, include_archive=False):
     """, params)
     for participant in cursor.fetchall():
         by_id[participant.pop("battle_id")]["players"].append(participant)
-    cursor.execute("SELECT id, started_at, finished_at, status, received, added, message FROM update_log "
-                   "WHERE player_tag=%s ORDER BY id DESC LIMIT 100", (player,))
-    updates = cursor.fetchall()
-    for row in updates:
-        row["started_at"], row["finished_at"] = iso(row["started_at"]), iso(row["finished_at"])
+    updates = update_page(cursor, player, limit=100)["rows"] if include_updates else []
     cursor.execute("SELECT id, source_name, source_url, period_start, period_end, map_name, mode, rank_label, season, "
                    "brawler, wins, games, pick_count, pick_total, ban_count, ban_total "
                    "FROM meta_observations WHERE player_tag=%s ORDER BY period_end DESC, id DESC", (player,))

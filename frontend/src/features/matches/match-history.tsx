@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, Clock3, List, Star, Swords, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Clock3, List, Star, Swords, X } from 'lucide-react';
 import { Empty, Pill } from '@/components/dashboard-ui';
+import { PagedTable } from '@/components/data-table';
 import { findMap, MapImage, ModeIcon, ModeLabel, Portrait, RankArt } from '@/components/game';
 import { dateTime, durationLabel, modeName, number, resultName, safeLink } from '@/lib/data';
 import { ReplayAnnotation } from '@/features/analytics/replay-annotation';
@@ -9,8 +10,6 @@ import type { Battle } from '@/lib/data';
 import { matchKd, seriesBans, seriesDuration, seriesRank } from '@/lib/match-series';
 import type { MatchElo, MatchSeries } from '@/lib/match-series';
 
-const pageSize = 15;
-
 function resultTone(result: Battle['result']) {
   return result === 'victory' ? 'success' : result === 'defeat' ? 'danger' : 'neutral';
 }
@@ -18,18 +17,13 @@ function resultTone(result: Battle['result']) {
 export function MatchList({ matches, elo, onOpen, compact = false }: {
   matches: MatchSeries[]; elo?:Map<string,MatchElo>; onOpen: (b: Battle) => void; compact?: boolean;
 }) {
-  const [page, setPage] = useState(0);
-  const scroll=useRef<HTMLDivElement>(null);
-  const current = Math.min(page, Math.max(0, Math.ceil(matches.length / pageSize) - 1));
-  useEffect(()=>{if(scroll.current)scroll.current.scrollTop=0;},[current]);
   if (!matches.length) return <Empty icon={List} title="Nenhuma partida encontrada">Atualize o histórico ou ajuste os filtros do recorte.</Empty>;
   const showKd=matches.some(series=>matchKd(series)!==null);
   const showRank=matches.some(series=>seriesRank(series)||elo?.get(series.id)?.rank);
-  const visible = compact ? matches.slice(0, 6) : matches.slice(current * pageSize, (current + 1) * pageSize);
-  return <><div ref={scroll} className={compact?'table-wrap':'table-wrap match-history-scroll'}
-    role={compact?undefined:'region'} aria-label={compact?undefined:'Tabela do histórico de partidas'} tabIndex={compact?undefined:0}>
-    <table><thead><tr><th>Data e hora</th><th>Mapa / modo</th><th>Brawler</th><th>Resultado</th>
-    {showKd&&<th>K/D</th>}{showRank&&<th>Rank</th>}<th aria-label="Detalhes" /></tr></thead><tbody>{visible.map(series => {
+  return <PagedTable label="Tabela do histórico de partidas" className={compact?'':'match-history-scroll'}
+    rows={compact?matches.slice(0,6):matches} showSinglePage={!compact} unit={['partida','partidas']}
+    headings={<><th>Data e hora</th><th>Mapa / modo</th><th>Brawler</th><th>Resultado</th>
+      {showKd&&<th>K/D</th>}{showRank&&<th>Rank</th>}<th aria-label="Detalhes"/></>} renderRow={series=>{
       const {id,latest:b,result,rounds,wins,losses}=series;
       const kd=matchKd(series);
       const duration=seriesDuration(series);
@@ -46,12 +40,7 @@ export function MatchList({ matches, elo, onOpen, compact = false }: {
       {showRank&&<td>{rankLabel&&<span className="image-label inline-rank">
         <RankArt rank={rankLabel}/><span>{rankLabel}{!rank&&<small>Estimativa · Perfil</small>}</span></span>}</td>}<td><button className="icon-button" aria-label={`Detalhar partida de ${dateTime(b.played_at)}`}
         onClick={() => onOpen(b)}><ChevronRight size={16} /></button></td></tr>;
-    })}</tbody></table></div>
-    {!compact && <div className="pager"><span>{number(matches.length)} {matches.length===1?'partida':'partidas'}</span><div>
-      <button className="icon-button" disabled={!current} aria-label="Página anterior" onClick={() => setPage(current - 1)}><ChevronLeft size={17} /></button>
-      <span>{current + 1} / {Math.ceil(matches.length / pageSize)}</span>
-      <button className="icon-button" disabled={(current + 1) * pageSize >= matches.length} aria-label="Próxima página"
-        onClick={() => setPage(current + 1)}><ChevronRight size={17} /></button></div></div>}</>;
+    }}/>;
 }
 
 export function MatchDetail({ match, series, elo, onRound, raw, review, onClose, onReview }: {

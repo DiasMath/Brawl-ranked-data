@@ -7,6 +7,7 @@ import { FeedbackToast } from '@/components/feedback-toast';
 import { AccountIcon, brawlers } from '@/components/game';
 import { battleSeason, dateTime, draftStats, emptyFilters, filtered, localDay, normalize, number } from '@/lib/data';
 import { downloadSnapshot } from '@/lib/browser-store';
+import { loadUpdates } from '@/features/collection/update-history';
 import { collectionRequest, defaultMetaPeriod, inMetaPeriod, LiveMeta } from '@/lib/live';
 import type { LiveReport } from '@/lib/live';
 import { Overview, Performance, PublicMeta } from '@/features/analytics/analytics';
@@ -40,6 +41,18 @@ export default function Dashboard() {
   const [report,setReport]=useState<LiveReport|null>(null);
   const [draftTarget,setDraftTarget]=useState({map:'',revision:0});
   const [metaSource,setMetaSource]=useState<'external'|'own'>('external');
+  const [exporting,setExporting]=useState(false);
+  async function exportHistory() {
+    setExporting(true);
+    try {
+      const {rows}=await loadUpdates(book.active,{limit:100});
+      downloadSnapshot({...local,dataset:{...local.dataset,updates:rows}});
+    } catch(error) {
+      setFeedback(error instanceof Error?error.message:'Não foi possível exportar o histórico.');
+    } finally {
+      setExporting(false);
+    }
+  }
   const draftTier=useDraftMeta(filters.map_name,section==='draft');
   const metaRevision=useRef(0);
   const firstMetaRead=useRef(true);
@@ -209,8 +222,10 @@ export default function Dashboard() {
         {section==='sources'&&<div className="stack">
           <CollectorPanel server={server} serverError={serverError} battles={data.matches} onSync={()=>void sync()} syncing={sending} hasAccount={!!book.active}/>
           <SupercellCredential onSaved={()=>void refreshCollection()}/>
-          <Accounts tag={book.active} accounts={book.accounts} data={local} busy={busy||sending||!ready}
-            onSelect={tag=>void selectAccount(tag)} onSave={saveAccount} onExport={()=>downloadSnapshot(local)}/></div>}
+          <Accounts tag={book.active} accounts={book.accounts}
+            revision={JSON.stringify([server?.last_attempt?.id,server?.last_attempt?.status,server?.last_attempt?.finished_at])}
+            busy={busy||sending||!ready||exporting}
+            onSelect={tag=>void selectAccount(tag)} onSave={saveAccount} onExport={()=>void exportHistory()}/></div>}
         {section!=='draftlab'&&<footer><span><ShieldCheck size={15}/> Brawl Ranked Data</span><span>Projeto de fãs independente · Arte Supercell · <a href="https://supercell.com/en/fan-content-policy/" target="_blank" rel="noreferrer">Política de fãs</a> · <a href="https://github.com/Brawlify/CDN" target="_blank" rel="noreferrer">Brawlify</a></span></footer>}
       </main>
     </div>

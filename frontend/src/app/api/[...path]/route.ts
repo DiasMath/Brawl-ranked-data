@@ -6,7 +6,7 @@ export const maxDuration = 60;
 
 const routes = new Set([
   'GET /api/accounts', 'POST /api/accounts', 'GET /api/collection/status',
-  'GET /api/collection/history', 'POST /api/sync', 'POST /api/evidence',
+  'GET /api/collection/history', 'GET /api/collection/updates', 'POST /api/sync', 'POST /api/evidence',
   'GET /api/supercell/credential', 'POST /api/supercell/credential',
   'GET /api/meta/sample', 'POST /api/meta/sample',
   'GET /api/meta/external', 'POST /api/meta/external', 'POST /api/meta/draft-suggest',
@@ -83,12 +83,24 @@ async function forward(request: NextRequest) {
       if (!/^\d{1,15}$/.test(after)) return Response.json({ detail: 'Cursor inválido.' }, { status: 400, headers });
       target.searchParams.set('after', after);
     }
+    if (path === '/api/collection/updates') {
+      const before = request.nextUrl.searchParams.get('before');
+      if (before !== null) {
+        if (!/^[1-9]\d{0,14}$/.test(before)) return Response.json({ detail: 'Cursor inválido.' }, { status: 400, headers });
+        target.searchParams.set('before', before);
+      }
+      const limit = request.nextUrl.searchParams.get('limit');
+      if (limit !== null) {
+        if (!/^(?:[1-9]\d?|100)$/.test(limit)) return Response.json({ detail: 'Limite inválido.' }, { status: 400, headers });
+        target.searchParams.set('limit', limit);
+      }
+    }
     const upstream = await fetch(target, {
       method: request.method,
       headers: { Authorization: 'Bearer ' + secret, 'Content-Type': 'application/json' },
       body,
-      cache: 'no-store', redirect: 'error', signal: draftSuggestion
-        ? AbortSignal.any([request.signal, AbortSignal.timeout(15000)])
+      cache: 'no-store', redirect: 'error', signal: draftSuggestion || path === '/api/collection/updates'
+        ? AbortSignal.any([request.signal, AbortSignal.timeout(draftSuggestion ? 15000 : 50000)])
         : AbortSignal.timeout(50000),
     });
     if (upstream.status === 401) {

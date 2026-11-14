@@ -79,9 +79,9 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
   const input=useRef<HTMLInputElement>(null);
   const roster=useRef<HTMLElement>(null);
   const rail=useRef<HTMLDivElement>(null);
-  const drag=useRef<{id:number; x:number; offset:number; moved:boolean; samples:{x:number;at:number}[]}|null>(null);
+  const drag=useRef<{id:number; x:number; moved:boolean; samples:{left:number;at:number}[]}|null>(null);
   const tween=useRef<gsap.core.Tween|null>(null);
-  const wheelTarget=useRef<{left:number;at:number}|null>(null);
+  const wheelTarget=useRef<{left:number;at:number;direction:number}|null>(null);
   const suppressClick=useRef(false);
   const {period,setPeriod,report}=useContext(LiveMeta);
   useEffect(()=>{
@@ -201,16 +201,18 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
       element.scrollLeft=left;
       return;
     }
-    tween.current=gsap.to(element,{scrollLeft:left,duration,ease:'power3.out',overwrite:'auto'});
+    // Animate from the browser's actual scroll position, including a drag at either edge.
+    const scroll={left:element.scrollLeft};
+    tween.current=gsap.to(scroll,{left,duration,ease:'power2.out',
+      onUpdate:()=>{element.scrollLeft=scroll.left;}});
   }
   function startDrag(event:PointerEvent<HTMLDivElement>){
-    if(event.pointerType!=='mouse'||event.button!==0)return;
     tween.current?.kill();
     wheelTarget.current=null;
+    if(event.pointerType!=='mouse'||event.button!==0)return;
     const element=event.currentTarget;
     suppressClick.current=false;
-    drag.current={id:event.pointerId,x:event.clientX,offset:element.scrollLeft,moved:false,
-      samples:[{x:event.clientX,at:event.timeStamp}]};
+    drag.current={id:event.pointerId,x:event.clientX,moved:false,samples:[{left:element.scrollLeft,at:event.timeStamp}]};
   }
   function moveDrag(event:PointerEvent<HTMLDivElement>){
     const current=drag.current;
@@ -223,26 +225,31 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
       event.currentTarget.setPointerCapture(event.pointerId);
     }
     suppressClick.current=true;
-    event.currentTarget.scrollLeft=current.offset-delta;
+    const element=event.currentTarget;
+    element.scrollLeft-=delta;
+    current.x=event.clientX;
     const recent=current.samples.filter(sample=>event.timeStamp-sample.at<=125);
-    current.samples=[...(recent.length?recent:current.samples.slice(-1)),{x:event.clientX,at:event.timeStamp}];
+    current.samples=[...recent,{left:element.scrollLeft,at:event.timeStamp}];
   }
   function finishDrag(event:PointerEvent<HTMLDivElement>){
     const current=drag.current;
     if(!current||current.id!==event.pointerId)return;
     drag.current=null;
-    const last=current.samples.at(-1)!;
-    const first=current.samples.find(sample=>last.at-sample.at<=105&&sample.at<last.at)??current.samples[0];
-    const velocity=Math.max(-3,Math.min(3,(first.x-last.x)/Math.max(12,last.at-first.at)));
-    if(!current.moved||event.type==='pointercancel'||event.timeStamp-last.at>110||Math.abs(velocity)<.06)return;
+    const last=current.samples.at(-1);
+    const first=current.samples.find(sample=>event.timeStamp-sample.at<=100);
+    if(!current.moved||!last||!first||event.timeStamp-last.at>65||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    const velocity=(last.left-first.left)/Math.max(12,event.timeStamp-first.at);
+    if(Math.abs(velocity)<.08)return;
     const element=event.currentTarget;
-    animateScroll(element,element.scrollLeft+velocity*230,.72);
+    const glide=Math.max(-72,Math.min(72,velocity*95));
+    animateScroll(element,element.scrollLeft+glide,.28);
   }
   useEffect(()=>{
     const element=rail.current;
     if(!element||!active)return;
     function wheel(event:WheelEvent){
-      if(!element||event.ctrlKey)return;
+      if(!element||event.ctrlKey||drag.current?.moved)return;
       if(event.shiftKey||Math.abs(event.deltaX)>=Math.abs(event.deltaY)){
         tween.current?.kill();
         wheelTarget.current=null;
@@ -251,12 +258,15 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
       const max=element.scrollWidth-element.clientWidth;
       if(max<=0)return;
       const previous=wheelTarget.current;
-      const base=previous&&event.timeStamp-previous.at<400?previous.left:element.scrollLeft;
+      const direction=Math.sign(event.deltaY);
+      const visible=element.scrollLeft;
+      const base=previous&&previous.direction===direction&&event.timeStamp-previous.at<220?previous.left:visible;
       const unit=event.deltaMode===1?16:event.deltaMode===2?element.clientWidth:1;
-      const left=Math.max(0,Math.min(max,base+event.deltaY*unit));
+      const target=Math.max(visible-element.clientWidth,Math.min(visible+element.clientWidth,base+event.deltaY*unit));
+      const left=Math.max(0,Math.min(max,target));
       event.preventDefault();
-      wheelTarget.current={left,at:event.timeStamp};
-      animateScroll(element,left,.38);
+      wheelTarget.current={left,at:event.timeStamp,direction};
+      animateScroll(element,left,.22);
     }
     element.addEventListener('wheel',wheel,{passive:false});
     return ()=>{

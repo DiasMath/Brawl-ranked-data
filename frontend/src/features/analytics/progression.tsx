@@ -1,3 +1,4 @@
+import { PagedTable } from '@/components/data-table';
 import { useMemo, useState } from 'react';
 import { ArrowDownRight, ArrowRight, ArrowUpRight, CalendarClock, Flag, Gauge, Target, TrendingUp, Trophy } from 'lucide-react';
 import { rankedSessions } from '@/lib/coaching';
@@ -127,21 +128,20 @@ export function TrendChart({ rows, field, label, note }: { rows: Progress[]; fie
 }
 
 function SessionHistory({matches,readings}: {matches:Battle[];readings:Progress[]}) {
-  const [limit,setLimit]=useState(10);
   const sessions=useMemo(()=>rankedSessions(matches,readings),[matches,readings]);
   const hasElo=sessions.some(session=>session.observed>0);
   return <section className="card account-card"><div className="card-head"><div><h2><CalendarClock size={17}/> Sessões do Ranqueado</h2>
     <p>Uma pausa de uma hora, a virada do dia em Brasília ou a mudança de temporada inicia outra sessão.</p></div></div>
-    {sessions.length?<><div className="table-wrap"><table><thead><tr><th>Sessão</th><th>Resultados</th><th>Win rate</th>
-      {hasElo&&<><th>Primeiro e último Elo observado</th><th>Pico observado</th></>}</tr></thead><tbody>{sessions.slice(0,limit).map(session=><tr key={session.first.id}>
+    {sessions.length?<><PagedTable label="Sessões do Ranqueado" rows={sessions} headings={<><th>Sessão</th><th>Resultados</th><th>Win rate</th>
+      {hasElo&&<><th>Primeiro e último Elo observado</th><th>Pico observado</th></>}</>} renderRow={session=><tr key={session.first.id}>
       <td>{dateTime(session.first.played_at)}{session.last.id!==session.first.id&&<small>Até {dateTime(session.last.played_at)}</small>}</td>
       <td>{session.summary.wins} V · {session.summary.losses} D · {session.summary.draws} E<small>{session.summary.games} partidas</small></td>
       <td>{percent(session.summary.rate)}</td>{hasElo&&<><td>{session.firstScore===null?null:number(session.firstScore)}
         {session.observed>1&&session.lastScore!==null?` → ${number(session.lastScore)}`:''}{session.observed>0&&<small>{session.observed} leituras</small>}</td>
       <td>{session.peak===null?null:number(session.peak)}</td></>}
-    </tr>)}</tbody></table></div>
+    </tr>}/>
     {hasElo&&<p className="section-note">O Elo usa as leituras feitas no intervalo da sessão, com a mesma temporada registrada.</p>}
-    {limit<sessions.length&&<button className="button small subtle" onClick={()=>setLimit(limit+10)}>Mostrar mais sessões</button>}</>:
+    </>:
     <p className="section-note">Nenhuma partida ranqueada no recorte.</p>}
   </section>;
 }
@@ -236,9 +236,8 @@ export function Progression({ local, filters, matches }: {
       <ol className="rank-milestones">{milestones.map(row=><li key={row.id}><RankArt rank={row.rank}/><div>
         <strong>{row.rank}</strong><small>{dateTime(row.at)}{row.season?' · '+row.season:''}</small></div></li>)}</ol></section>}
     <section className="card"><div className="card-head"><div><h2>Histórico de leituras</h2><p>Perfil e histórico da Supercell</p></div></div>
-      {visible.length ? <div className="table-wrap"><table><thead><tr><th>Data</th><th>Troféus</th><th>Pontos</th><th>Rank</th><th>Temporada</th><th>Fonte</th></tr></thead>
-        <tbody>{visible.slice().reverse().slice(0,60).map(row => <tr key={row.id}><td>{dateTime(row.at)}</td><td>{row.trophies ?? '—'}</td>
-          <td>{row.score ?? '—'}</td><td>{row.rank ?? '—'}</td><td>{row.season ?? '—'}</td><td>{row.source}</td></tr>)}</tbody></table></div>
+      {visible.length ? <PagedTable label="Histórico de leituras" rows={[...visible].reverse()} pageKey={JSON.stringify(filters)} headings={<><th>Data</th><th>Troféus</th><th>Pontos</th><th>Rank</th><th>Temporada</th><th>Fonte</th></>} renderRow={row => <tr key={row.id}><td>{dateTime(row.at)}</td><td>{row.trophies ?? '—'}</td>
+          <td>{row.score ?? '—'}</td><td>{row.rank ?? '—'}</td><td>{row.season ?? '—'}</td><td>{row.source}</td></tr>}/>
         : <p className="section-note">As leituras aparecem aqui após a sincronização.</p>}</section>
   </div>;
 }

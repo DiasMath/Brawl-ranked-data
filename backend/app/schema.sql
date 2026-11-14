@@ -115,6 +115,7 @@ CREATE TABLE IF NOT EXISTS collection_state (
 CREATE INDEX IF NOT EXISTS battles_account_time ON battles (player_tag, played_at DESC);
 CREATE INDEX IF NOT EXISTS battles_ranked_time ON battles (player_tag, ranked, played_at DESC);
 CREATE INDEX IF NOT EXISTS updates_account_time ON update_log (player_tag, started_at DESC);
+CREATE INDEX IF NOT EXISTS updates_account_id ON update_log (player_tag, id DESC);
 CREATE INDEX IF NOT EXISTS meta_account_period ON meta_observations (player_tag, period_start, period_end);
 CREATE INDEX IF NOT EXISTS collection_run ON battle_collection (last_run_id);
 

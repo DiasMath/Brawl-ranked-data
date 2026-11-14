@@ -1,3 +1,4 @@
+import { PagedTable } from '@/components/data-table';
 import { useMemo, useState } from 'react';
 import { Ban, ChartNoAxesCombined } from 'lucide-react';
 import { Portrait } from '@/components/game';
@@ -48,16 +49,16 @@ export function AccountComparison({ matches, accountName, tiers, pickRates, sour
       </select></label>
       <label className="checkbox"><input type="checkbox" checked={ownOnly} onChange={event=>setOwnOnly(event.target.checked)}/> Só brawlers que joguei</label>
     </div>
-    {rows.length?<div className="table-wrap"><table><thead><tr>
+    {rows.length?<PagedTable label={`${accountName} × DraftMeta`} pageKey={JSON.stringify([accountName,query,ownOnly,sort,sourceUrl])} rows={rows} headings={<>
       <th>Brawler</th><th>Tier</th><th>Meu win rate</th><th>DraftMeta</th><th>Diferença</th><th>Presença na fonte</th>
-    </tr></thead><tbody>{rows.map(({name,own,benchmark,delta})=><tr key={name}>
+    </>} renderRow={({name,own,benchmark,delta})=><tr key={name}>
       <td><span className="image-label"><Portrait name={name}/>{name}</span></td>
       <td>{benchmark?.tier??'—'}</td>
       <td>{percent(own?.rate??null)}{own&&<small>{number(own.wins)} V · {number(own.losses)} D{own.draws?` · ${number(own.draws)} E`:''}{own.decided>0&&own.decided<MIN_DELTA_GAMES?' · amostra pequena':''}</small>}</td>
       <td>{percent(benchmark?benchmark.win_rate/100:null)}{benchmark&&<small>{number(benchmark.games)} na amostra</small>}</td>
       <td>{delta===null?'—':deltaText(delta)}</td>
       <td>{percent(pickRates.has(name)?pickRates.get(name)!/100:null)}</td>
-    </tr>)}</tbody></table></div>:<p className="section-note">{matches.length?'Nenhum brawler corresponde aos filtros.':'Nenhuma ranqueada da conta neste recorte. Desmarque “Só brawlers que joguei” para consultar a referência.'}</p>}
+    </tr>}/>:<p className="section-note">{matches.length?'Nenhum brawler corresponde aos filtros.':'Nenhuma ranqueada da conta neste recorte. Desmarque “Só brawlers que joguei” para consultar a referência.'}</p>}
   </section>;
 }
 
@@ -78,9 +79,8 @@ export function AccountBans({matches,selectedMap}: {matches:Battle[]; selectedMa
       <option value="">Todos os mapas</option>{maps.map(([key,name])=><option value={key} key={key}>{name}</option>)}
     </select></label></div>}
     <p className="section-note">Taxa nas partidas da sua conta com lista publicada pela Supercell. Um brawler conta uma vez por partida.</p>
-    {result.rows.length?<div className="table-wrap"><table><thead><tr><th>Brawler</th><th>Partidas em que foi banido</th><th>Taxa observada</th></tr></thead>
-      <tbody>{result.rows.map(row=><tr key={row.label}><td><span className="image-label"><Portrait name={row.label}/>{row.label}</span></td>
-        <td>{number(row.bans)} de {number(result.known)}</td><td>{percent(row.bans/result.known)}</td></tr>)}</tbody></table></div>:
+    {result.rows.length?<PagedTable label="Bans observados" rows={result.rows} pageKey={activeMap} headings={<><th>Brawler</th><th>Partidas em que foi banido</th><th>Taxa observada</th></>} renderRow={row=><tr key={row.label}><td><span className="image-label"><Portrait name={row.label}/>{row.label}</span></td>
+        <td>{number(row.bans)} de {number(result.known)}</td><td>{percent(row.bans/result.known)}</td></tr>}/>:
       <p className="section-note">As listas recebidas registram zero bans.</p>}
   </section>;
 }
