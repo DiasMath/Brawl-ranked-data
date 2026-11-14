@@ -40,9 +40,13 @@ export default function Dashboard() {
     setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveCoaching, refreshCollection} = useDashboard();
   const dismissFeedback=useCallback(()=>setFeedback(''),[setFeedback]);
   const [report,setReport]=useState<LiveReport|null>(null);
-  const [draftTarget,setDraftTarget]=useState({map:'',revision:0});
+  const [draftTarget,setDraftTarget]=useState<{map:string;season?:string;revision:number}>({map:'',revision:0});
   const [metaSource,setMetaSource]=useState<'external'|'own'>('external');
   const [exporting,setExporting]=useState(false);
+  function openDraft(map:string, season?:string) {
+    setDraftTarget(target=>({map,season,revision:target.revision+1}));
+    navigate('draftlab');
+  }
   async function exportHistory() {
     setExporting(true);
     try {
@@ -186,17 +190,18 @@ export default function Dashboard() {
           <BrawlerEvolution key={JSON.stringify([filters.season,filters.player_brawler,filters.map_name,filters.rank_label])}
             matches={filteredSeries(series,data.matches,{
               ...emptyFilters,map_name:filters.map_name,mode:filters.mode,rank_label:filters.rank_label,
-            },true,elo)} initialSeason={filters.season} initialBrawler={filters.player_brawler} mapFilter={filters.map_name}/>
+            },true,elo)} initialSeason={filters.season} initialBrawler={filters.player_brawler} mapFilter={filters.map_name} onDraft={openDraft}/>
           <MapTraining rows={performanceRows} history={rankedHistory} elo={elo} accountName={active.name}
             selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training}
             onOpen={setSelected} onReview={(id,value)=>saveCoaching({review:{id,value}})}
             onPlan={training=>saveCoaching({training})}
-            onDraft={map=>{setDraftTarget(target=>({map,revision:target.revision+1}));navigate('draftlab');}}/>
+            onDraft={openDraft}/>
           <Performance rows={performanceRows}/>
         </div>}
         <div className="draft-surface" hidden={section!=='draftlab'}>
           <DraftLab active={section==='draftlab'} key={`${book.active}:${draftTarget.revision}`} matches={rankedHistory}
-            profile={data.profile} defaultMap={draftTarget.map||filters.map_name} defaultSeason={filters.season}/>
+            profile={data.profile} defaultMap={draftTarget.map||filters.map_name} defaultSeason={draftTarget.season??filters.season}
+            defaultSource={draftTarget.season===undefined?'draftmeta':'account'}/>
         </div>
         {section==='draft'&&<div className="stack">
           <MetaPeriods/>

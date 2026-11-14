@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Crosshair } from 'lucide-react';
+import { Crosshair, FlaskConical } from 'lucide-react';
 import { Card } from '@/components/dashboard-ui';
 import { PagedTable } from '@/components/data-table';
-import { Portrait } from '@/components/game';
-import { brawlerPerformance } from '@/lib/coaching';
+import { ModeIcon, Portrait } from '@/components/game';
+import { brawlerMapPerformance, brawlerPerformance } from '@/lib/coaching';
 import { modeName, normalize, number, percent } from '@/lib/data';
 import { mapKey } from '@/lib/external-comparison';
 import type { MatchSeries } from '@/lib/match-series';
@@ -16,8 +16,9 @@ const options=(values:(string|null|undefined)[], key:(value:string)=>string=norm
 const ownMode=(match:MatchSeries)=>normalize(match.latest.mode);
 const ownMap=(match:MatchSeries)=>mapKey(match.latest.map_name);
 
-export function BrawlerEvolution({ matches, initialSeason, initialBrawler, mapFilter }: {
+export function BrawlerEvolution({ matches, initialSeason, initialBrawler, mapFilter, onDraft }: {
   matches:MatchSeries[]; initialSeason:string; initialBrawler:string; mapFilter:string;
+  onDraft:(map:string,season:string)=>void;
 }) {
   const [season,setSeason]=useState(normalize(initialSeason));
   const [mode,setMode]=useState('');
@@ -31,10 +32,14 @@ export function BrawlerEvolution({ matches, initialSeason, initialBrawler, mapFi
   const modeRows=useMemo(()=>activeMode?seasonRows.filter(match=>ownMode(match)===activeMode):seasonRows,[seasonRows,activeMode]);
   const maps=useMemo(()=>options(modeRows.map(match=>match.latest.map_name),mapKey),[modeRows]);
   const activeMap=maps.some(([key])=>key===map)?map:'';
-  const result=useMemo(()=>brawlerPerformance(activeMap?modeRows.filter(match=>ownMap(match)===activeMap):modeRows),[modeRows,activeMap]);
+  const scoped=useMemo(()=>activeMap?modeRows.filter(match=>ownMap(match)===activeMap):modeRows,[modeRows,activeMap]);
+  const result=useMemo(()=>brawlerPerformance(scoped),[scoped]);
   const rows=sort==='pick'?result.rows.slice().sort((a,b)=>b.pickRate-a.pickRate||a.label.localeCompare(b.label,'pt-BR')):
     ordered(result.rows.map(row=>({...row,wins:row.summary.wins,games:row.summary.decided})));
   const selected=rows.find(row=>row.key===brawler)??rows[0];
+  const selectedKey=selected?.key;
+  const byMap=useMemo(()=>selectedKey?ordered(brawlerMapPerformance(scoped,selectedKey)):[],[scoped,selectedKey]);
+  const seasonLabel=seasons.find(([key])=>key===season)?.[1]??(season?initialSeason:'');
   const delta=selected&&selected.recent.rate!==null&&selected.previous.rate!==null?
     Math.round((selected.recent.rate-selected.previous.rate)*1000)/10:null;
   return <Card title="Evolução por brawler" icon={Crosshair}
@@ -84,6 +89,20 @@ export function BrawlerEvolution({ matches, initialSeason, initialBrawler, mapFi
         </div>
         {delta!==null&&<p className="muted">Compare o mesmo mapa e modo antes de usar essa variação para mudar seus picks.</p>}
       </div>
+      <div className="card-head"><div>
+        <h3>{selected.label} por mapa</h3>
+        <p>{seasonLabel||'Todo o histórico'} · Ordenado por win rate e amostra</p>
+      </div></div>
+      {byMap.length?<PagedTable label={`${selected.label} por mapa`} rows={byMap}
+        pageKey={JSON.stringify([selectedKey,season,activeMode,activeMap])}
+        headings={<><th>Mapa</th><th>Win rate</th><th>Pick rate pessoal</th><th>Draft</th></>}
+        renderRow={row=><tr key={row.key}>
+          <td><span className="image-label"><ModeIcon mode={row.mode}/><span><strong>{row.name}</strong><small>{modeName(row.mode)}</small></span></span></td>
+          <td><strong>{percent(row.rate)}</strong><small>{number(row.wins)} V · {number(row.losses)} D</small></td>
+          <td><strong>{percent(row.picks/row.known)}</strong><small>{number(row.picks)} de {number(row.known)} partidas com pick identificado</small></td>
+          <td><button type="button" className="button small subtle" aria-label={`Abrir Draft Lab em ${row.name}`}
+            onClick={()=>onDraft(row.name,seasonLabel)}><FlaskConical size={14}/> Abrir Draft Lab</button></td>
+        </tr>}/>:<p className="section-note">Sem mapas identificados para este brawler no recorte.</p>}
     </>:<p className="section-note">Nenhuma partida com brawler identificado neste recorte.</p>}
   </Card>;
 }

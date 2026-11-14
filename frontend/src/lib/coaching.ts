@@ -2,7 +2,7 @@ import { localDay, normalize, stats } from './data';
 import type { Battle } from './data';
 import type { Progress } from './browser-store';
 import { mapKey } from './external-comparison';
-import { seriesSeason } from './match-series';
+import { seriesBattle, seriesSeason } from './match-series';
 import type { MatchSeries } from './match-series';
 
 export const replayTags = [
@@ -21,7 +21,7 @@ export function recentFormWindows(matches: Pick<Battle,'result'>[]) {
   return {recent:stats(decided.slice(0,FORM_SIZE)), previous:stats(decided.slice(FORM_SIZE,FORM_SIZE*2))};
 }
 
-export function mapPerformance(matches: Battle[]) {
+function battlesByMap(matches: Battle[]) {
   const byMap = new Map<string, Battle[]>();
   for (const match of matches) {
     if (!match.map_name) continue;
@@ -30,7 +30,11 @@ export function mapPerformance(matches: Battle[]) {
     rows.push(match);
     byMap.set(key, rows);
   }
-  return [...byMap].map(([key, rows]) => {
+  return [...byMap];
+}
+
+export function mapPerformance(matches: Battle[]) {
+  return battlesByMap(matches).map(([key, rows]) => {
     rows.sort((a,b)=>Date.parse(b.played_at)-Date.parse(a.played_at));
     return { key, name: rows[0].map_name!, mode: rows[0].mode, rows, summary: stats(rows), ...recentFormWindows(rows) };
   });
@@ -54,6 +58,16 @@ export function brawlerPerformance(matches: MatchSeries[]) {
     ...recentFormWindows(pick.matches),
   }));
   return {known, total:matches.length, rows};
+}
+
+export function brawlerMapPerformance(matches: MatchSeries[], brawler: string) {
+  return battlesByMap(matches.map(seriesBattle)).flatMap(([key,rows])=>{
+    const known=rows.filter(row=>normalize(row.player_brawler));
+    const picks=known.filter(row=>normalize(row.player_brawler)===brawler);
+    if(!picks.length)return [];
+    const {wins,losses,decided,rate}=stats(picks);
+    return [{key,name:rows[0].map_name!,mode:rows[0].mode,wins,losses,games:decided,rate,picks:picks.length,known:known.length}];
+  });
 }
 
 export function reviewPair(rows: Battle[]) {

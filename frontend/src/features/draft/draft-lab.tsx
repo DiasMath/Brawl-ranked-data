@@ -22,6 +22,7 @@ type Zone = Side|'blueBan'|'redBan';
 type Slot = { side: Zone; index:number };
 type DraftState = Record<Zone,string[]>;
 type Advice = 'picks'|'bans'|'counters';
+type DraftSource = 'draftmeta'|'public'|'account';
 const fresh = ():DraftState => ({team:['','',''],enemy:['','',''],blueBan:['','',''],redBan:['','','']});
 const rosterNames = new Map(brawlers.map(brawler=>[normalize(brawler.name),brawler.name]));
 const rarities = [
@@ -57,8 +58,8 @@ const classIcons={Tank:Shield,Assassin:Swords,Support:HeartPulse,Controller:Slid
 const classNames: Record<string,string>={Controller:'Controladores', 'Damage Dealer':'Damage Dealers', Marksman:'Snipers', Artillery:'Lançadores'};
 const banOrder:Slot[] = [0,1,2].flatMap(index=>[{side:'blueBan',index},{side:'redBan',index}] as Slot[]);
 
-export function DraftLab({ matches,profile,defaultMap,defaultSeason='',active=true }: {
-  matches:MatchSeries[]; profile:Dataset['profile']; defaultMap?:string; defaultSeason?:string; active?:boolean;
+export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSource='draftmeta',active=true }: {
+  matches:MatchSeries[]; profile:Dataset['profile']; defaultMap?:string; defaultSeason?:string; defaultSource?:DraftSource; active?:boolean;
 }) {
   const [mapName,setMapName]=useState(defaultMap??'');
   const [mapOpen,setMapOpen]=useState(false);
@@ -74,10 +75,10 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',active=tr
   const [rosterRows,setRosterRows]=useState(3);
   const [compactView,setCompactView]=useState<'roster'|'map'>('roster');
   const [summaryOpen,setSummaryOpen]=useState(false);
-  const [source,setSource]=useState<'draftmeta'|'public'|'account'>('draftmeta');
+  const [source,setSource]=useState<DraftSource>(defaultSource);
   const [accountSeason,setAccountSeason]=useState<string>();
   const [owned,setOwned]=useState(false);
-  const [advice,setAdvice]=useState<Advice>('bans');
+  const [advice,setAdvice]=useState<Advice>(defaultSource==='account'?'picks':'bans');
   const input=useRef<HTMLInputElement>(null);
   const roster=useRef<HTMLElement>(null);
   const rail=useRef<HTMLDivElement>(null);
