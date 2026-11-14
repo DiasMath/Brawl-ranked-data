@@ -6,7 +6,7 @@ import type { Account, AccountBook, LocalData } from '@/lib/browser-store';
 import { collectionRequest } from '@/lib/live';
 import type { LivePeriod, ServerCollection, SyncProgress } from '@/lib/live';
 import type { ReplayReview, TrainingPlan } from '@/lib/coaching';
-import { saveTrainingPlan } from '@/lib/coaching';
+import { updateTrainingPlan } from '@/lib/coaching';
 import type { Section } from './navigation';
 
 const historyVersion=6;
@@ -218,7 +218,9 @@ export function useDashboard() {
         if(!previous.dataset.matches.some(row=>row.id===change.review.id)) throw new Error('Partida indisponível.');
         await persist({...previous,reviews:{...previous.reviews,[change.review.id]:change.review.value}});
       }else{
-        await persist({...previous,training:saveTrainingPlan(change.training,previous.training,new Date().toISOString())});
+        const {training,archived}=updateTrainingPlan(change.training,previous.training,new Date().toISOString());
+        const trainingHistory=archived?[archived,...(previous.trainingHistory??[])]:previous.trainingHistory;
+        await persist({...previous,training,trainingHistory});
       }
     } finally {processing.current=false;setBusy(false);}
   }

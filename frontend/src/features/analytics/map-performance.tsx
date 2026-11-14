@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Flag, MapPinned, Swords, Target } from 'lucide-react';
+import { Flag, History, MapPinned, Swords, Target } from 'lucide-react';
+import { PagedTable } from '@/components/data-table';
 import { findMap, MapImage, ModeIcon, Portrait } from '@/components/game';
 import { dateTime, groupStats, modeName, normalize, number, percent, resultName } from '@/lib/data';
 import type { Battle } from '@/lib/data';
-import type { ReplayReview, TrainingPlan, TrainingScope } from '@/lib/coaching';
+import type { ArchivedTrainingPlan, ReplayReview, TrainingPlan, TrainingScope } from '@/lib/coaching';
 import { MAP_MIN_GAMES, mapPerformance, reviewPair, trainingProgress } from '@/lib/coaching';
 import { accountInExternalScope, mapKey } from '@/lib/external-comparison';
 import { collectionRequest } from '@/lib/live';
@@ -196,10 +197,34 @@ function SessionPlan({strong,weak,plan,seed,history,onChoose,onSave}: {
   </section>;
 }
 
-export function MapTraining({rows,history,elo,accountName,reviews,plan,seed,selectedMap,onOpen,onReview,onPlan,onDraft}: {
+function TrainingHistory({plans,history}: {plans:ArchivedTrainingPlan[]; history:MatchSeries[]}) {
+  return <section className="card coaching-card">
+    <div className="card-head"><div><h2><History size={17}/> Histórico de treinos</h2>
+      <p>Win rate antes e durante cada treino, no mapa e brawler do plano salvo.</p></div></div>
+    <PagedTable label="Histórico de treinos" rows={plans} unit={['treino','treinos']}
+      headings={<><th>Ajuste e recorte</th><th>Período</th><th>Antes</th><th>Durante</th><th>Variação</th></>}
+      renderRow={plan=>{
+        const {observed,reference}=trainingProgress(history,plan);
+        const delta=observed.rate===null||reference.rate===null?null:Math.round((observed.rate-reference.rate)*1000)/10;
+        return <tr key={JSON.stringify([plan.startedAt,plan.archivedAt,plan.focus,plan.map,plan.brawler])}>
+          <td className="training-history-focus"><strong>{plan.focus}</strong>
+            <small>{plan.map||'Todos os mapas'} · {plan.brawler||'Todos os brawlers'}</small></td>
+          <td>{dateTime(plan.startedAt??null)}
+            <small>{dateTime(plan.completedAt??plan.archivedAt)} · {plan.completed?'Concluído':'Substituído'}</small></td>
+          <td><strong>{percent(reference.rate)}</strong>
+            {reference.decided>0&&<small>{number(reference.wins)} V · {number(reference.losses)} D</small>}</td>
+          <td><strong>{percent(observed.rate)}</strong>
+            <small>{number(observed.wins)} V · {number(observed.losses)} D · {number(observed.games)} {observed.games===1?'partida':'partidas'}</small></td>
+          <td>{delta===null?'—':`${delta>0?'+':''}${number(delta)} p.p.`}</td>
+        </tr>;
+      }}/>
+  </section>;
+}
+
+export function MapTraining({rows,history,elo,accountName,reviews,plan,archivedPlans,seed,selectedMap,onOpen,onReview,onPlan,onDraft}: {
   rows:Battle[]; history:MatchSeries[]; elo:Map<string,MatchElo>; accountName:string; reviews:Record<string,ReplayReview>; plan?:TrainingPlan;
   selectedMap:string; onOpen:(id:string)=>void; onReview:(id:string,review:ReplayReview)=>Promise<void>;
-  onPlan:(plan:TrainingPlan)=>Promise<void>; onDraft:(map:string)=>void; seed?:TrainingScope;
+  onPlan:(plan:TrainingPlan)=>Promise<void>; onDraft:(map:string)=>void; seed?:TrainingScope; archivedPlans?:ArchivedTrainingPlan[];
 }) {
   const maps=useMemo(()=>mapPerformance(rows),[rows]);
   const [map,setMap]=useState('');
@@ -224,5 +249,6 @@ export function MapTraining({rows,history,elo,accountName,reviews,plan,seed,sele
     {active&&<MapSheet key={active.key} map={active} history={history} elo={elo} accountName={accountName} reviews={reviews}
       onOpen={onOpen} onReview={onReview} onDraft={onDraft}/>}
     <SessionPlan history={history} strong={strong} weak={weak} plan={plan} seed={seed} onChoose={setMap} onSave={onPlan}/>
+    {!!archivedPlans?.length&&<TrainingHistory plans={archivedPlans} history={history}/>}
   </>;
 }

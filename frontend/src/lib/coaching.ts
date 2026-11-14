@@ -13,6 +13,7 @@ export type ReplayTag = typeof replayTags[number];
 export type ReplayReview = { tag: ReplayTag; note: string };
 export type TrainingScope = { map?: string; brawler?: string };
 export type TrainingPlan = TrainingScope & { focus: string; completed: boolean; startedAt?: string; completedAt?: string };
+export type ArchivedTrainingPlan = TrainingPlan & { archivedAt: string };
 export const MAP_MIN_GAMES = 10;
 const FORM_SIZE = 10;
 const SESSION_GAP = 60 * 60 * 1000;
@@ -148,16 +149,19 @@ export function rankedSessions(matches: MatchSeries[], readings: Progress[]) {
   }).reverse();
 }
 
-export function saveTrainingPlan(plan: TrainingPlan, previous: TrainingPlan | undefined, at: string): TrainingPlan {
+export function updateTrainingPlan(plan: TrainingPlan, previous: TrainingPlan | undefined, at: string) {
   const same = previous && previous.focus===plan.focus && mapKey(previous.map??null)===mapKey(plan.map??null) &&
     normalize(previous.brawler)===normalize(plan.brawler);
-  return {...plan,startedAt:same?previous.startedAt??at:at,
+  const training:TrainingPlan={...plan,startedAt:same?previous.startedAt??at:at,
     completedAt:plan.completed?(same?previous.completedAt??at:at):undefined};
+  const archived:ArchivedTrainingPlan|undefined=previous&&!same?{...previous,archivedAt:at}:undefined;
+  return {training,archived};
 }
 
-export function trainingProgress(matches: MatchSeries[], plan: TrainingPlan) {
+export function trainingProgress(matches: MatchSeries[], plan: TrainingPlan | ArchivedTrainingPlan) {
   const start=Date.parse(plan.startedAt??'');
-  const end=plan.completedAt?Date.parse(plan.completedAt):Infinity;
+  const cutoff=plan.completedAt??('archivedAt' in plan?plan.archivedAt:undefined);
+  const end=cutoff?Date.parse(cutoff):Infinity;
   const map=mapKey(plan.map??null);
   const brawler=normalize(plan.brawler);
   const after:MatchSeries[]=[];

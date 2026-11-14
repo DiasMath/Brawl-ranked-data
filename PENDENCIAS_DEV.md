@@ -14,6 +14,7 @@ Lista de trabalho do Brawl Ranked Data, em ordem de execução no ambiente local
 | 8 | Detalhar os confrontos do brawler | Concluída no código e validada em teste | Mostrar vitórias, derrotas e cobertura por adversário. Respeitar a temporada, o mapa e o modo da ficha e abrir diretamente o detalhe da última vitória ou derrota do confronto. |
 | 9 | Analisar os aliados do brawler | Concluída no código e validada em teste | Mostrar o desempenho observado com cada aliado no mesmo recorte da ficha, com resultados decisivos e links para a última vitória e derrota disponíveis. |
 | 10 | Acompanhar um treino por mapa e brawler | Concluída no código e validada em teste | Permitir preencher o plano pela ficha do brawler e comparar o resultado do treino com partidas anteriores do mesmo recorte. |
+| 11 | Preservar o histórico de treinos | Concluída no código e validada em teste | Arquivar o plano anterior ao trocar o ajuste, mapa ou brawler. Exibir período, estado, amostras e variação nas taxas e incluir os planos arquivados na exportação. |
 
 ## Critérios para os dados
 
@@ -90,3 +91,9 @@ O teste verificou que aliados, adversários e o próprio pick entram nos grupos 
 Em **Desempenho → Evolução por brawler**, o botão **Treinar** preenche o mapa e o brawler em **Próxima sessão**. Os campos aceitam o recorte específico ou todos os mapas e brawlers. O treino salvo acompanha séries da conta que começaram e tiveram a última rodada registrada dentro do seu intervalo.
 
 A referência usa as partidas decisivas mais recentes antes do treino no mesmo recorte, até o volume de decisivas observado durante o treino. A comparação mostra a amostra e a diferença em pontos percentuais quando há dados dos dois períodos. Salvar uma mudança de ajuste, mapa ou brawler inicia um novo intervalo para o plano. Os testes confirmaram o preenchimento a partir da ficha, a persistência da escolha, a compatibilidade com planos sem filtro e a exclusão de séries fora do recorte ou que começaram antes do início.
+
+## Validação da etapa 11
+
+Em **Desempenho → Histórico de treinos**, aparecem os planos anteriores que foram substituídos. Cada linha mostra o ajuste, o recorte, o intervalo, o resultado antes e durante e a variação em pontos percentuais quando as duas amostras têm resultados decisivos. A data final usa a conclusão registrada ou, se o plano estava em andamento, a data em que foi substituído.
+
+Editar o estado do mesmo ajuste e recorte preserva o plano. Os testes conferiram a conclusão, a troca de plano, o corte das partidas após o fim, a preservação durante a sincronização e a inclusão do histórico no JSON exportado. Os planos ficam salvos por conta neste navegador.

@@ -195,7 +195,7 @@ export default function Dashboard() {
             onDraft={openDraft} onMatch={setSelected}
             onTrain={(map,brawler)=>setTrainingTarget({tag:book.active,map,brawler})}/>
           <MapTraining rows={performanceRows} history={rankedHistory} elo={elo} accountName={active.name}
-            selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training}
+            selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training} archivedPlans={local.trainingHistory}
             seed={trainingTarget?.tag===book.active?trainingTarget:undefined}
             onOpen={setSelected} onReview={(id,value)=>saveCoaching({review:{id,value}})}
             onPlan={async training=>{await saveCoaching({training});setTrainingTarget(undefined);}}
