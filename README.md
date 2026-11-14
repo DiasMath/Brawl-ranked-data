@@ -181,7 +181,7 @@ A Supercell fornece uma janela de até 25 partidas recentes por consulta. O banc
 
 Em **Partidas** e **Forma recente**, rodadas ranqueadas consecutivas com o mesmo mapa, modo e os mesmos jogadores e brawlers são agrupadas dentro de uma janela curta. Duas vitórias ou duas derrotas encerram a série. Quando o grupo tem mais de uma rodada e a coleta ainda não confirma o vencedor, aparece **Resultado em aberto**. Abra a partida para consultar cada rodada, evidência e JSON da API. Os filtros de data nessas telas usam o horário da última rodada registrada.
 
-O K/D pessoal usa eliminações e mortes do próprio jogador. Quando o histórico não fornece os dois valores, use **Registrar evidência** com a tela do jogo. O total de uma série exige o K/D de todas as rodadas registradas e um vencedor identificado. Também é possível registrar o Elo antes e depois da série. Sem evidência, a Forma recente e o detalhe exibem uma estimativa quando leituras oficiais do perfil, na mesma temporada e separadas por até 20 minutos, isolam uma única partida observada.
+O K/D pessoal aparece quando a Supercell fornece eliminações e mortes do próprio jogador. O total de uma série exige o K/D de todas as rodadas registradas e um vencedor identificado. A Forma recente e o detalhe exibem uma estimativa de Elo quando leituras oficiais do perfil, na mesma temporada e separadas por até 20 minutos, isolam uma única partida observada. Os campos sem valor recebido ou calculável ficam ocultos.
 
 Em **Meta → Amostra de outros jogadores**, atualize até cinco históricos da classificação global da Supercell ou consulte uma tag pública específica. A coleta guarda as ranqueadas 3×3 completas em uma amostra independente das contas monitoradas. O painel calcula picks, win rate, confrontos e sinergias por mapa. A consulta manual alimenta as janelas Hoje e 7 dias. Os recortes por patch e temporada usam as partidas que a fila competitiva confirmou pelo Elo do perfil. O histórico padrão da API mostra os times finais. As taxas de ban exigem uma fonte com listas explícitas.
 
@@ -236,9 +236,9 @@ A primeira versão usa tier list, win rate, amostra por brawler e variações de
 
 A comparação usa a conta selecionada, o mapa e a janela do snapshot. As datas publicadas são interpretadas em UTC e as partidas posteriores à consulta ficam fora do recorte. Mostra as amostras dos dois lados e a diferença em pontos percentuais a partir de 10 partidas decisivas da conta. O seletor de patch permite abrir snapshots já salvos.
 
-**Bans observados nas minhas partidas** calcula taxas a partir de listas conhecidas, com filtro de mapa e cobertura. Uma lista explicitamente vazia entra no denominador e um campo ausente fica fora. Para acrescentar uma lista completa a uma partida antiga, use **Partidas → Registrar evidência**.
+**Bans observados nas minhas partidas** aparece quando a Supercell publica listas de bans para o recorte. Uma lista explicitamente vazia entra no denominador.
 
-Os detalhes identificam campos vindos do histórico da Supercell e evidências registradas. As evidências novas ficam no Supabase. Quando falta a temporada e há uma única janela cadastrada que abrange a partida, o painel mostra a temporada com o rótulo **Estimativa pela data** e o link do calendário. Rank e pontos do perfil são leituras da conta e ficam na progressão.
+Os detalhes identificam campos da Supercell e estimativas. Quando falta a temporada e há uma única janela cadastrada que abrange a partida, o painel mostra **Estimativa pela data** e o link do calendário. Rank e pontos do perfil ficam na progressão. A barra superior mostra o horário da última coleta bem-sucedida e sinaliza atraso após três intervalos configurados.
 
 A migração `002_external_meta.sql` roda junto das demais na inicialização do backend. O teste manual da integração usa as configurações existentes, com saída HTTPS para `draftmeta.com`. Atualizações recorrentes em volume devem seguir os limites e condições da fonte. [Integração DraftMeta](https://draftmeta.com/ai) · [Termos do DraftMeta](https://draftmeta.com/terms)
 

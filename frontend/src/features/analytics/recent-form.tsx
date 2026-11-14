@@ -1,6 +1,6 @@
-import { useEffect, useId, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useState } from 'react';
 import { Crosshair, Flame, TrendingUp } from 'lucide-react';
+import { useDataTooltip } from '@/components/data-tooltip';
 import { findMap, MapImage, ModeIcon, Portrait } from '@/components/game';
 import type { ReactNode } from 'react';
 import type { Battle } from '@/lib/data';
@@ -11,38 +11,17 @@ import { dateTime, modeName, number, percent, resultName, stats } from '@/lib/da
 const marks = { victory: 'V', defeat: 'D', draw: 'E', unknown: '?' };
 
 function ResultDot({ match, elo, onMatch }: {match:MatchSeries; elo?:MatchElo; onMatch:(battle:Battle)=>void}) {
-  const id=useId();
-  const button=useRef<HTMLButtonElement>(null);
-  const [position,setPosition]=useState<{left:number;top:number;above:boolean}|null>(null);
+  const tooltip=useDataTooltip();
   const {latest,rounds,wins,losses}=match;
   const result=match.result??'unknown';
   const label=rounds.length>1&&!match.result?'Resultado em aberto':resultName(match.result);
   const kd=matchKd(match);
-  const kdEvidence=rounds.some(round=>round.kd?.reference);
-  function open() {
-    const rect=button.current?.getBoundingClientRect();
-    if(!rect)return;
-    const width=Math.min(278,window.innerWidth-16);
-    const above=rect.top>=250;
-    setPosition({left:Math.max(8,Math.min(window.innerWidth-width-8,rect.left+(rect.width-width)/2)),
-      top:above?rect.top-7:rect.bottom+7,above});
-  }
-  const visible=position!==null;
-  useEffect(()=>{
-    if(!visible)return;
-    const close=()=>setPosition(null);
-    window.addEventListener('scroll',close,true);
-    window.addEventListener('resize',close);
-    return ()=>{window.removeEventListener('scroll',close,true);window.removeEventListener('resize',close);};
-  },[visible]);
   const delta=elo?elo.after-elo.before:0;
-  return <li><button ref={button} type="button" className={result}
+  const score=latest.score_source?null:latest.rank_score;
+  return <li><button type="button" className={result}
     aria-label={`Abrir partida · ${label} · ${latest.player_brawler??'Brawler indisponível'} · ${latest.map_name??'Mapa indisponível'} · ${dateTime(latest.played_at)}`}
-    aria-describedby={visible?id:undefined} onMouseEnter={open} onMouseLeave={()=>setPosition(null)} onFocus={open}
-    onBlur={()=>setPosition(null)} onKeyDown={event=>{if(event.key==='Escape')setPosition(null);}}
-    onClick={()=>{setPosition(null);onMatch(latest);}}>{marks[result]}</button>
-    {position&&createPortal(<div id={id} role="tooltip" className="recent-match-preview" data-above={position.above}
-      style={{left:position.left,top:position.top}}>
+    {...tooltip.trigger(Boolean(tooltip.anchor))} onClick={()=>{tooltip.close();onMatch(latest);}}>{marks[result]}</button>
+    {tooltip.render(<>
       <div className="preview-match-map"><MapImage map={findMap(latest.map_name,latest.event_id,latest.mode)}/></div>
       <div className="preview-match-info">
         <div className="preview-match-heading"><span className={`preview-result ${result}`}>{label}</span>{rounds.length>1&&<strong>{wins}–{losses}</strong>}</div>
@@ -51,14 +30,13 @@ function ResultDot({ match, elo, onMatch }: {match:MatchSeries; elo?:MatchElo; o
         <div className="image-label preview-brawler"><Portrait name={latest.player_brawler}/><span>{latest.player_brawler??'Brawler indisponível'}
           <small>{dateTime(latest.played_at)}</small></span></div>
       </div>
-      <div className="preview-match-metrics">
-        <div><small><TrendingUp size={13}/> Elo</small><strong>{elo?`${delta>0?'+':''}${number(delta)}`:latest.rank_score!=null?number(latest.rank_score):'—'}</strong>
-          <small>{elo?`${number(elo.before)} → ${number(elo.after)} · ${elo.reference?'Evidência':'Estimativa'}`:
-            latest.rank_score!=null?`Pontuação · ${latest.score_source?'Evidência':'Supercell'}`:'Sem leitura isolada'}</small></div>
-        <div><small><Crosshair size={13}/> K/D final</small><strong>{kd?`${number(kd.kills)} / ${number(kd.deaths)}`:'—'}</strong>
-          <small>{kd?(kdEvidence?'Com evidência registrada':'Eliminações / mortes'):'Sem registro completo'}</small></div>
-      </div>
-    </div>,document.body)}
+      {(elo||score!=null||kd)&&<div className="preview-match-metrics">
+        {(elo||score!=null)&&<div><small><TrendingUp size={13}/> Elo</small><strong>{elo?`${delta>0?'+':''}${number(delta)}`:number(score!)}</strong>
+          <small>{elo?`${number(elo.before)} → ${number(elo.after)} · Estimativa`:'Pontuação · Supercell'}</small></div>}
+        {kd&&<div><small><Crosshair size={13}/> K/D final</small><strong>{number(kd.kills)} / {number(kd.deaths)}</strong>
+          <small>Eliminações / mortes</small></div>}
+      </div>}
+    </>,'recent-match-preview')}
   </li>;
 }
 

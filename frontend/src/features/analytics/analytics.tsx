@@ -11,6 +11,7 @@ import { byId, ordered, publicPicks, usePublicStats } from '@/lib/scouting';
 import type { PublicStats, ScoutingRow } from '@/lib/scouting';
 import { inMetaPeriod, LiveMeta } from '@/lib/live';
 import type { MatchElo, MatchSeries } from '@/lib/match-series';
+import { useDataTooltip } from '@/components/data-tooltip';
 
 type RankRow = ScoutingRow & { mode?: string | null };
 
@@ -54,6 +55,7 @@ export function PublicSpotlight({ onDraft, onMeta }: { onDraft:()=>void; onMeta:
 const dayLabel=(day:string)=>day.slice(8)+'/'+day.slice(5,7);
 
 function RankedActivity({matches,filters}:{matches:MatchSeries[];filters:Filters}) {
+  const tooltip=useDataTooltip();
   const latest=filters.end|| (matches[0]?localDay(matches[0].latest.played_at):null);
   const days=latest?Array.from({length:14},(_,i)=>new Date(Date.parse(latest)-(13-i)*86400000).toISOString().slice(0,10))
     .filter(day=>!filters.start||day>=filters.start):[];
@@ -67,13 +69,14 @@ function RankedActivity({matches,filters}:{matches:MatchSeries[];filters:Filters
   const series=days.map(day=>({day,...stats(byDay.get(day)??[])}));
   const max=Math.max(1,...series.map(s=>s.games));
   const total=series.reduce((n,s)=>n+s.games,0);
+  const active=series.find(day=>day.day===tooltip.anchor?.getAttribute('data-day'));
   return <section className="card ranked-activity"><div className="card-head"><div><h2><CalendarDays size={17}/> Atividade por dia</h2>
     <p>{days.length?`${dayLabel(days[0])} – ${dayLabel(days.at(-1)!)} · horário de Brasília`:'Ranqueadas por data no histórico da conta'}</p></div>
     {!!total&&<span className="activity-count">{number(total)} partidas</span>}</div>
     {total?<><ol className="activity-bars" style={{gridTemplateColumns:`repeat(${series.length},minmax(0,1fr))`}}>
       {series.map((s,i)=>{
         const other=s.games-s.decided;
-        return <li key={s.day} title={`${dayLabel(s.day)} · ${s.wins} vitórias, ${s.losses} derrotas, ${other} outros resultados`}
+        return <li key={s.day} data-day={s.day} tabIndex={0} {...tooltip.trigger(active===s)}
           aria-label={`${dayLabel(s.day)}, ${s.wins} vitórias, ${s.losses} derrotas, ${other} outros resultados`}>
           <div className="activity-plot"><div className="activity-bar" style={{height:`${s.games/max*100}%`}}>
             {s.wins>0&&<i className="victory" style={{flex:s.wins}}/>}
@@ -83,6 +86,19 @@ function RankedActivity({matches,filters}:{matches:MatchSeries[];filters:Filters
       })}</ol><div className="activity-legend"><span><i className="victory"/>Vitórias</span>
         <span><i className="defeat"/>Derrotas</span><span><i className="other"/>Empates ou resultado ausente</span></div></>:
       <div className="list-empty">Sem registros nesta janela.</div>}
+    {active&&tooltip.render(<>
+      <div className="chart-tooltip-heading"><CalendarDays size={19}/><div><small>Atividade por dia</small>
+        <strong>{active.day.split('-').reverse().join('/')}</strong></div></div>
+      <div className="preview-match-metrics">
+        <div><small>Partidas</small><strong>{number(active.games)}</strong></div>
+        {active.rate!==null&&<div><small>Win rate</small><strong>{percent(active.rate)}</strong></div>}
+      </div>
+      {active.games>0&&<div className="chart-tooltip-tags">
+        <span data-tone="win">{number(active.wins)} V</span><span data-tone="loss">{number(active.losses)} D</span>
+        {active.draws>0&&<span>{number(active.draws)} E</span>}
+        {active.games>active.decided+active.draws&&<span>{number(active.games-active.decided-active.draws)} em aberto</span>}
+      </div>}
+    </>,'chart-tooltip')}
   </section>;
 }
 
@@ -101,6 +117,7 @@ export function Overview({ local, account, matches, elo, historyCount, filters, 
   const previous=local.dataset.updates.find(r=>r.status==='success');
   const filteredProgress = progressionWindow(rows,filters);
   const trophyRows = filters.season ? progressionWindow(rows,{...filters,season:''}) : filteredProgress;
+  const scoreRows=filteredProgress.filter(row=>row.score!==null&&(!current?.season||normalize(row.season)===normalize(current.season)||filters.season));
   const results = matches.map(match=>({...match.latest,result:match.result}));
   const topMaps = ordered(accountGroups(results,b=>b.map_name,3));
   const topBrawlers = ordered(accountGroups(results,b=>b.player_brawler,3));
@@ -135,9 +152,8 @@ export function Overview({ local, account, matches, elo, historyCount, filters, 
     <div className="two-col equal"><RecentForm matches={matches} elo={elo} onMatch={onMatch}
       action={<button className="button small subtle" onClick={onHistory}>Histórico <ArrowRight size={14}/></button>}/>
       <RankedActivity matches={matches} filters={filters}/></div>
-    <div className="two-col equal"><TrendChart rows={trophyRows} field="trophies" label="Subida de troféus" note="Total da conta por data, independente da temporada"/>
-      <TrendChart rows={filteredProgress.filter(row=>!current?.season||normalize(row.season)===normalize(current.season)||filters.season)}
-        field="score" label="Pontos do Ranqueado" note={filters.season||current?.season||'Leituras do Elo'}/></div>
+    <div className={scoreRows.length?'two-col equal':'stack'}><TrendChart rows={trophyRows} field="trophies" label="Subida de troféus" note="Total da conta por data, independente da temporada"/>
+      {scoreRows.length>0&&<TrendChart rows={scoreRows} field="score" label="Pontos do Ranqueado" note={filters.season||current?.season||'Leituras do Elo'}/>}</div>
     <div className="two-col equal"><Ranking rows={topMaps} kind="map" title="Seus melhores mapas" short/>
       <Ranking rows={topBrawlers} kind="brawler" title="Seus melhores brawlers" short/></div>
     <PublicSpotlight onDraft={onDraft} onMeta={onMeta}/>
@@ -165,19 +181,20 @@ function TableComparison({ publicSample, setCount, own, brawler, unit }: {
   }
   const selected=rows.filter(r=>!brawler||normalize(r.name)===normalize(brawler));
   const accounts=new Map(accountGroups(own,b=>b.player_brawler,1).map(row=>[normalize(row.name),row]));
-  const display=order==='win'?ordered(selected):selected.sort((a,b)=>order==='pick'?
+  const metric=order==='ban'&&!banKnown?'win':order;
+  const display=metric==='win'?ordered(selected):selected.sort((a,b)=>metric==='pick'?
     (b.pickCount??0)-(a.pickCount??0) : (banByName.get(normalize(b.name))??0)-(banByName.get(normalize(a.name))??0));
   return <>
-    <div className="meta-table-options"><span>Ordenar por</span><select className="standalone" aria-label="Ordenar a meta" value={order} onChange={e=>setOrder(e.target.value as typeof order)}>
-      <option value="win">Melhores picks · win rate e amostra</option><option value="pick">Pick rate</option><option value="ban" disabled={!banKnown}>Ban rate</option></select>
-      <span>{banKnown?`${number(banKnown)} de ${number(setCount)} registros com bans explícitos`:'Ban rate indisponível nesta fonte'}</span></div>
-    <div className="table-wrap"><table><thead><tr><th>Brawler</th><th>Win rate</th><th>Amostra · {unit}</th><th>Pick rate</th><th>Ban rate</th>
+    <div className="meta-table-options"><span>Ordenar por</span><select className="standalone" aria-label="Ordenar a meta" value={metric} onChange={e=>setOrder(e.target.value as typeof order)}>
+      <option value="win">Melhores picks · win rate e amostra</option><option value="pick">Pick rate</option>{banKnown>0&&<option value="ban">Ban rate</option>}</select>
+      {banKnown>0&&<span>{number(banKnown)} de {number(setCount)} registros com bans explícitos</span>}</div>
+    <div className="table-wrap"><table><thead><tr><th>Brawler</th><th>Win rate</th><th>Amostra · {unit}</th><th>Pick rate</th>{banKnown>0&&<th>Ban rate</th>}
       <th>Win rate · conta</th><th>Registros da conta</th></tr></thead><tbody>{display.map(r=>{
         const a=accounts.get(normalize(r.name));
         return <tr key={r.name}><td><span className="image-label"><Portrait name={r.name}/>{r.name}</span></td><td>{percent(r.games?r.wins/r.games:null)}</td>
           <td>{number(r.games)}{r.games>0&&r.games<30&&<small>Amostra pequena</small>}</td>
           <td>{percent(setCount?(r.pickCount??0)/(setCount*6):null)}</td>
-          <td>{percent(banKnown?(banByName.get(normalize(r.name))??0)/banKnown:null)}</td>
+          {banKnown>0&&<td>{percent((banByName.get(normalize(r.name))??0)/banKnown)}</td>}
           <td>{percent(a?a.wins/a.games:null)}</td><td>{a?number(a.games):'—'}</td></tr>;
       })}</tbody></table>{!display.length&&<p className="section-note">Sem observações para este recorte.</p>}</div>
   </>;
@@ -192,14 +209,15 @@ export function PublicMeta({ filters, matches }: { filters: Filters; matches: Ba
   const last=meta.context?.latest??meta.index?.latest;
   return <section className="card"><div className="card-head"><div><h2><Radio size={17}/> Estatísticas por brawler</h2><p>{meta.context?
     `${number(meta.context.sets)} ${meta.index?.unit??'séries'} · ${meta.context.map||'Todos os mapas'}${last?' · Última partida '+dateTime(last):''}`:
-    'Win rate, pick rate e ban rate por brawler'}</p></div>
+    'Win rate e pick rate por brawler'}</p></div>
     <span className={`tag ${historical?'hypothesis':'confirmed'}`}>{historical?'Pré-patch de 11/11':'Amostra da coleta'}</span></div>
     {meta.sample&&meta.context&&meta.context.sets>0?<TableComparison key={period+':'+filters.map_name} publicSample={meta.sample}
       setCount={meta.context.sets} own={aligned} brawler={filters.player_brawler} unit={meta.index?.unit??'séries'}/>:
       <div className="list-empty"><Trophy size={18}/>{meta.loading?'Carregando amostra…':'Sem partidas coletadas para o período e filtros atuais.'}</div>}
     {!historical&&!dated&&<p className="section-note">Janela por data de Brasília. Pode incluir partidas de antes e depois de um balanceamento no mesmo dia.</p>}
     {meta.index&&<div className="scout-foot"><a href={meta.index.url} target="_blank" rel="noreferrer">{meta.index.source}</a>
-      {' · '+meta.index.start+' a '+meta.index.end+' · Pick rate por espaço de escolha. Ban rate por registro com lista explícita.'}</div>}
+      {' · '+meta.index.start+' a '+meta.index.end+' · Pick rate por espaço de escolha.'}
+      {!!meta.sample?.banKnown&&' Ban rate por registro com lista explícita.'}</div>}
     {!historical&&<p className="section-note">A coleta própria é uma amostra de jogadores de ranking de troféus e participantes encontrados nos battle logs. <a href="https://brawlhub.gg/meta/" target="_blank" rel="noreferrer">Consultar referência externa no BrawlHub</a></p>}
   </section>;
 }

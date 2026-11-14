@@ -59,7 +59,7 @@ export const percent = (value: number | null) => value === null ? '—' : new In
   maximumFractionDigits: 1, minimumFractionDigits: 1, style: 'percent',
 }).format(value);
 export const normalize = (value: string | null | undefined) => (value ?? '').trim().toLocaleLowerCase('pt-BR');
-export const battleSeason = (battle: Battle) => battle.season ?? battle.season_by_date?.label ?? null;
+export const battleSeason = (battle: Battle) => (battle.season_source?null:battle.season) ?? battle.season_by_date?.label ?? null;
 
 const modeNames: Record<string, string> = {
   gemGrab: 'Pique-Gema', brawlBall: 'Fute-Brawl', heist: 'Roubo', bounty: 'Caça-Estrelas',

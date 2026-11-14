@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { emptyFilters, number } from '@/lib/data';
 import type { Filters } from '@/lib/data';
 import { blankLocal, fromSnapshot, initialBook, loadBook, loadLocal, saveBook, saveLocal } from '@/lib/browser-store';
-import type { Account, AccountBook, LocalData, Progress } from '@/lib/browser-store';
+import type { Account, AccountBook, LocalData } from '@/lib/browser-store';
 import { collectionRequest } from '@/lib/live';
 import type { LivePeriod, ServerCollection, SyncProgress } from '@/lib/live';
-import type { Evidence } from '@/features/matches/match-history';
 import type { ReplayReview, TrainingPlan } from '@/lib/coaching';
 import type { Section } from './navigation';
 
@@ -207,15 +206,6 @@ export function useDashboard() {
     document.addEventListener('visibilitychange',refresh);
     return()=>{cancelled=true;controller.abort();window.clearInterval(timer);document.removeEventListener('visibilitychange',refresh);};
   },[ready,busy,book,sending]);
-  async function saveProgress(record:Progress){
-    if(!book.active)throw new Error('Cadastre uma conta em Contas e dados.');
-    if(busy||processing.current)throw new Error('Aguarde a atualização em andamento.');
-    setBusy(true);
-    try {
-      const previous=await loadLocal(book.active);
-      await persist({...previous,progress:[...previous.progress,record]});
-    } finally {setBusy(false);}
-  }
   async function saveCoaching(change: { review: {id:string; value:ReplayReview} } | { training: TrainingPlan }) {
     if(!book.active) throw new Error('Cadastre uma conta para salvar a análise.');
     if(busy||processing.current) throw new Error('Aguarde a atualização em andamento.');
@@ -235,25 +225,8 @@ export function useDashboard() {
     } finally {processing.current=false;setBusy(false);}
   }
 
-  async function saveEvidence(record:Evidence){
-    if(!match)return;
-    if(busy||processing.current)throw new Error('Aguarde a atualização em andamento.');
-    if(!record.evidence.trim()||[record.rank_label,record.rank_score,record.season,record.bans,record.kills,record.elo_before].every(value=>value==null)){
-      throw new Error('Informe uma referência e pelo menos um dado observado.');
-    }
-    const tag=book.active;
-    setBusy(true);
-    try {
-      await collectionRequest('/api/evidence?'+new URLSearchParams({tag}),{
-        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...record,battle_id:match.id}),
-      });
-      try { await loadHistory(tag); }
-      catch { throw new Error('Evidência salva no servidor. O painel ainda precisa recarregar o histórico.'); }
-    } finally {setBusy(false);}
-  }
-
   return {section, filters, setFilters, book, local, period, setPeriod, server, serverError,
     sending, syncProgress, feedback, setFeedback, ready, busy, menuOpen, setMenuOpen, rankedOnly, setRankedOnly,
-    setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveProgress, saveEvidence, saveCoaching,
+    setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveCoaching,
     refreshCollection:()=>refreshServer.current()};
 }

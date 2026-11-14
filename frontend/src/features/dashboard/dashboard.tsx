@@ -16,6 +16,7 @@ import { Accounts } from '@/features/collection/accounts';
 import { CollectorPanel, MetaPeriods } from '@/features/collection/collector-panel';
 import { SupercellCredential } from '@/features/collection/supercell-credential';
 import { SyncProgressCard } from '@/features/collection/sync-progress';
+import { SyncStatus } from '@/features/collection/sync-status';
 import { CounterFinder, DraftLab } from '@/features/draft/draft-lab';
 import { DraftTierList } from '@/features/draft/draft-tier-list';
 import { useDraftMeta } from '@/features/draft/use-draftmeta';
@@ -33,7 +34,7 @@ import { filteredSeries, matchEloChanges, matchSeries, seriesInScope } from '@/l
 export default function Dashboard() {
   const {section, filters, setFilters, book, local, period, setPeriod, server, serverError,
     sending, syncProgress, feedback, setFeedback, ready, busy, menuOpen, setMenuOpen, rankedOnly, setRankedOnly,
-    setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveProgress, saveEvidence, saveCoaching, refreshCollection} = useDashboard();
+    setSelected, active, data, match, navigate, sync, selectAccount, saveAccount, saveCoaching, refreshCollection} = useDashboard();
   const dismissFeedback=useCallback(()=>setFeedback(''),[setFeedback]);
   const [report,setReport]=useState<LiveReport|null>(null);
   const [draftTarget,setDraftTarget]=useState({map:'',revision:0});
@@ -85,7 +86,7 @@ export default function Dashboard() {
   const commonPublic=section==='meta'||section==='draft';
   const available=useMemo(()=>Object.fromEntries(columnFilters.map(([key])=>{
     const source=section==='matches'&&rankedOnly?data.matches.filter(b=>b.ranked):data.matches;
-    const values=commonPublic?[]:source.map(b=>key==='season'?battleSeason(b):b[key]);
+    const values=commonPublic?[]:source.map(b=>key==='season'?battleSeason(b):key==='rank_label'&&b.rank_source?null:b[key]);
     if(key==='rank_label'&&(section==='matches'||section==='overview')){
       for(const reading of elo.values())if(reading.rank)values.push(reading.rank);
     }
@@ -98,7 +99,7 @@ export default function Dashboard() {
         values.push(...brawlers.filter(b=>period==='reference'||observed.has(b.id)).map(b=>b.name));
       }
     }
-    if(key==='season'&&section==='progress')values.push(data.profile?.season??null,...local.progress.map(p=>p.season));
+    if(key==='season'&&section==='progress')values.push(data.profile?.season??null,...local.progress.filter(p=>p.method==='api').map(p=>p.season));
     return [key,[...new Map(values.filter((v):v is string=>Boolean(v)).map(v=>[normalize(v),v])).values()].sort((a,b)=>a.localeCompare(b,'pt-BR'))];
   })),[data,local.progress,section,rankedOnly,commonPublic,period,report,elo]);
 
@@ -128,9 +129,10 @@ export default function Dashboard() {
               onChange={e=>void selectAccount(e.target.value)}>
               {book.accounts.map(a=><option key={a.tag} value={a.tag}>{a.tag===book.active||a.tag===a.name?a.name:a.name+' · '+a.tag}</option>)}
             </select></div>}
-          {section!=='draftlab'&&<button className="button small subtle navbar-sync" onClick={()=>void sync()}
+          {section!=='draftlab'&&<>{!!book.active&&<SyncStatus server={server?.player_tag===book.active?server:null} error={serverError} syncing={sending}/>}
+            <button className="button small subtle navbar-sync" onClick={()=>void sync()}
             disabled={busy||!ready||sending} aria-busy={sending} aria-label={sending?'Sincronizando conta':'Sincronizar conta'}>
-            <RefreshCw size={14} aria-hidden="true"/><span>{sending?'Sincronizando…':'Sincronizar'}</span></button>}
+            <RefreshCw size={14} aria-hidden="true"/><span>{sending?'Sincronizando…':'Sincronizar'}</span></button></>}
           <button className="button small top-button" onClick={()=>navigate('sources')} aria-label="Gerenciar contas"><Settings size={15}/><span>Contas</span></button></div>
       </header>
       <main className={`main compact-main ${section==='draftlab'?'draft-main':''}`}>
@@ -146,7 +148,8 @@ export default function Dashboard() {
             <div className="date-fields"><input aria-label="Data inicial" type="date" value={filters.start} onChange={e=>setFilters({...filters,start:e.target.value})}/>
               <span>–</span><input aria-label="Data final" type="date" value={filters.end} onChange={e=>setFilters({...filters,end:e.target.value})}/></div></fieldset>}
             {columnFilters.filter(([key])=>section==='progress'?key==='season':
-              !commonPublic||(key!=='rank_label'&&(key!=='season'||period==='reference'))).map(([key,label,placeholder])=><label key={key}>{label}
+              (!commonPublic||(key!=='rank_label'&&(key!=='season'||period==='reference')))&&
+              (!['rank_label','season'].includes(key)||!!available[key].length||!!filters[key])).map(([key,label,placeholder])=><label key={key}>{label}
               <select value={filters[key]} disabled={!available[key].length&&!filters[key]} onChange={e=>setFilters({...filters,[key]:e.target.value,mode:''})}>
                 <option value="">{!available[key].length&&key==='rank_label'?'Rank da partida indisponível':placeholder}</option>
                 {filters[key]&&!available[key].includes(filters[key])&&<option value={filters[key]}>{filters[key]}</option>}
@@ -156,7 +159,7 @@ export default function Dashboard() {
         {section==='overview'&&<Overview local={local} account={active} matches={rankedSeries} elo={elo} historyCount={series.length} filters={filters}
           busy={busy||!ready||sending} syncing={sending} onSettings={()=>navigate('sources')} onProgress={()=>navigate('progress')} onDraft={()=>navigate('draftlab')} onMeta={()=>navigate('meta')} onSync={()=>void sync()} onMatch={b=>setSelected(b.id)} onHistory={()=>navigate('matches')} collectorLinked={!!server?.configured}/>}
         {section==='progress'&&<Progression key={book.active} local={local} filters={progressFilters}
-          matches={filtered(data.matches,progressFilters,true)} onSave={saveProgress}/>}
+          matches={filtered(data.matches,progressFilters,true)}/>}
         {section==='matches'&&<Card title="Histórico de partidas" icon={List} sub={`${number(historySeries.length)} no recorte · ${number(series.length)} no histórico${historySeries[0]?' · Mais recente '+dateTime(historySeries[0].latest.played_at):''} · Horário de Brasília`}
           action={<label className="switch-label"><input type="checkbox" checked={rankedOnly} onChange={e=>setRankedOnly(e.target.checked)}/> Só ranqueadas</label>}>
           <MatchList key={JSON.stringify([filters,rankedOnly])} matches={historySeries} elo={elo} onOpen={b=>setSelected(b.id)}/></Card>}
@@ -214,7 +217,7 @@ export default function Dashboard() {
       {feedback&&<FeedbackToast key={feedback} message={feedback} onDismiss={dismissFeedback}/>}
     </div>}
     {match&&<MatchDetail key={selectedSeries?.id??match.id} match={match} series={selectedSeries} elo={selectedSeries&&elo.get(selectedSeries.id)} onRound={setSelected}
-      raw={local.raw[match.id]} review={local.reviews?.[match.id]} onClose={()=>setSelected(null)} onChange={saveEvidence}
+      raw={local.raw[match.id]} review={local.reviews?.[match.id]} onClose={()=>setSelected(null)}
       onReview={value=>saveCoaching({review:{id:match.id,value}})}/>}
   </div></LiveMeta.Provider>;
 }

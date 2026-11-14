@@ -68,7 +68,7 @@ export function filteredSeries(series: MatchSeries[], battles: Battle[], filters
   return seriesInScope(series,scoped).filter(match=>{
     const rank=seriesRank(match)?.rank_label??elo?.get(match.id)?.rank;
     if (filters.rank_label && normalize(rank)!==normalize(filters.rank_label) &&
-      !match.rounds.some(round=>normalize(round.rank_label)===normalize(filters.rank_label))) return false;
+      !match.rounds.some(round=>!round.rank_source&&normalize(round.rank_label)===normalize(filters.rank_label))) return false;
     if (!filters.start && !filters.end) return true;
     const day = localDay(match.latest.played_at);
     return (!filters.start || day >= filters.start) && (!filters.end || day <= filters.end);
@@ -76,27 +76,27 @@ export function filteredSeries(series: MatchSeries[], battles: Battle[], filters
 }
 
 export function matchKd(match: MatchSeries) {
-  if ((match.rounds.length > 1 && !match.result) || match.rounds.some(round=>!round.kd)) return null;
+  if ((match.rounds.length > 1 && !match.result) || match.rounds.some(round=>!round.kd||round.kd.reference)) return null;
   return match.rounds.reduce((total,round)=>({
     kills:total.kills+(round.kd?.kills??0), deaths:total.deaths+(round.kd?.deaths??0),
   }),{kills:0,deaths:0});
 }
 
-export type MatchElo = Omit<BattleElo,'reference'> & { reference: string|null; rank?:string };
+export type MatchElo = Pick<BattleElo,'before'|'after'> & { rank?:string };
 
 export function seriesRank(match: MatchSeries, round=match.latest) {
-  if (round.rank_label) return round;
-  const known = match.rounds.filter(item=>item.rank_label);
+  if (round.rank_label&&!round.rank_source) return round;
+  const known = match.rounds.filter(item=>item.rank_label&&!item.rank_source);
   return known.every(item=>normalize(item.rank_label)===normalize(known[0]?.rank_label))
-    ? known.find(item=>!item.rank_source)??known[0] : undefined;
+    ? known[0] : undefined;
 }
 
 export function seriesBans(match: MatchSeries, round=match.latest) {
-  if (round.bans!==null) return round;
-  const known=match.rounds.filter(item=>item.bans!==null);
+  if (round.bans!==null&&!round.bans_source) return round;
+  const known=match.rounds.filter(item=>item.bans!==null&&!item.bans_source);
   const signature=(item: Battle)=>JSON.stringify(item.bans?.map(normalize).sort());
   return known.every(item=>signature(item)===signature(known[0]))
-    ? known.find(item=>!item.bans_source)??known[0] : undefined;
+    ? known[0] : undefined;
 }
 
 export function matchEloChanges(series: MatchSeries[], readings: Progress[]) {
@@ -106,11 +106,6 @@ export function matchEloChanges(series: MatchSeries[], readings: Progress[]) {
   const values = new Map<string, MatchElo>();
   let readingIndex = 0;
   for (const [index,match] of ranked.entries()) {
-    const evidence = match.rounds.flatMap(round=>round.elo_evidence ? [round.elo_evidence] : []);
-    if (evidence.length) {
-      if (evidence.every(item=>item.before===evidence[0].before && item.after===evidence[0].after)) values.set(match.id,evidence[0]);
-      continue;
-    }
     if (match.latest.duration_seconds==null || !match.result || match.rounds.some(round=>!round.delay_observed)) continue;
     const start = Date.parse(match.rounds[0].played_at);
     const end = Date.parse(match.latest.played_at) + match.latest.duration_seconds*1000;
@@ -137,7 +132,7 @@ export function matchEloChanges(series: MatchSeries[], readings: Progress[]) {
     if ((match.result==='victory' && delta<=0) || (match.result==='defeat' && delta>=0) || match.result==='draw') continue;
     const rank = before.rank && normalize(before.rank)===normalize(after.rank) &&
       during.every(read=>!read.rank||normalize(read.rank)===normalize(before.rank)) ? before.rank : undefined;
-    values.set(match.id,{before:before.score,after:after.score,reference:null,...(rank?{rank}:{})});
+    values.set(match.id,{before:before.score,after:after.score,...(rank?{rank}:{})});
   }
   return values;
 }

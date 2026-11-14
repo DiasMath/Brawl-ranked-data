@@ -63,10 +63,13 @@ export function AccountComparison({ matches, accountName, tiers, pickRates, sour
 
 export function AccountBans({matches,selectedMap}: {matches:Battle[]; selectedMap:string|null}) {
   const [map,setMap] = useState('');
-  const maps = [...new Map(matches.flatMap(match=>match.map_name?[[mapKey(match.map_name),match.map_name] as const]:[]))]
+  const available=matches.filter(match=>match.bans!==null&&!match.bans_source);
+  if(!available.length)return null;
+  const maps = [...new Map(available.flatMap(match=>match.map_name?[[mapKey(match.map_name),match.map_name] as const]:[]))]
     .sort((a,b)=>a[1].localeCompare(b[1],'pt-BR'));
   const activeMap = selectedMap ? mapKey(selectedMap) : maps.some(([key])=>key===map) ? map : '';
   const result = observedBans(activeMap ? matches.filter(match=>mapKey(match.map_name)===activeMap) : matches);
+  if(!result.known)return null;
   return <section className="card account-card external-meta-card">
     <div className="card-head"><div><h2><Ban size={17}/> Bans observados nas minhas partidas</h2>
       <p>{number(result.known)} de {number(result.total)} partidas com lista conhecida{result.total?` · ${percent(result.known/result.total)} de cobertura`:''}</p></div>
@@ -74,10 +77,10 @@ export function AccountBans({matches,selectedMap}: {matches:Battle[]; selectedMa
     {!selectedMap&&maps.length>0&&<div className="counter-controls"><label>Mapa dos bans<select value={activeMap} onChange={event=>setMap(event.target.value)}>
       <option value="">Todos os mapas</option>{maps.map(([key,name])=><option value={key} key={key}>{name}</option>)}
     </select></label></div>}
-    <p className="section-note">Ban rate competitivo indisponível na integração. A taxa abaixo usa as partidas da sua conta com lista conhecida. Um brawler conta uma vez por partida.{result.known?` Listas da API ${number(result.known-result.manual)} · evidências registradas ${number(result.manual)}.`:''}</p>
+    <p className="section-note">Taxa nas partidas da sua conta com lista publicada pela Supercell. Um brawler conta uma vez por partida.</p>
     {result.rows.length?<div className="table-wrap"><table><thead><tr><th>Brawler</th><th>Partidas em que foi banido</th><th>Taxa observada</th></tr></thead>
       <tbody>{result.rows.map(row=><tr key={row.label}><td><span className="image-label"><Portrait name={row.label}/>{row.label}</span></td>
         <td>{number(row.bans)} de {number(result.known)}</td><td>{percent(row.bans/result.known)}</td></tr>)}</tbody></table></div>:
-      <p className="section-note">{result.known?'As listas conhecidas registram zero bans.':'Sem listas conhecidas neste recorte. Você pode registrar uma lista completa em Partidas → Registrar evidência.'}</p>}
+      <p className="section-note">As listas recebidas registram zero bans.</p>}
   </section>;
 }

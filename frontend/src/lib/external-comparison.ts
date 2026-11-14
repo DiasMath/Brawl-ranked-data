@@ -24,10 +24,9 @@ export function accountBrawlerRows(matches: Battle[]) {
 }
 
 export function observedBans(matches: Battle[]) {
-  const { drafts, rows } = draftStats(matches);
-  const manual = matches.filter(match => match.bans !== null && match.bans_source === 'evidência').length;
+  const { drafts, rows } = draftStats(matches.filter(match=>!match.bans_source));
   return {
-    total: matches.length, known: drafts, manual,
+    total: matches.length, known: drafts,
     rows: rows.filter(row => row.bans > 0)
       .sort((a,b) => b.bans - a.bans || a.label.localeCompare(b.label, 'pt-BR')),
   };

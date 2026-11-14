@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, FileJson, List, Swords, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, List, Swords, X } from 'lucide-react';
 import { Empty, Pill } from '@/components/dashboard-ui';
 import { findMap, MapImage, ModeIcon, ModeLabel, Portrait, RankArt } from '@/components/game';
 import { dateTime, modeName, number, resultName, safeLink } from '@/lib/data';
@@ -23,11 +23,13 @@ export function MatchList({ matches, elo, onOpen, compact = false }: {
   const current = Math.min(page, Math.max(0, Math.ceil(matches.length / pageSize) - 1));
   useEffect(()=>{if(scroll.current)scroll.current.scrollTop=0;},[current]);
   if (!matches.length) return <Empty icon={List} title="Nenhuma partida encontrada">Atualize o histórico ou ajuste os filtros do recorte.</Empty>;
+  const showKd=matches.some(series=>matchKd(series)!==null);
+  const showRank=matches.some(series=>seriesRank(series)||elo?.get(series.id)?.rank);
   const visible = compact ? matches.slice(0, 6) : matches.slice(current * pageSize, (current + 1) * pageSize);
   return <><div ref={scroll} className={compact?'table-wrap':'table-wrap match-history-scroll'}
     role={compact?undefined:'region'} aria-label={compact?undefined:'Tabela do histórico de partidas'} tabIndex={compact?undefined:0}>
     <table><thead><tr><th>Data e hora</th><th>Mapa / modo</th><th>Brawler</th><th>Resultado</th>
-    <th>K/D</th><th>Rank</th><th aria-label="Detalhes" /></tr></thead><tbody>{visible.map(series => {
+    {showKd&&<th>K/D</th>}{showRank&&<th>Rank</th>}<th aria-label="Detalhes" /></tr></thead><tbody>{visible.map(series => {
       const {id,latest:b,result,rounds,wins,losses}=series;
       const kd=matchKd(series);
       const rank=seriesRank(series);
@@ -38,10 +40,9 @@ export function MatchList({ matches, elo, onOpen, compact = false }: {
       <td><span className="image-label"><Portrait name={b.player_brawler}/>{b.player_brawler ?? '—'}</span></td><td>
         <Pill kind={resultTone(result)}>{rounds.length>1&&!result?'Resultado em aberto':resultName(result)}</Pill>
         {rounds.length>1&&<small title="Agrupamento inferido a partir do histórico">{wins}–{losses} · {rounds.length} rodadas</small>}</td>
-      <td title={kd?'Eliminações / mortes':'Sem registro completo'}>{kd?`${number(kd.kills)} / ${number(kd.deaths)}`:'—'}</td>
-      <td>{b.ranked ? rankLabel ? <span className="image-label inline-rank" title={rank && rank!==b?'Rank registrado em outra rodada da série':undefined}>
-        <RankArt rank={rankLabel}/><span>{rankLabel}{!rank&&<small>Estimativa · Perfil</small>}</span></span> :
-        <span className="muted" title="O histórico da API não trouxe o rank desta partida.">Não informado</span> : '—'}</td><td><button className="icon-button" aria-label={`Detalhar partida de ${dateTime(b.played_at)}`}
+      {showKd&&<td>{kd?`${number(kd.kills)} / ${number(kd.deaths)}`:null}</td>}
+      {showRank&&<td>{rankLabel&&<span className="image-label inline-rank">
+        <RankArt rank={rankLabel}/><span>{rankLabel}{!rank&&<small>Estimativa · Perfil</small>}</span></span>}</td>}<td><button className="icon-button" aria-label={`Detalhar partida de ${dateTime(b.played_at)}`}
         onClick={() => onOpen(b)}><ChevronRight size={16} /></button></td></tr>;
     })}</tbody></table></div>
     {!compact && <div className="pager"><span>{number(matches.length)} {matches.length===1?'partida':'partidas'}</span><div>
@@ -51,58 +52,35 @@ export function MatchList({ matches, elo, onOpen, compact = false }: {
         onClick={() => setPage(current + 1)}><ChevronRight size={17} /></button></div></div>}</>;
 }
 
-export type Evidence = { rank_label: string|null; rank_score: number|null; season: string|null; bans: string[]|null; evidence:string;
-  kills?:number|null; deaths?:number|null; elo_before?:number|null; elo_after?:number|null };
-export function MatchDetail({ match, series, elo, onRound, raw, review, onClose, onChange, onReview }: {
+export function MatchDetail({ match, series, elo, onRound, raw, review, onClose, onReview }: {
   match: Battle; raw: unknown; review?: ReplayReview; onClose: () => void;
   series?: MatchSeries; elo?:MatchElo; onRound?: (id: string) => void;
-  onChange: (record:Evidence) => Promise<void>; onReview: (value:ReplayReview) => Promise<void>;
+  onReview: (value:ReplayReview) => Promise<void>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [rawOpen, setRawOpen] = useState(false);
-  const [evidenceOpen, setEvidenceOpen] = useState(false);
-  const [feedback, setFeedback] = useState('');
-  const [saving, setSaving] = useState(false);
   useEffect(() => {
     const element = dialog.current;
     element?.showModal();
     return () => { element?.close(); };
   }, []);
-  async function saveEvidence(form: FormData) {
-    const value = (key: string) => String(form.get(key) ?? '').trim();
-    const count = (key:string) => value(key)===''?null:Number(value(key));
-    const kills=count('kills'), deaths=count('deaths'), before=count('before'), after=count('after');
-    if ((kills===null)!==(deaths===null)||(before===null)!==(after===null)) {
-      setFeedback('Preencha os dois valores de K/D ou os dois valores de Elo.');return;
-    }
-    setSaving(true);
-    try {
-      await onChange({
-        rank_label: value('rank') || null, rank_score: value('score') ? Number(value('score')) : null,
-        season: value('season') || null, bans: form.get('noBans') ? [] : (value('bans') ? value('bans').split(',').map(s => s.trim()).filter(Boolean) : null),
-        evidence: value('source'), kills, deaths, elo_before:before, elo_after:after,
-      });
-      setEvidenceOpen(false);
-      setFeedback('Evidência registrada.');
-    } catch (error) { setFeedback((error as Error).message); }
-    finally { setSaving(false); }
-  }
   const groups = [...new Set(match.players.map(p => p.team_index))];
   const grouped = series && series.rounds.length>1 ? series : null;
   const totalKd=grouped?matchKd(grouped):null;
-  const rank=series?seriesRank(series,match):match;
-  const bans=series?seriesBans(series,match):match;
-  const banNames=bans?.bans;
+  const rank=series?seriesRank(series,match):(!match.rank_source?match:undefined);
+  const bans=series?seriesBans(series,match):(!match.bans_source?match:undefined);
+  const score=match.score_source?null:match.rank_score;
+  const kd=match.kd&&!match.kd.reference?match.kd:null;
+  const calendar=(!match.season||match.season_source)?match.season_by_date:null;
+  const seasonLink=calendar&&safeLink(calendar.source_url);
+  const star=match.star_player?.name??match.star_player?.tag;
   const fields = [
-    { label:'Rank da partida', value:rank?.rank_label ?? elo?.rank ?? null, reference:rank?.rank_reference, otherRound:rank && rank!==match,
-      note:!rank?.rank_label && elo?.rank ? 'Estimativa · Mesma divisão antes e depois' : null },
-    { label:'Pontos de rank', value:match.rank_score !== null ? number(match.rank_score) : elo ? number(elo.after) : null,
-      reference:match.rank_score !== null ? match.score_reference : elo?.reference,
-      note:match.rank_score === null && elo ? (elo.reference?'Após a partida':'Estimativa após a partida · Perfil') : null },
-    { label:'Temporada', value:match.season, reference:match.season_reference },
-    { label:'Bans', value:banNames==null ? null : banNames.join(', ') || 'Sem bans', reference:bans?.bans_reference,
-      otherRound:bans && bans!==match },
-  ];
+    { label:'Rank da partida', value:rank?.rank_label ?? elo?.rank, note:rank?.rank_label ? (rank===match?'Histórico da Supercell':'Outra rodada da série') : 'Estimativa · Mesma divisão antes e depois' },
+    { label:'Pontos de rank', value:score ?? elo?.after, note:score!=null?'Histórico da Supercell':'Estimativa após a partida · Perfil' },
+    { label:'Temporada', value:(!match.season_source&&match.season)||calendar?.label, note:calendar?
+      <>Estimativa pela data{seasonLink&&<> · <a href={seasonLink} target="_blank" rel="noreferrer">Calendário</a></>}</>:'Histórico da Supercell' },
+    { label:'Bans', value:bans?.bans==null?null:bans.bans.join(', ')||'Sem bans', note:bans===match?'Histórico da Supercell':'Outra rodada da série' },
+  ].filter(field=>field.value!=null);
   return <dialog ref={dialog} className="drawer" onCancel={onClose} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
     <div className="drawer-content"><div className="drawer-head"><div><span className="eyebrow">Histórico de partidas</span>
       <h2>{match.map_name ?? 'Partida'}</h2><p>{modeName(match.mode)} · {dateTime(match.played_at)}</p></div>
@@ -121,30 +99,22 @@ export function MatchDetail({ match, series, elo, onRound, raw, review, onClose,
       {grouped.rounds.map((round,index)=><button type="button" key={round.id} className="button subtle"
         aria-pressed={round.id===match.id} onClick={()=>{
           if(round.id===match.id)return;
-          setRawOpen(false);setEvidenceOpen(false);setFeedback('');onRound?.(round.id);
-        }} disabled={saving}>
+          setRawOpen(false);onRound?.(round.id);
+        }}>
         <span>Rodada {index+1}<small>{dateTime(round.played_at)}{round.duration_seconds!=null?` · ${round.duration_seconds}s`:''}</small></span>
-        {round.kd&&<span aria-label="Eliminações e mortes">{round.kd.kills} / {round.kd.deaths}</span>}
+        {round.kd&&!round.kd.reference&&<span aria-label="Eliminações e mortes">{round.kd.kills} / {round.kd.deaths}</span>}
         <Pill kind={resultTone(round.result)}>{resultName(round.result)}</Pill>
       </button>)}
     </section>}
-    <dl className="detail-grid">
-      {grouped&&<div><dt>K/D final da série</dt><dd>{totalKd?`${number(totalKd.kills)} / ${number(totalKd.deaths)}`:'—'}
-        <small>{totalKd?'Soma das rodadas':'Sem registro completo das rodadas'}</small></dd></div>}
-      <div><dt>{grouped?'K/D da rodada':'K/D final'}</dt><dd>{match.kd?`${number(match.kd.kills)} / ${number(match.kd.deaths)}`:'—'}
-        <small>{match.kd?(match.kd.reference?'Evidência · '+match.kd.reference:'Histórico da Supercell'):'Eliminações e mortes não informadas'}</small></dd></div>
-      {match.ranked&&<div><dt>Variação de Elo</dt><dd>{elo?`${number(elo.before)} → ${number(elo.after)} (${elo.after>elo.before?'+':''}${number(elo.after-elo.before)})`:'—'}
-        <small>{elo?(elo.reference?'Evidência · '+elo.reference:'Estimativa por leituras do perfil'):'Sem leitura isolada desta partida'}</small></dd></div>}
-      {match.ranked && fields.map(({label,value,reference,otherRound,note}) => {
-        const calendar = label === 'Temporada' && value === null ? match.season_by_date : null;
-        const source = calendar ? safeLink(calendar.source_url) : undefined;
-        return <div key={label}><dt>{label}</dt><dd>{value ?? calendar?.label ?? 'Não informado'}
-          <small>{reference ? 'Evidência · '+reference : note ?? (value !== null ? 'Histórico da Supercell' : calendar ?
-            <>{'Estimativa pela data'}{source && <> · <a href={source} target="_blank" rel="noreferrer">Calendário</a></>}</> :
-            'Campo ausente no histórico da API')}{otherRound?' · Outra rodada da série':''}</small></dd></div>;
-      })}
-      {(match.star_player?.name||match.star_player?.tag)&&<div><dt>{grouped?'Craque da rodada':'Craque da partida'}</dt><dd>{match.star_player.name??match.star_player.tag}</dd></div>}
-    </dl>
+    {(totalKd||kd||star||(match.ranked&&(elo||fields.length>0)))&&<dl className="detail-grid">
+      {totalKd&&<div><dt>K/D final da série</dt><dd>{number(totalKd.kills)} / {number(totalKd.deaths)}<small>Soma das rodadas</small></dd></div>}
+      {kd&&<div><dt>{grouped?'K/D da rodada':'K/D final'}</dt><dd>{number(kd.kills)} / {number(kd.deaths)}<small>Histórico da Supercell</small></dd></div>}
+      {match.ranked&&elo&&<div><dt>Variação de Elo</dt><dd>{number(elo.before)} → {number(elo.after)} ({elo.after>elo.before?'+':''}{number(elo.after-elo.before)})
+        <small>Estimativa por leituras do perfil</small></dd></div>}
+      {match.ranked&&fields.map(({label,value,note})=><div key={label}><dt>{label}</dt><dd>
+        {typeof value==='number'?number(value):value}<small>{note}</small></dd></div>)}
+      {star&&<div><dt>{grouped?'Craque da rodada':'Craque da partida'}</dt><dd>{star}</dd></div>}
+    </dl>}
     {groups.length ? groups.map(group => {
       const members = match.players.filter(p => p.team_index === group);
       const hasSelf = members.some(p => p.side === 'self');
@@ -153,31 +123,8 @@ export function MatchDetail({ match, series, elo, onRound, raw, review, onClose,
         {members.map((p, i) => <div key={i} className="member"><div><strong>{p.player_name ?? 'Jogador'}</strong><small>{p.player_tag ?? '—'}</small></div>
           <div className="image-label"><Portrait name={p.brawler} id={p.brawler_id}/><div><strong>{p.brawler ?? '—'}</strong><small>{p.power !== null ? `Poder ${p.power}` : ''}</small></div></div>{p.side === 'self' && <Pill kind="accent">Você</Pill>}</div>)}</section>;
     }) : <Empty icon={Swords} title="Composição indisponível" />}
-    {feedback && <p className="feedback" role="status">{feedback}</p>}
-    <div className="actions">
-      <button className="button subtle" onClick={() => setEvidenceOpen(v => !v)}><FileJson size={16} /> Registrar evidência</button>
-      {raw !== undefined && <button className="button subtle" onClick={()=>setRawOpen(v=>!v)}><ChevronDown size={16} /> {rawOpen ? 'Ocultar JSON' : 'Ver JSON da API'}</button>}
-    </div>
-    {evidenceOpen && <form className="evidence-form" onSubmit={event => { event.preventDefault(); void saveEvidence(new FormData(event.currentTarget)); }}>
-      <p className="muted">Use a tela de resultado ou o replay como referência. {grouped?'Registre o K/D da rodada selecionada e o Elo da série inteira.':''}</p>
-      <div className="evidence-pair">
-        <label>Eliminações<input name="kills" type="number" min={0} max={2147483647} defaultValue={match.kd?.kills} disabled={!!match.kd&&!match.kd.reference}/></label>
-        <label>Mortes<input name="deaths" type="number" min={0} max={2147483647} defaultValue={match.kd?.deaths} disabled={!!match.kd&&!match.kd.reference}/></label>
-      </div>
-      {match.ranked&&<>
-      <div className="evidence-pair">
-        <label>Elo antes da partida<input name="before" type="number" min={0} max={2147483647} defaultValue={match.elo_evidence?.before}/></label>
-        <label>Elo depois da partida<input name="after" type="number" min={0} max={2147483647} defaultValue={match.elo_evidence?.after}/></label>
-      </div>
-      <label>Rank observado<input name="rank" maxLength={60} /></label>
-      <label>Pontos de rank<input name="score" type="number" min={0} max={2147483647} /></label>
-      <label>Temporada<input name="season" maxLength={100} /></label>
-      <label>Lista completa de bans, separados por vírgulas<input name="bans" maxLength={3000} /></label>
-      <label className="checkbox"><input name="noBans" type="checkbox" /> A evidência confirma ausência de bans</label>
-      </>}
-      <label>Referência da evidência<input name="source" required minLength={3} maxLength={400} /></label>
-      <button className="button primary" disabled={saving}>Salvar evidência</button>
-    </form>}
+    {raw !== undefined && <div className="actions"><button className="button subtle" onClick={()=>setRawOpen(v=>!v)}>
+      <ChevronDown size={16} /> {rawOpen ? 'Ocultar JSON' : 'Ver JSON da API'}</button></div>}
     {match.ranked&&<ReplayAnnotation key={match.id} review={review} onSave={onReview}/>}
     {rawOpen && raw !== undefined && <pre className="raw">{JSON.stringify(raw, null, 2)}</pre>}
     </div></dialog>;

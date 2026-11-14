@@ -67,8 +67,8 @@ export function MetaRankings({map='',filters}: {map?:string;filters?:Filters}) {
   return <><div className="visual-grid">
     <VisualRanking title="Melhores picks" rows={base.filter(matchesFilter)}/>
     <VisualRanking title="Mais escolhidos" rows={picks.filter(matchesFilter)} metric="pick"/>
-    <VisualRanking title="Mais banidos" rows={bans.filter(matchesFilter)} metric="ban"
-      empty={sample?.banKnown?'Nenhum ban deste recorte.':'Sem listas explícitas de bans nesta amostra.'}/>
+    {!!sample?.banKnown&&<VisualRanking title="Mais banidos" rows={bans.filter(matchesFilter)} metric="ban"
+      empty="Nenhum ban neste recorte."/>}
   </div>{!!volume&&<div className="two-col equal">
     <VisualRanking title="Classes mais escolhidas" rows={classRows} metric="pick" limit={7} portraits={false}/>
     <section className="card ally-analysis"><div className="card-head"><div><h2><Swords size={17}/> Duplas de aliados</h2>
@@ -105,6 +105,7 @@ export function MetaDashboard({filters,matches,onMap}:{
   const contexts=meta.index?.contexts.filter(c=>c.map&&c.sets)??[];
   const volume=meta.context?.sets??0;
   const sample=meta.sample;
+  const topMetric=metric==='ban'&&!sample?.banKnown?'win':metric;
   const latest=meta.context?.latest??meta.index?.latest;
   const window=period==='reference'?null:report?.windows[period];
   const previous=report?.windows.previous_patch;
@@ -129,7 +130,7 @@ export function MetaDashboard({filters,matches,onMap}:{
       <div className="meta-kpis">
         <section className="card"><Radio size={19}/><small>Amostra</small><strong>{meta.context?number(volume):'—'}</strong><span>{meta.index?.unit??'séries'} no recorte</span></section>
         <section className="card"><MapPinned size={19}/><small>Mapas na fonte</small><strong>{meta.index?number(contexts.length):'—'}</strong><span>{filters.map_name||'Todos os mapas'}</span></section>
-        <section className="card"><Ban size={19}/><small>Cobertura de bans</small><strong>{sample?.banKnown&&volume?percent(sample.banKnown/volume):'—'}</strong><span>{sample?.banKnown?number(sample.banKnown)+' listas explícitas':'Listas não disponíveis'}</span></section>
+        {!!sample?.banKnown&&volume>0&&<section className="card"><Ban size={19}/><small>Cobertura de bans</small><strong>{percent(sample.banKnown/volume)}</strong><span>{number(sample.banKnown)} listas explícitas</span></section>}
         <section className="card"><ChartNoAxesCombined size={19}/><small>Período da fonte</small><strong className="date-kpi">{meta.index?`${meta.index.start.slice(8)}/${meta.index.start.slice(5,7)} – ${meta.index.end.slice(8)}/${meta.index.end.slice(5,7)}`:'—'}</strong>
           <span>{latest?'Última partida '+dateTime(latest):window?'Coleta própria':'Histórico anterior ao patch de 11/11'}</span></section>
       </div>
@@ -149,11 +150,11 @@ export function MetaDashboard({filters,matches,onMap}:{
       <PublicMeta filters={filters} matches={matches}/>
     </>}
     {tab==='top'&&<div className="stack">
-      <div className="view-tabs" aria-label="Métrica do Top 10">{([['win','Melhores picks'],['pick','Pick rate'],['ban','Ban rate']] as const).map(([id,label])=>
-        <button key={id} aria-pressed={metric===id} onClick={()=>setMetric(id)}>{label}</button>)}</div>
-      <VisualRanking title={metric==='win'?'Top 10 · Melhores picks':metric==='pick'?'Top 10 · Mais escolhidos':'Top 10 · Mais banidos'}
-        metric={metric} limit={10} rows={sample?metaLeaders(sample,volume,metric).filter(r=>!filters.player_brawler||normalize(r.name)===normalize(filters.player_brawler)):[]}
-        empty={metric==='ban'?'Nenhuma lista de bans disponível para este recorte.':undefined}/>
+      <div className="view-tabs" aria-label="Métrica do Top 10">{([['win','Melhores picks'],['pick','Pick rate'],['ban','Ban rate']] as const)
+        .filter(([id])=>id!=='ban'||sample?.banKnown).map(([id,label])=>
+        <button key={id} aria-pressed={topMetric===id} onClick={()=>setMetric(id)}>{label}</button>)}</div>
+      <VisualRanking title={topMetric==='win'?'Top 10 · Melhores picks':topMetric==='pick'?'Top 10 · Mais escolhidos':'Top 10 · Mais banidos'}
+        metric={topMetric} limit={10} rows={sample?metaLeaders(sample,volume,topMetric).filter(r=>!filters.player_brawler||normalize(r.name)===normalize(filters.player_brawler)):[]}/>
     </div>}
     {(window?.minimum_elo!=null||period==='competitive')&&<p className="section-note">Partidas observadas em históricos de jogadores com Elo de pelo menos {number(window?.minimum_elo??report?.tracking?.minimum_elo??8250)} no perfil consultado.</p>}
     {tab!=='map'&&meta.index&&<p className="section-note">Melhores picks consideram taxa de vitória e tamanho da amostra. Pick rate usa os espaços de escolha.

@@ -1,4 +1,4 @@
-import type { PointerEvent } from 'react';
+import type { CSSProperties, PointerEvent } from 'react';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, Bomb, Check, ChevronDown, ChevronLeft, ChevronRight, Crosshair, Flame, HeartPulse, Map as MapIcon, Search, Shield, SlidersHorizontal, Swords, Target, Undo2, X } from 'lucide-react';
 import type { Battle, Dataset, Filters } from '@/lib/data';
@@ -21,6 +21,13 @@ type DraftState = Record<Zone,string[]>;
 type Advice = 'picks'|'bans'|'counters';
 const fresh = ():DraftState => ({team:['','',''],enemy:['','',''],blueBan:['','',''],redBan:['','','']});
 const rosterNames = new Map(brawlers.map(brawler=>[normalize(brawler.name),brawler.name]));
+const rarities = [
+  ['#b9eaff','Comum'],['#68fd58','Raro'],['#5ab3ff','Super-raro'],['#d850ff','Épico'],
+  ['#fe5e72','Mítico'],['#fff11e','Lendário'],['#e1fb2a','Ultralendário'],
+] as const;
+const rarityByColor = new Map<string,{name:string;order:number}>(rarities.map(([color,name],order)=>[color,{name,order}]));
+const sortedRoster = [...brawlers].sort((a,b)=>(rarityByColor.get(a.color)?.order??Infinity)-(rarityByColor.get(b.color)?.order??Infinity)||
+  a.name.localeCompare(b.name,'pt-BR'));
 const banZone = (side:Zone) => side==='blueBan'||side==='redBan';
 
 function ScoutingRows({ rows, onPick, empty, pairs=false, slots, unit='séries', limit=8 }: {
@@ -140,7 +147,7 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
   const nextBan=banOrder.find(s=>!draft[s.side][s.index]);
   const next=phase==='ban'?nextBan??nextPick:nextPick;
   const query=normalize(search);
-  const available=brawlers.filter(b=>(slot.side!=='team'||!owned||eligible.has(normalize(b.name)))&&normalize(b.name).includes(query));
+  const available=sortedRoster.filter(b=>(slot.side!=='team'||!owned||eligible.has(normalize(b.name)))&&normalize(b.name).includes(query));
   const selectable=available.filter(b=>!blocked(b.name));
   const groups=[...new Set([...Object.keys(classIcons),...available.map(b=>b.role)])].map(key=>({
     key, entries:available.filter(b=>b.role===key), Icon:classIcons[key as keyof typeof classIcons]??Swords,
@@ -452,8 +459,9 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
               const status=banned.has(key)?'banned':picked.has(key)?'picked':undefined;
               const label=status==='banned'?'Banido':status==='picked'?'Escolhido':undefined;
               return <button key={b.id} className="roster-brawler" data-status={status} disabled={blocked(b.name)}
-                onClick={()=>assign(b.name)} aria-label={label?`${b.name}, ${label}`:undefined} title={`${b.name} · ${label??roleName(b.role)}`}>
-                <span className="roster-portrait"><Portrait id={b.id}/>
+                onClick={()=>assign(b.name)} aria-label={label?`${b.name}, ${label}`:undefined}
+                title={[b.name,rarityByColor.get(b.color)?.name,label].filter(Boolean).join(' · ')}>
+                <span className="roster-portrait" style={{'--rarity-color':b.color} as CSSProperties}><Portrait id={b.id}/>
                   {label&&<span className="roster-status">{status==='banned'?<Ban size={13}/>:<Check size={13}/>}<span>{label}</span></span>}
                 </span><span className="roster-name">{b.name}</span></button>;
             })}
