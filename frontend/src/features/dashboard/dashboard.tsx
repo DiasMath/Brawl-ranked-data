@@ -177,9 +177,9 @@ export default function Dashboard() {
         {section==='matches'&&<Card title="Histórico de partidas" icon={List} sub={`${number(historySeries.length)} no recorte · ${number(series.length)} no histórico${historySeries[0]?' · Mais recente '+dateTime(historySeries[0].latest.played_at):''} · Horário de Brasília`}
           action={<label className="switch-label"><input type="checkbox" checked={rankedOnly} onChange={e=>setRankedOnly(e.target.checked)}/> Só ranqueadas</label>}>
           <MatchList key={JSON.stringify([filters,rankedOnly])} matches={historySeries} elo={elo} onOpen={b=>setSelected(b.id)}/></Card>}
-        {section==='performance'&&<div className="stack">
-          <ModePerformance key={book.active} matches={rankedSeries}/>
-          <MapTraining key={book.active} rows={performanceRows} history={data.matches} elo={elo} accountName={active.name}
+        {section==='performance'&&<div className="stack" key={`performance:${book.active}`}>
+          <ModePerformance matches={rankedSeries}/>
+          <MapTraining rows={performanceRows} history={data.matches} elo={elo} accountName={active.name}
             selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training}
             onOpen={setSelected} onReview={(id,value)=>saveCoaching({review:{id,value}})}
             onPlan={training=>saveCoaching({training})}

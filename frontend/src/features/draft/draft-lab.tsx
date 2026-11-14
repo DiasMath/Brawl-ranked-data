@@ -1,5 +1,4 @@
-import { gsap } from 'gsap';
-import type { CSSProperties, PointerEvent } from 'react';
+import type { CSSProperties } from 'react';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, Bomb, Check, ChevronDown, ChevronLeft, ChevronRight, Crosshair, Flame, HeartPulse, Map as MapIcon, Search, Shield, SlidersHorizontal, Swords, Target, Undo2, X } from 'lucide-react';
 import type { Battle, Dataset, Filters } from '@/lib/data';
@@ -14,6 +13,7 @@ import { draftMetaMapKey, draftMetaPicks } from '@/lib/draftmeta';
 import { useDraftMeta, useDraftSuggestions } from './use-draftmeta';
 import { DraftSummary } from './draft-summary';
 import { DraftTierList } from './draft-tier-list';
+import { useDraftRosterScroll } from './use-draft-roster-scroll';
 
 type Side = 'team'|'enemy';
 type Zone = Side|'blueBan'|'redBan';
@@ -70,7 +70,6 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
   const [history,setHistory]=useState<{draft:DraftState;slot:Slot;phase:'ban'|'pick'}[]>([]);
   const [search,setSearch]=useState('');
   const [rosterRows,setRosterRows]=useState(3);
-  const [scrollEdges,setScrollEdges]=useState({left:false,right:false});
   const [compactView,setCompactView]=useState<'roster'|'map'>('roster');
   const [summaryOpen,setSummaryOpen]=useState(false);
   const [source,setSource]=useState<'draftmeta'|'public'|'account'>('draftmeta');
@@ -79,10 +78,6 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
   const input=useRef<HTMLInputElement>(null);
   const roster=useRef<HTMLElement>(null);
   const rail=useRef<HTMLDivElement>(null);
-  const drag=useRef<{id:number; x:number; moved:boolean; samples:{left:number;at:number}[]}|null>(null);
-  const tween=useRef<gsap.core.Tween|null>(null);
-  const wheelTarget=useRef<{left:number;at:number;direction:number}|null>(null);
-  const suppressClick=useRef(false);
   const {period,setPeriod,report}=useContext(LiveMeta);
   useEffect(()=>{
     const element=rail.current;
@@ -153,7 +148,7 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
   const groups=[...new Set([...Object.keys(classIcons),...available.map(b=>b.role)])].map(key=>({
     key, entries:available.filter(b=>b.role===key), Icon:classIcons[key as keyof typeof classIcons]??Swords,
   })).filter(group=>group.entries.length);
-  const groupCounts=groups.map(group=>group.entries.length).join(',');
+  const {track,content,scrollEdges,stepRoster,dragHandlers}=useDraftRosterScroll(rail,query,active,compactView);
   useEffect(()=>{
     if(complete){setSummaryOpen(true);}
     else{setSummaryOpen(false);}
@@ -178,110 +173,6 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
       input.current?.focus({preventScroll:true});
     }
   },[active,compactView,phase,slot,mapOpen,complete]);
-  useEffect(()=>{if(rail.current)rail.current.scrollLeft=0;},[query]);
-  useEffect(()=>{
-    const element=rail.current;
-    if(!element)return;
-    function update(){
-      const left=element!.scrollLeft>1;
-      const right=element!.scrollLeft+element!.clientWidth<element!.scrollWidth-1;
-      setScrollEdges(previous=>previous.left===left&&previous.right===right?previous:{left,right});
-    }
-    const resize=new ResizeObserver(update);
-    resize.observe(element);
-    element.addEventListener('scroll',update,{passive:true});
-    update();
-    return()=>{resize.disconnect();element.removeEventListener('scroll',update);};
-  },[groupCounts,rosterRows]);
-
-  function animateScroll(element:HTMLDivElement, position:number, duration:number){
-    const left=Math.max(0,Math.min(element.scrollWidth-element.clientWidth,position));
-    tween.current?.kill();
-    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){
-      element.scrollLeft=left;
-      return;
-    }
-    // Animate from the browser's actual scroll position, including a drag at either edge.
-    const scroll={left:element.scrollLeft};
-    tween.current=gsap.to(scroll,{left,duration,ease:'power2.out',
-      onUpdate:()=>{element.scrollLeft=scroll.left;}});
-  }
-  function startDrag(event:PointerEvent<HTMLDivElement>){
-    tween.current?.kill();
-    wheelTarget.current=null;
-    if(event.pointerType!=='mouse'||event.button!==0)return;
-    const element=event.currentTarget;
-    suppressClick.current=false;
-    drag.current={id:event.pointerId,x:event.clientX,moved:false,samples:[{left:element.scrollLeft,at:event.timeStamp}]};
-  }
-  function moveDrag(event:PointerEvent<HTMLDivElement>){
-    const current=drag.current;
-    if(!current||current.id!==event.pointerId)return;
-    if(!event.buttons){drag.current=null;return;}
-    const delta=event.clientX-current.x;
-    if(!current.moved&&Math.abs(delta)<6)return;
-    if(!current.moved){
-      current.moved=true;
-      event.currentTarget.setPointerCapture(event.pointerId);
-    }
-    suppressClick.current=true;
-    const element=event.currentTarget;
-    element.scrollLeft-=delta;
-    current.x=event.clientX;
-    const recent=current.samples.filter(sample=>event.timeStamp-sample.at<=125);
-    current.samples=[...recent,{left:element.scrollLeft,at:event.timeStamp}];
-  }
-  function finishDrag(event:PointerEvent<HTMLDivElement>){
-    const current=drag.current;
-    if(!current||current.id!==event.pointerId)return;
-    drag.current=null;
-    const last=current.samples.at(-1);
-    const first=current.samples.find(sample=>event.timeStamp-sample.at<=100);
-    if(!current.moved||!last||!first||event.timeStamp-last.at>65||
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
-    const velocity=(last.left-first.left)/Math.max(12,event.timeStamp-first.at);
-    if(Math.abs(velocity)<.08)return;
-    const element=event.currentTarget;
-    const glide=Math.max(-72,Math.min(72,velocity*95));
-    animateScroll(element,element.scrollLeft+glide,.28);
-  }
-  useEffect(()=>{
-    const element=rail.current;
-    if(!element||!active)return;
-    function wheel(event:WheelEvent){
-      if(!element||event.ctrlKey||drag.current?.moved)return;
-      if(event.shiftKey||Math.abs(event.deltaX)>=Math.abs(event.deltaY)){
-        tween.current?.kill();
-        wheelTarget.current=null;
-        return;
-      }
-      const max=element.scrollWidth-element.clientWidth;
-      if(max<=0)return;
-      const previous=wheelTarget.current;
-      const direction=Math.sign(event.deltaY);
-      const visible=element.scrollLeft;
-      const base=previous&&previous.direction===direction&&event.timeStamp-previous.at<220?previous.left:visible;
-      const unit=event.deltaMode===1?16:event.deltaMode===2?element.clientWidth:1;
-      const target=Math.max(visible-element.clientWidth,Math.min(visible+element.clientWidth,base+event.deltaY*unit));
-      const left=Math.max(0,Math.min(max,target));
-      event.preventDefault();
-      wheelTarget.current={left,at:event.timeStamp,direction};
-      animateScroll(element,left,.22);
-    }
-    element.addEventListener('wheel',wheel,{passive:false});
-    return ()=>{
-      element.removeEventListener('wheel',wheel);
-      tween.current?.kill();
-      wheelTarget.current=null;
-    };
-  },[active,query,compactView]);
-  function stepRoster(direction:number){
-    const element=rail.current;
-    if(!element)return;
-    const distance=Math.max(100,element.clientWidth*.8);
-    animateScroll(element,element.scrollLeft+direction*distance,.44);
-  }
-
   const mapPages=Math.max(1,Math.ceil(distinctMaps.length/7));
   const currentMapPage=Math.min(mapPage,mapPages-1);
   const displayedMaps=distinctMaps.slice(currentMapPage*7,(currentMapPage+1)*7);
@@ -444,11 +335,9 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
         <div className="draft-pagination"><button aria-label="Rolar brawlers para a esquerda" disabled={!scrollEdges.left} onClick={()=>stepRoster(-1)}><ChevronLeft size={16}/></button>
           <button aria-label="Rolar brawlers para a direita" disabled={!scrollEdges.right} onClick={()=>stepRoster(1)}><ChevronRight size={16}/></button></div></div>
       <div ref={rail} className="draft-roster-rail" aria-label="Faixa de brawlers por classe" tabIndex={0}
-        onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={finishDrag}
-        onPointerCancel={()=>{drag.current=null;tween.current?.kill();}} onLostPointerCapture={()=>{drag.current=null;}}
-        onDragStart={event=>event.preventDefault()}
-        onClickCapture={e=>{if(suppressClick.current&&e.detail){e.preventDefault();e.stopPropagation();suppressClick.current=false;}}}
+        {...dragHandlers}
         onKeyDown={e=>{if(e.target===e.currentTarget&&(e.key==='ArrowRight'||e.key==='ArrowLeft')){e.preventDefault();stepRoster(e.key==='ArrowRight'?1:-1);}}}>
+        <div ref={track} className="draft-roster-track"><div ref={content} className="draft-roster-content">
         {groups.map(({key,Icon,entries})=><section className="draft-class" key={key}>
           <h3><Icon size={16}/>{classNames[key]??roleName(key)} <span>{entries.length}</span></h3>
           <div className="draft-class-grid" style={{gridTemplateRows:`repeat(${Math.min(rosterRows,entries.length)}, var(--roster-tile))`}}>
@@ -466,6 +355,7 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
           </div>
         </section>)}
         {!available.length&&<p className="section-note">Nenhum brawler encontrado.</p>}
+        </div></div>
       </div>
       {!!profile?.owned_brawlers?.length&&<label className="checkbox draft-owned"><input type="checkbox" checked={owned} onChange={e=>setOwned(e.target.checked)}/> Só meus picks de poder 11</label>}
     </section>
