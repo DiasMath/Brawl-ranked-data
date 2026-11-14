@@ -17,7 +17,8 @@ export function seriesSeason(match: MatchSeries) {
 }
 
 export function seriesBattle(match: MatchSeries): Battle {
-  return {...match.latest, result:match.result,
+  const bans=seriesBans(match)?.bans??null;
+  return {...match.latest, result:match.result, bans, bans_source:null, bans_reference:null,
     player_brawler:match.latest.player_brawler??match.rounds.findLast(round=>round.player_brawler)?.player_brawler??null};
 }
 
@@ -172,12 +173,14 @@ export function seriesRank(match: MatchSeries, round=match.latest) {
     ? known[0] : undefined;
 }
 
-export function seriesBans(match: MatchSeries, round=match.latest) {
-  if (round.bans!==null&&!round.bans_source) return round;
-  const known=match.rounds.filter(item=>item.bans!==null&&!item.bans_source);
-  const signature=(item: Battle)=>JSON.stringify(item.bans?.map(normalize).sort());
-  return known.every(item=>signature(item)===signature(known[0]))
-    ? known[0] : undefined;
+export function seriesBans(match: MatchSeries, round?: Battle) {
+  if (round&&Array.isArray(round.bans)&&!round.bans_source) return round;
+  const known=match.rounds.filter(item=>Array.isArray(item.bans)&&!item.bans_source);
+  const first=known[0];
+  if(!first)return undefined;
+  const signature=(item: Battle)=>JSON.stringify([...new Set(item.bans!.map(normalize))].sort());
+  const expected=signature(first);
+  return known.every(item=>signature(item)===expected)?first:undefined;
 }
 
 export function matchEloChanges(series: MatchSeries[], readings: Progress[]) {

@@ -28,14 +28,14 @@ function metaLeaders(sample:PublicStats, volume:number, metric:Metric):ChartRow[
   return ordered(picks.filter(r=>r.games>0)).map(r=>({name:r.name,value:r.wins/r.games,detail:`${number(r.games)} resultados decisivos`}));
 }
 
-export function VisualRanking({title,rows,limit=5,metric='win',empty,portraits=true}:{
-  title:string;rows:ChartRow[];limit?:number;metric?:Metric;empty?:string;portraits?:boolean;
+export function VisualRanking({title,rows,limit=5,metric='win',empty,portraits=true,sub}:{
+  title:string;rows:ChartRow[];limit?:number;metric?:Metric;empty?:string;portraits?:boolean;sub?:string;
 }) {
   const Icon=metric==='ban'?Ban:metric==='pick'?Crosshair:Trophy;
   const shown=rows.slice(0,limit);
   const scale=metric==='win'?1:Math.max(0.01,...shown.map(r=>r.value));
   return <section className="card visual-ranking">
-    <div className="card-head"><div><h2><Icon size={17}/>{title}</h2></div></div>
+    <div className="card-head"><div><h2><Icon size={17}/>{title}</h2>{sub&&<p>{sub}</p>}</div></div>
     {shown.length?<ol>{shown.map((row,i)=><li className={`metric-row metric-${metric}`} key={row.name}>
       <span className="row-number">{String(i+1).padStart(2,'0')}</span>
       {portraits&&<Portrait name={row.name}/>}

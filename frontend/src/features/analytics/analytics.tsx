@@ -190,7 +190,7 @@ function TableComparison({ publicSample, setCount, own, brawler, unit }: {
       <option value="win">Melhores picks · win rate e amostra</option><option value="pick">Pick rate</option>{banKnown>0&&<option value="ban">Ban rate</option>}</select>
       {banKnown>0&&<span>{number(banKnown)} de {number(setCount)} registros com bans explícitos</span>}</div>
     {display.length?<PagedTable label="Estatísticas por brawler" rows={display} pageKey={JSON.stringify([metric,brawler])} headings={<><th>Brawler</th><th>Win rate</th><th>Amostra · {unit}</th><th>Pick rate</th>{banKnown>0&&<th>Ban rate</th>}
-      <th>Win rate · conta</th><th>Registros da conta</th></>} renderRow={r=>{
+      <th>Win rate · conta</th><th>Decisivas · conta</th></>} renderRow={r=>{
         const a=accounts.get(normalize(r.name));
         return <tr key={r.name}><td><span className="image-label"><Portrait name={r.name}/>{r.name}</span></td><td>{percent(r.games?r.wins/r.games:null)}</td>
           <td>{number(r.games)}{r.games>0&&r.games<30&&<small>Amostra pequena</small>}</td>

@@ -9,6 +9,7 @@ Lista de trabalho do Brawl Ranked Data, em ordem de execução no ambiente local
 | 3 | Mostrar a evolução por brawler | Concluída no código e validada em teste | Usar todo o histórico coletado ou uma temporada para win rate e pick rate pessoais. Comparar as últimas 10 partidas decisivas com as até 10 anteriores na forma recente. Respeitar modo e mapa e mostrar a amostra de cada taxa. |
 | 4 | Conferir o histórico com partidas reais | Validação parcial | Comparar as partidas da coleta pessoal com o histórico dentro do jogo. Conferir placar, quantidade e ordem das rodadas, duração, craque e viradas. Registrar divergências com o campo recebido e o valor mostrado. |
 | 5 | Uniformizar a contagem nas sugestões pessoais e no treino | Concluída no código e validada em teste | Contar uma série uma única vez nas sugestões do Draft Lab, na busca de counters da conta e no acompanhamento do plano de treino. Permitir limitar a fonte pessoal do Draft Lab por temporada e mapa. |
+| 6 | Alinhar os indicadores pessoais de draft e meta | Concluída no código e validada em teste | Calcular os picks e bans por série. Dar aos indicadores pessoais um recorte por temporada ou histórico inteiro e mostrar a cobertura dos bans. Usar séries nas comparações da conta com a meta. |
 
 ## Critérios para os dados
 
@@ -55,3 +56,9 @@ No dev, **Contas e dados → Exportar histórico** reúne os registros do painel
 Em **Draft Lab → Recomendações → Minha conta**, o recorte usa o mapa do draft e permite escolher todo o histórico ou uma temporada. Picks, sugestões de ban por derrotas observadas e counters pessoais usam o resultado das séries. A ficha do mapa também usa séries na comparação da conta com a referência competitiva.
 
 Em **Desempenho → Próxima sessão**, o plano conta as séries cuja primeira e última rodadas registradas estão no intervalo do treino. O teste confirmou que uma vitória por 2–1 entra uma vez, que enfrentar dois alvos em uma série não duplica o total de confrontos e que os filtros de temporada e mapa mudam a amostra das sugestões.
+
+## Validação da etapa 6
+
+Em **Picks, bans e counters**, a seção da conta usa o histórico inteiro ou a temporada escolhida, com o filtro de mapa da tela. Selecionar um brawler restringe os itens do ranking de picks e conserva o total de escolhas identificadas no denominador. A comparação da conta com a Meta usa uma partida por série dentro da janela da referência.
+
+A cobertura de bans divide as séries com lista oficial conhecida pelo total do recorte. Uma lista vazia explícita conta na cobertura e registra zero bans. Quando as rodadas trazem listas oficiais diferentes, a série fica sem lista consolidada e o detalhe conserva a lista de cada rodada. Os testes conferiram picks, win rate, filtros, listas repetidas e conflitantes e a diferença entre zero bans e ausência da lista.

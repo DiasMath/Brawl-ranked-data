@@ -5,7 +5,7 @@ import { CalendarDays, ChevronRight, Filter, FlaskConical, History, List, LockKe
 import { Card } from '@/components/dashboard-ui';
 import { FeedbackToast } from '@/components/feedback-toast';
 import { AccountIcon, brawlers } from '@/components/game';
-import { battleSeason, dateTime, draftStats, emptyFilters, filtered, localDay, normalize, number } from '@/lib/data';
+import { battleSeason, dateTime, emptyFilters, localDay, normalize, number } from '@/lib/data';
 import { downloadSnapshot } from '@/lib/browser-store';
 import { loadUpdates } from '@/features/collection/update-history';
 import { collectionRequest, defaultMetaPeriod, inMetaPeriod, LiveMeta } from '@/lib/live';
@@ -20,19 +20,19 @@ import { CollectorPanel, MetaPeriods } from '@/features/collection/collector-pan
 import { SupercellCredential } from '@/features/collection/supercell-credential';
 import { SyncProgressCard } from '@/features/collection/sync-progress';
 import { SyncStatus } from '@/features/collection/sync-status';
-import { CounterFinder, DraftLab } from '@/features/draft/draft-lab';
+import { DraftLab } from '@/features/draft/draft-lab';
+import { PersonalDraftStats } from '@/features/draft/personal-draft-stats';
 import { DraftTierList } from '@/features/draft/draft-tier-list';
 import { useDraftMeta } from '@/features/draft/use-draftmeta';
 import { MatchDetail, MatchList } from '@/features/matches/match-history';
-import { MetaDashboard, MetaRankings, VisualRanking } from '@/features/meta/meta-dashboard';
-import { AccountBans } from '@/features/meta/external-account';
+import { MetaDashboard, MetaRankings } from '@/features/meta/meta-dashboard';
 import { ExternalMeta } from '@/features/meta/external-meta';
 import { MetaView } from '@/features/meta/meta-comparison';
 import { SampleCollection } from '@/features/meta/sample-collection';
 import publicIndex from '@public/scouting/index.json';
 import { columnFilters, navigation, subtitles } from './navigation';
 import { useDashboard } from './use-dashboard';
-import { filteredSeries, matchEloChanges, matchSeries, seriesBattle, seriesInScope } from '@/lib/match-series';
+import { filteredSeries, matchEloChanges, matchSeries, seriesBattle } from '@/lib/match-series';
 
 export default function Dashboard() {
   const {section, filters, setFilters, book, local, period, setPeriod, server, serverError,
@@ -84,7 +84,6 @@ export default function Dashboard() {
     return ()=>{controller.abort();window.clearInterval(timer);};
   },[loadMeta]);
   const metaFilters={...filters,start:'',end:'',rank_label:'',season:period==='reference'?filters.season:''};
-  const metaAccount=filtered(data.matches,metaFilters,true);
   const series=useMemo(()=>matchSeries(data.matches),[data.matches]);
   const rankedHistory=useMemo(()=>series.filter(match=>match.latest.ranked),[series]);
   const elo=useMemo(()=>matchEloChanges(series,local.progress),[series,local.progress]);
@@ -92,8 +91,11 @@ export default function Dashboard() {
   const rankedSeries=section==='overview'||section==='performance'?filteredSeries(series,data.matches,filters,true,elo):[];
   const performanceRows=section==='performance'?rankedSeries.map(seriesBattle):[];
   const selectedSeries=match&&series.find(item=>item.rounds.some(round=>round.id===match.id));
-  const comparedAccount=metaAccount.filter(match=>inMetaPeriod(match.played_at,period,report));
-  const draft=draftStats(comparedAccount);
+  const metaMatches=(section==='draft'||section==='meta')?filteredSeries(rankedHistory,data.matches,metaFilters,true,elo):[];
+  const metaAccount=metaMatches.map(seriesBattle);
+  const recentDrafts=metaMatches.filter(({latest})=>inMetaPeriod(latest.played_at,period,report)&&
+    latest.players.some(p=>p.side==='ally')&&latest.players.some(p=>p.side==='opponent'));
+  const accountHistory=useMemo(()=>rankedHistory.map(seriesBattle),[rankedHistory]);
   const current=navigation.find(item=>item.key===section)!;
   const filtersVisible=!['sources','draftlab'].includes(section)&&!(section==='meta'&&metaSource==='external');
   const progressFilters={...emptyFilters,start:filters.start,end:filters.end,season:filters.season};
@@ -200,18 +202,11 @@ export default function Dashboard() {
           <MetaPeriods/>
           <MetaRankings map={filters.map_name} filters={metaFilters}/>
           <PublicMeta filters={metaFilters} matches={metaAccount}/>
-          <CounterFinder matches={seriesInScope(rankedHistory,metaAccount).map(seriesBattle)
-            .filter(match=>inMetaPeriod(match.played_at,period,report))} mode="" map={filters.map_name} filters={metaFilters} imported={local.matchups}/>
-          <div className="two-col equal">
-            <VisualRanking title="Meus picks" metric="pick"
-              rows={draft.picks?draft.rows.filter(r=>r.picks>0).map(r=>({name:r.label,value:r.picks/draft.picks,detail:number(r.picks)+' picks próprios'})):[]}
-              empty="Sincronize a conta para ver seus picks."/>
-            <AccountBans matches={comparedAccount} selectedMap={filters.map_name||null}/>
-          </div>
+          <PersonalDraftStats key={book.active} matches={rankedHistory} filters={metaFilters} imported={local.matchups}/>
           <DraftTierList meta={draftTier}/>
           <Card title="Drafts recentes" icon={History} sub="Composições dos registros ranqueados."
             action={<button className="button small subtle" onClick={()=>navigate('draftlab')}><FlaskConical size={15}/> Abrir Draft Lab</button>}>
-            <MatchList matches={seriesInScope(series,comparedAccount.filter(b=>b.players.some(p=>p.side==='ally')&&b.players.some(p=>p.side==='opponent')))} elo={elo} compact onOpen={b=>setSelected(b.id)}/>
+            <MatchList matches={recentDrafts} elo={elo} compact onOpen={b=>setSelected(b.id)}/>
           </Card>
         </div>}
         {section==='meta'&&<div className="stack">
@@ -219,14 +214,14 @@ export default function Dashboard() {
             <button aria-pressed={metaSource==='external'} onClick={()=>setMetaSource('external')}>DraftMeta</button>
             <button aria-pressed={metaSource==='own'} onClick={()=>setMetaSource('own')}>Coleta própria e histórico</button>
           </div>
-          {metaSource==='external'?<ExternalMeta matches={data.player_tag===active.tag?data.matches:[]} accountName={active.name}/>:<><MetaDashboard filters={metaFilters} matches={metaAccount}
+          {metaSource==='external'?<ExternalMeta matches={data.player_tag===active.tag?accountHistory:[]} accountName={active.name}/>:<><MetaDashboard filters={metaFilters} matches={metaAccount}
             onMap={map_name=>setFilters({...filters,map_name})}/>
           <SampleCollection tracking={report?.tracking} diagnostics={report?.diagnostics} notify={setFeedback} onCollected={sample=>{
             metaRevision.current++;
             if(firstMetaRead.current) setPeriod(defaultMetaPeriod(sample));
             firstMetaRead.current=false;
             setReport(sample);
-          }}/>{data.meta.length>0&&<MetaView data={data} filters={metaFilters}/>}</>}</div>}
+          }}/>{data.meta.length>0&&<MetaView data={{...data,matches:accountHistory}} filters={metaFilters}/>}</>}</div>}
         {section==='sources'&&<div className="stack">
           <CollectorPanel server={server} serverError={serverError} battles={data.matches} onSync={()=>void sync()} syncing={sending} hasAccount={!!book.active}/>
           <SupercellCredential onSaved={()=>void refreshCollection()}/>

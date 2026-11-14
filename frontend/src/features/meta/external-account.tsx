@@ -64,13 +64,11 @@ export function AccountComparison({ matches, accountName, tiers, pickRates, sour
 
 export function AccountBans({matches,selectedMap}: {matches:Battle[]; selectedMap:string|null}) {
   const [map,setMap] = useState('');
-  const available=matches.filter(match=>match.bans!==null&&!match.bans_source);
-  if(!available.length)return null;
-  const maps = [...new Map(available.flatMap(match=>match.map_name?[[mapKey(match.map_name),match.map_name] as const]:[]))]
+  if(!matches.length)return null;
+  const maps = [...new Map(matches.flatMap(match=>match.map_name?[[mapKey(match.map_name),match.map_name] as const]:[]))]
     .sort((a,b)=>a[1].localeCompare(b[1],'pt-BR'));
   const activeMap = selectedMap ? mapKey(selectedMap) : maps.some(([key])=>key===map) ? map : '';
   const result = observedBans(activeMap ? matches.filter(match=>mapKey(match.map_name)===activeMap) : matches);
-  if(!result.known)return null;
   return <section className="card account-card external-meta-card">
     <div className="card-head"><div><h2><Ban size={17}/> Bans observados nas minhas partidas</h2>
       <p>{number(result.known)} de {number(result.total)} partidas com lista conhecida{result.total?` · ${percent(result.known/result.total)} de cobertura`:''}</p></div>
@@ -81,6 +79,6 @@ export function AccountBans({matches,selectedMap}: {matches:Battle[]; selectedMa
     <p className="section-note">Taxa nas partidas da sua conta com lista publicada pela Supercell. Um brawler conta uma vez por partida.</p>
     {result.rows.length?<PagedTable label="Bans observados" rows={result.rows} pageKey={activeMap} headings={<><th>Brawler</th><th>Partidas em que foi banido</th><th>Taxa observada</th></>} renderRow={row=><tr key={row.label}><td><span className="image-label"><Portrait name={row.label}/>{row.label}</span></td>
         <td>{number(row.bans)} de {number(result.known)}</td><td>{percent(row.bans/result.known)}</td></tr>}/>:
-      <p className="section-note">As listas recebidas registram zero bans.</p>}
+      <p className="section-note">{result.known?'As listas recebidas registram zero bans.':'Sem listas de bans da Supercell para este recorte.'}</p>}
   </section>;
 }
