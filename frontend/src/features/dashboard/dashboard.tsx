@@ -17,6 +17,8 @@ import { CollectorPanel, MetaPeriods } from '@/features/collection/collector-pan
 import { SupercellCredential } from '@/features/collection/supercell-credential';
 import { SyncProgressCard } from '@/features/collection/sync-progress';
 import { CounterFinder, DraftLab } from '@/features/draft/draft-lab';
+import { DraftTierList } from '@/features/draft/draft-tier-list';
+import { useDraftMeta } from '@/features/draft/use-draftmeta';
 import { MatchDetail, MatchList } from '@/features/matches/match-history';
 import { MetaDashboard, MetaRankings, VisualRanking } from '@/features/meta/meta-dashboard';
 import { AccountBans } from '@/features/meta/external-account';
@@ -26,6 +28,7 @@ import { SampleCollection } from '@/features/meta/sample-collection';
 import publicIndex from '@public/scouting/index.json';
 import { columnFilters, navigation, subtitles } from './navigation';
 import { useDashboard } from './use-dashboard';
+import { filteredSeries, matchSeries, seriesInScope } from '@/lib/match-series';
 
 export default function Dashboard() {
   const {section, filters, setFilters, book, local, period, setPeriod, server, serverError,
@@ -35,6 +38,7 @@ export default function Dashboard() {
   const [report,setReport]=useState<LiveReport|null>(null);
   const [draftTarget,setDraftTarget]=useState({map:'',revision:0});
   const [metaSource,setMetaSource]=useState<'external'|'own'>('external');
+  const draftTier=useDraftMeta(filters.map_name,section==='draft');
   const metaRevision=useRef(0);
   const firstMetaRead=useRef(true);
   const changePeriod=(value: typeof period)=>{firstMetaRead.current=false;setPeriod(value);};
@@ -66,7 +70,10 @@ export default function Dashboard() {
   const metaFilters={...filters,start:'',end:'',rank_label:'',season:period==='reference'?filters.season:''};
   const ranked=useMemo(()=>filtered(data.matches,filters,true),[data.matches,filters]);
   const metaAccount=filtered(data.matches,metaFilters,true);
-  const shownMatches=useMemo(()=>rankedOnly?ranked:filtered(data.matches,filters,false),[data.matches,filters,ranked,rankedOnly]);
+  const series=useMemo(()=>matchSeries(data.matches),[data.matches]);
+  const historySeries=section==='matches'?filteredSeries(series,data.matches,filters,rankedOnly):[];
+  const rankedSeries=section==='overview'?filteredSeries(series,data.matches,filters,true):[];
+  const selectedSeries=match&&series.find(item=>item.rounds.some(round=>round.id===match.id));
   const comparedAccount=metaAccount.filter(match=>inMetaPeriod(match.played_at,period,report));
   const draft=draftStats(comparedAccount);
   const current=navigation.find(item=>item.key===section)!;
@@ -142,13 +149,13 @@ export default function Dashboard() {
                 {available[key].map(v=><option key={v} value={v}>{v}</option>)}</select></label>)}</div>
           {dateError&&!commonPublic&&<p className="section-note error" role="alert">A data final deve ser igual ou posterior à data inicial.</p>}
         </section>}
-        {section==='overview'&&<Overview local={local} account={active} matches={ranked} filters={filters}
+        {section==='overview'&&<Overview local={local} account={active} matches={rankedSeries} historyCount={series.length} filters={filters}
           busy={busy||!ready||sending} syncing={sending} onSettings={()=>navigate('sources')} onProgress={()=>navigate('progress')} onDraft={()=>navigate('draftlab')} onMeta={()=>navigate('meta')} onSync={()=>void sync()} onMatch={b=>setSelected(b.id)} onHistory={()=>navigate('matches')} collectorLinked={!!server?.configured}/>}
         {section==='progress'&&<Progression key={book.active} local={local} filters={progressFilters}
           matches={filtered(data.matches,progressFilters,true)} onSave={saveProgress}/>}
-        {section==='matches'&&<Card title="Histórico de partidas" icon={List} sub={`${number(shownMatches.length)} no recorte · ${number(data.matches.length)} no histórico${shownMatches[0]?' · Mais recente '+dateTime(shownMatches[0].played_at):''} · Horário de Brasília`}
+        {section==='matches'&&<Card title="Histórico de partidas" icon={List} sub={`${number(historySeries.length)} no recorte · ${number(series.length)} no histórico${historySeries[0]?' · Mais recente '+dateTime(historySeries[0].latest.played_at):''} · Horário de Brasília`}
           action={<label className="switch-label"><input type="checkbox" checked={rankedOnly} onChange={e=>setRankedOnly(e.target.checked)}/> Só ranqueadas</label>}>
-          <MatchList key={JSON.stringify([filters,rankedOnly])} matches={shownMatches} onOpen={b=>setSelected(b.id)}/></Card>}
+          <MatchList key={JSON.stringify([filters,rankedOnly])} matches={historySeries} onOpen={b=>setSelected(b.id)}/></Card>}
         {section==='performance'&&<div className="stack">
           <MapTraining key={book.active} rows={ranked} history={data.matches} accountName={active.name}
             selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training}
@@ -171,9 +178,10 @@ export default function Dashboard() {
               empty="Sincronize a conta para ver seus picks."/>
             <AccountBans matches={comparedAccount} selectedMap={filters.map_name||null}/>
           </div>
+          <DraftTierList meta={draftTier}/>
           <Card title="Drafts recentes" icon={History} sub="Composições dos registros ranqueados."
             action={<button className="button small subtle" onClick={()=>navigate('draftlab')}><FlaskConical size={15}/> Abrir Draft Lab</button>}>
-            <MatchList matches={comparedAccount.filter(b=>b.players.some(p=>p.side==='ally')&&b.players.some(p=>p.side==='opponent'))} compact onOpen={b=>setSelected(b.id)}/>
+            <MatchList matches={seriesInScope(series,comparedAccount.filter(b=>b.players.some(p=>p.side==='ally')&&b.players.some(p=>p.side==='opponent')))} compact onOpen={b=>setSelected(b.id)}/>
           </Card>
         </div>}
         {section==='meta'&&<div className="stack">
@@ -201,7 +209,8 @@ export default function Dashboard() {
       {syncProgress&&<SyncProgressCard progress={syncProgress} account={active.name}/>}
       {feedback&&<FeedbackToast key={feedback} message={feedback} onDismiss={dismissFeedback}/>}
     </div>}
-    {match&&<MatchDetail key={match.id} match={match} raw={local.raw[match.id]} review={local.reviews?.[match.id]} onClose={()=>setSelected(null)} onChange={saveEvidence}
+    {match&&<MatchDetail key={selectedSeries?.id??match.id} match={match} series={selectedSeries} onRound={setSelected}
+      raw={local.raw[match.id]} review={local.reviews?.[match.id]} onClose={()=>setSelected(null)} onChange={saveEvidence}
       onReview={value=>saveCoaching({review:{id:match.id,value}})}/>}
   </div></LiveMeta.Provider>;
 }

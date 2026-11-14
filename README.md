@@ -179,6 +179,8 @@ Em **Contas e dados**, cadastre cada jogador pela tag. O painel mostra a tag at�
 
 A Supercell fornece uma janela de até 25 partidas recentes por consulta. O banco acumula as partidas novas conforme são coletadas. O histórico mostra todos os modos por padrão e pode ser filtrado para exibir só as partidas identificadas como Ranqueado. Análises de Ranqueado dependem das partidas e campos que a fonte fornece.
 
+Em **Partidas** e **Forma recente**, rodadas ranqueadas consecutivas com o mesmo mapa, modo e os mesmos jogadores e brawlers são agrupadas dentro de uma janela curta. Duas vitórias ou duas derrotas encerram a série. Quando o grupo tem mais de uma rodada e a coleta ainda não confirma o vencedor, aparece **Resultado em aberto**. Abra a partida para consultar cada rodada, evidência e JSON da API. Os filtros de data nessas telas usam o horário da última rodada registrada.
+
 Em **Meta → Amostra de outros jogadores**, atualize até cinco históricos da classificação global da Supercell ou consulte uma tag pública específica. A coleta guarda as ranqueadas 3×3 completas em uma amostra independente das contas monitoradas. O painel calcula picks, win rate, confrontos e sinergias por mapa. A consulta manual alimenta as janelas Hoje e 7 dias. Os recortes por patch e temporada usam as partidas que a fila competitiva confirmou pelo Elo do perfil. O histórico padrão da API mostra os times finais. As taxas de ban exigem uma fonte com listas explícitas.
 
 ### Coleta recorrente da Meta

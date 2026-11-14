@@ -6,6 +6,7 @@ import { dateTime, modeName, number, resultName, safeLink } from '@/lib/data';
 import { ReplayAnnotation } from '@/features/analytics/replay-annotation';
 import type { ReplayReview } from '@/lib/coaching';
 import type { Battle } from '@/lib/data';
+import type { MatchSeries } from '@/lib/match-series';
 
 const pageSize = 15;
 
@@ -13,19 +14,21 @@ function resultTone(result: Battle['result']) {
   return result === 'victory' ? 'success' : result === 'defeat' ? 'danger' : 'neutral';
 }
 
-export function MatchList({ matches, onOpen, compact = false }: { matches: Battle[]; onOpen: (b: Battle) => void; compact?: boolean }) {
+export function MatchList({ matches, onOpen, compact = false }: { matches: MatchSeries[]; onOpen: (b: Battle) => void; compact?: boolean }) {
   const [page, setPage] = useState(0);
   const current = Math.min(page, Math.max(0, Math.ceil(matches.length / pageSize) - 1));
   if (!matches.length) return <Empty icon={List} title="Nenhuma partida encontrada">Atualize o histórico ou ajuste os filtros do recorte.</Empty>;
   const visible = compact ? matches.slice(0, 6) : matches.slice(current * pageSize, (current + 1) * pageSize);
   return <><div className="table-wrap"><table><thead><tr><th>Data e hora</th><th>Mapa / modo</th><th>Brawler</th><th>Resultado</th>
-    <th>Rank</th><th aria-label="Detalhes" /></tr></thead><tbody>{visible.map(b => <tr key={b.id}>
+    <th>Rank</th><th aria-label="Detalhes" /></tr></thead><tbody>{visible.map(({id,latest:b,result,rounds,wins,losses}) => <tr key={id}>
       <td>{dateTime(b.played_at)}</td><td><span className="image-label"><ModeIcon mode={b.mode}/><span><strong>{b.map_name ?? '—'}</strong><small>{modeName(b.mode)}</small></span></span></td>
-      <td><span className="image-label"><Portrait name={b.player_brawler}/>{b.player_brawler ?? '—'}</span></td><td><Pill kind={resultTone(b.result)}>{resultName(b.result)}</Pill></td>
+      <td><span className="image-label"><Portrait name={b.player_brawler}/>{b.player_brawler ?? '—'}</span></td><td>
+        <Pill kind={resultTone(result)}>{rounds.length>1&&!result?'Resultado em aberto':resultName(result)}</Pill>
+        {rounds.length>1&&<small title="Agrupamento inferido a partir do histórico">{wins}–{losses} · {rounds.length} rodadas</small>}</td>
       <td>{b.ranked ? b.rank_label ? <span className="image-label inline-rank"><RankArt rank={b.rank_label}/>{b.rank_label}</span> :
         <span className="muted" title="O histórico da API não trouxe o rank desta partida.">Não informado</span> : '—'}</td><td><button className="icon-button" aria-label={`Detalhar partida de ${dateTime(b.played_at)}`}
         onClick={() => onOpen(b)}><ChevronRight size={16} /></button></td></tr>)}</tbody></table></div>
-    {!compact && <div className="pager"><span>{number(matches.length)} registros</span><div>
+    {!compact && <div className="pager"><span>{number(matches.length)} {matches.length===1?'partida':'partidas'}</span><div>
       <button className="icon-button" disabled={!current} aria-label="Página anterior" onClick={() => setPage(current - 1)}><ChevronLeft size={17} /></button>
       <span>{current + 1} / {Math.ceil(matches.length / pageSize)}</span>
       <button className="icon-button" disabled={(current + 1) * pageSize >= matches.length} aria-label="Próxima página"
@@ -33,8 +36,9 @@ export function MatchList({ matches, onOpen, compact = false }: { matches: Battl
 }
 
 export type Evidence = { rank_label: string|null; rank_score: number|null; season: string|null; bans: string[]|null; evidence:string };
-export function MatchDetail({ match, raw, review, onClose, onChange, onReview }: {
+export function MatchDetail({ match, series, onRound, raw, review, onClose, onChange, onReview }: {
   match: Battle; raw: unknown; review?: ReplayReview; onClose: () => void;
+  series?: MatchSeries; onRound?: (id: string) => void;
   onChange: (record:Evidence) => Promise<void>; onReview: (value:ReplayReview) => Promise<void>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -62,6 +66,7 @@ export function MatchDetail({ match, raw, review, onClose, onChange, onReview }:
     finally { setSaving(false); }
   }
   const groups = [...new Set(match.players.map(p => p.team_index))];
+  const grouped = series && series.rounds.length>1 ? series : null;
   const fields = [
     { label:'Rank da partida', value:match.rank_label, reference:match.rank_reference },
     { label:'Pontos de rank', value:match.rank_score === null ? null : number(match.rank_score), reference:match.score_reference },
@@ -73,11 +78,25 @@ export function MatchDetail({ match, raw, review, onClose, onChange, onReview }:
       <h2>{match.map_name ?? 'Partida'}</h2><p>{modeName(match.mode)} · {dateTime(match.played_at)}</p></div>
       <button className="icon-button" aria-label="Fechar detalhes" onClick={onClose}><X size={21} /></button></div>
     <div className="detail-map"><MapImage map={findMap(match.map_name,match.event_id,match.mode)}/><ModeLabel mode={match.mode}/></div>
-    <div className="detail-status"><Pill kind={resultTone(match.result)}>{resultName(match.result)}</Pill>
-      <Pill kind={match.ranked ? 'accent' : 'neutral'}>{match.ranked ? 'Ranqueado' : match.api_type ?? 'Tipo indisponível'}</Pill>
+    <div className="detail-status"><Pill kind={resultTone(grouped ? grouped.result : match.result)}>{grouped && !grouped.result?'Resultado em aberto':resultName(grouped ? grouped.result : match.result)}</Pill>
+      <Pill kind={match.ranked ? 'accent' : 'neutral'}>{grouped ? 'Série ranqueada' : match.ranked ? 'Ranqueado' : match.api_type ?? 'Tipo indisponível'}</Pill>
+      {grouped&&<strong>{grouped.wins}–{grouped.losses}</strong>}
+      {!grouped&&<>
       {match.duration_seconds !== null && <span>{match.duration_seconds}s</span>}
       {match.placement!=null&&<span>{number(match.placement)}º lugar</span>}
-      {match.trophy_change!=null&&<span>{match.trophy_change>0?'+':''}{match.trophy_change} troféus</span>}</div>
+      {match.trophy_change!=null&&<span>{match.trophy_change>0?'+':''}{match.trophy_change} troféus</span>}</>}</div>
+    {grouped&&<section className="match-rounds" aria-label="Rodadas da série">
+      <h3>Rodadas da série</h3>
+      <p className="muted">Agrupamento inferido pela sequência, pelo mapa e pela composição das equipes.</p>
+      {grouped.rounds.map((round,index)=><button type="button" key={round.id} className="button subtle"
+        aria-pressed={round.id===match.id} onClick={()=>{
+          if(round.id===match.id)return;
+          setRawOpen(false);setEvidenceOpen(false);setFeedback('');onRound?.(round.id);
+        }} disabled={saving}>
+        <span>Rodada {index+1}<small>{dateTime(round.played_at)}{round.duration_seconds!=null?` · ${round.duration_seconds}s`:''}</small></span>
+        <Pill kind={resultTone(round.result)}>{resultName(round.result)}</Pill>
+      </button>)}
+    </section>}
     <dl className="detail-grid">
       {match.ranked && fields.map(({label,value,reference}) => {
         const calendar = label === 'Temporada' && value === null ? match.season_by_date : null;
@@ -87,7 +106,7 @@ export function MatchDetail({ match, raw, review, onClose, onChange, onReview }:
             <>{'Estimativa pela data'}{source && <> · <a href={source} target="_blank" rel="noreferrer">Calendário</a></>}</> :
             'Campo ausente no histórico da API'}</small></dd></div>;
       })}
-      {(match.star_player?.name||match.star_player?.tag)&&<div><dt>Craque da partida</dt><dd>{match.star_player.name??match.star_player.tag}</dd></div>}
+      {(match.star_player?.name||match.star_player?.tag)&&<div><dt>{grouped?'Craque da rodada':'Craque da partida'}</dt><dd>{match.star_player.name??match.star_player.tag}</dd></div>}
     </dl>
     {groups.length ? groups.map(group => {
       const members = match.players.filter(p => p.team_index === group);
@@ -112,7 +131,7 @@ export function MatchDetail({ match, raw, review, onClose, onChange, onReview }:
       <label>Referência da evidência<input name="source" required minLength={3} maxLength={400} /></label>
       <button className="button primary" disabled={saving}>Salvar evidência</button>
     </form>}
-    {match.ranked&&<ReplayAnnotation review={review} onSave={onReview}/>}
+    {match.ranked&&<ReplayAnnotation key={match.id} review={review} onSave={onReview}/>}
     {rawOpen && raw !== undefined && <pre className="raw">{JSON.stringify(raw, null, 2)}</pre>}
     </div></dialog>;
 }

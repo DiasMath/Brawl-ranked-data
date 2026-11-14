@@ -10,6 +10,7 @@ import { ProfileDetails } from '@/features/analytics/profile-details';
 import { byId, ordered, publicPicks, usePublicStats } from '@/lib/scouting';
 import type { PublicStats, ScoutingRow } from '@/lib/scouting';
 import { inMetaPeriod, LiveMeta } from '@/lib/live';
+import type { MatchSeries } from '@/lib/match-series';
 
 type RankRow = ScoutingRow & { mode?: string | null };
 
@@ -52,13 +53,13 @@ export function PublicSpotlight({ onDraft, onMeta }: { onDraft:()=>void; onMeta:
 
 const dayLabel=(day:string)=>day.slice(8)+'/'+day.slice(5,7);
 
-function RankedActivity({matches,filters}:{matches:Battle[];filters:Filters}) {
-  const latest=filters.end|| (matches[0]?localDay(matches[0].played_at):null);
+function RankedActivity({matches,filters}:{matches:MatchSeries[];filters:Filters}) {
+  const latest=filters.end|| (matches[0]?localDay(matches[0].latest.played_at):null);
   const days=latest?Array.from({length:14},(_,i)=>new Date(Date.parse(latest)-(13-i)*86400000).toISOString().slice(0,10))
     .filter(day=>!filters.start||day>=filters.start):[];
-  const byDay=new Map<string,Battle[]>();
+  const byDay=new Map<string,MatchSeries[]>();
   for(const battle of matches){
-    const key=localDay(battle.played_at);
+    const key=localDay(battle.latest.played_at);
     if(!days.length||key<days[0]||key>days.at(-1)!)continue;
     const rows=byDay.get(key);
     if(rows)rows.push(battle);else byDay.set(key,[battle]);
@@ -68,7 +69,7 @@ function RankedActivity({matches,filters}:{matches:Battle[];filters:Filters}) {
   const total=series.reduce((n,s)=>n+s.games,0);
   return <section className="card ranked-activity"><div className="card-head"><div><h2><CalendarDays size={17}/> Atividade por dia</h2>
     <p>{days.length?`${dayLabel(days[0])} – ${dayLabel(days.at(-1)!)} · horário de Brasília`:'Ranqueadas por data no histórico da conta'}</p></div>
-    {!!total&&<span className="activity-count">{number(total)} registros</span>}</div>
+    {!!total&&<span className="activity-count">{number(total)} partidas</span>}</div>
     {total?<><ol className="activity-bars" style={{gridTemplateColumns:`repeat(${series.length},minmax(0,1fr))`}}>
       {series.map((s,i)=>{
         const other=s.games-s.decided;
@@ -85,8 +86,8 @@ function RankedActivity({matches,filters}:{matches:Battle[];filters:Filters}) {
   </section>;
 }
 
-export function Overview({ local, account, matches, filters, onSettings, onProgress, onDraft, onMeta, onSync, onMatch, onHistory, busy, syncing, collectorLinked }: {
-  local: LocalData; account: Account; matches: Battle[]; filters: Filters; onSettings:()=>void; onProgress:()=>void; onDraft:()=>void;
+export function Overview({ local, account, matches, historyCount, filters, onSettings, onProgress, onDraft, onMeta, onSync, onMatch, onHistory, busy, syncing, collectorLinked }: {
+  local: LocalData; account: Account; matches: MatchSeries[]; historyCount:number; filters: Filters; onSettings:()=>void; onProgress:()=>void; onDraft:()=>void;
   onMeta:()=>void; onSync:()=>void; onMatch:(battle:Battle)=>void; onHistory:()=>void; busy:boolean; syncing:boolean; collectorLinked:boolean;
 }) {
   const rows=progressSeries(local);
@@ -100,9 +101,9 @@ export function Overview({ local, account, matches, filters, onSettings, onProgr
   const previous=local.dataset.updates.find(r=>r.status==='success');
   const filteredProgress = progressionWindow(rows,filters);
   const trophyRows = filters.season ? progressionWindow(rows,{...filters,season:''}) : filteredProgress;
-  const topMaps = ordered(accountGroups(matches,b=>b.map_name,3));
-  const topBrawlers = ordered(accountGroups(matches,b=>b.player_brawler,3));
-  const orderedMatches = [...matches].sort((a,b)=>Date.parse(b.played_at)-Date.parse(a.played_at));
+  const results = matches.map(match=>({...match.latest,result:match.result}));
+  const topMaps = ordered(accountGroups(results,b=>b.map_name,3));
+  const topBrawlers = ordered(accountGroups(results,b=>b.player_brawler,3));
   return <div className="stack">
     <div className="rank-summary-grid">
       <section className="command-hero overview-hero">
@@ -123,17 +124,17 @@ export function Overview({ local, account, matches, filters, onSettings, onProgr
       <div className="card game-metric"><TrophyArt/><div><small>Troféus da conta</small><strong>{trophy?.trophies != null?number(trophy.trophies):'—'}</strong>
         <span>{trophy?dateTime(trophy.at):'Sem leitura do perfil'}</span></div></div>
       <div className="card game-metric"><span className="game-metric-icon violet"><Swords size={22}/></span><div><small>Ranqueadas no recorte</small>
-        <strong>{profile||local.dataset.matches.length?number(s.games):'—'}</strong><span>{local.dataset.matches.length
-          ?number(local.dataset.matches.length)+' partidas no histórico'
+        <strong>{profile||historyCount?number(s.games):'—'}</strong><span>{historyCount
+          ?number(historyCount)+' partidas no histórico'
           :previous?'Atualizado '+dateTime(previous.finished_at):'Histórico da conta'}</span></div></div>
       <div className="card game-metric"><span className="game-metric-icon green"><Activity size={22}/></span><div><small>Win rate do recorte</small><strong>{percent(s.rate)}</strong>
         <span>{s.decided?number(s.wins)+' vitórias · '+number(s.losses)+' derrotas':'Vitórias / registros decisivos'}</span></div></div>
       <div className="card game-metric"><span className="game-metric-icon orange"><Crosshair size={22}/></span><div><small>Brawlers usados</small>
-        <strong>{s.games?number(new Set(matches.flatMap(b=>b.player_brawler?[normalize(b.player_brawler)]:[])).size):'—'}</strong><span>Picks identificados no recorte</span></div></div>
+        <strong>{s.games?number(new Set(results.flatMap(b=>b.player_brawler?[normalize(b.player_brawler)]:[])).size):'—'}</strong><span>Picks identificados no recorte</span></div></div>
     </div>
-    <div className="two-col equal"><RecentForm matches={orderedMatches} onMatch={onMatch}
+    <div className="two-col equal"><RecentForm matches={matches} onMatch={onMatch}
       action={<button className="button small subtle" onClick={onHistory}>Histórico <ArrowRight size={14}/></button>}/>
-      <RankedActivity matches={orderedMatches} filters={filters}/></div>
+      <RankedActivity matches={matches} filters={filters}/></div>
     <div className="two-col equal"><TrendChart rows={trophyRows} field="trophies" label="Subida de troféus" note="Total da conta por data, independente da temporada"/>
       <TrendChart rows={filteredProgress.filter(row=>!current?.season||normalize(row.season)===normalize(current.season)||filters.season)}
         field="score" label="Pontos do Ranqueado" note={filters.season||current?.season||'Leituras do Elo'}/></div>

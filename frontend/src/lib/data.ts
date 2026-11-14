@@ -78,7 +78,7 @@ export function filtered(matches: Battle[], f: Filters, rankedOnly: boolean) {
   });
 }
 
-export function stats(battles: Battle[]) {
+export function stats(battles: Pick<Battle, 'result'>[]) {
   const wins = battles.filter(x => x.result === 'victory').length;
   const losses = battles.filter(x => x.result === 'defeat').length;
   const draws = battles.filter(x => x.result === 'draw').length;

@@ -35,7 +35,7 @@ export function useDraftMeta(map: string, enabled: boolean) {
   },[enabled,key,patch,sourceMap]);
   const selected=read?.key===key?read:null;
   const resolvingMap=enabled&&!index&&!indexFailed;
-  return {snapshot:map?selected?.snapshot??null:index?.snapshot??null,pool,patch,sourceMap,resolvingMap,
+  return {snapshot:map?selected?.snapshot??null:index?.snapshot??null,general:index?.snapshot??null,pool,patch,sourceMap,resolvingMap,
     loading:resolvingMap||Boolean(enabled&&map&&patch&&!selected),
     failed:indexFailed||Boolean(map&&selected?.failed)};
 }

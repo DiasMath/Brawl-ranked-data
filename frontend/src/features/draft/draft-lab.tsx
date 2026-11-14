@@ -12,6 +12,7 @@ import type { LivePeriod } from '@/lib/live';
 import { draftMetaMapKey, draftMetaPicks } from '@/lib/draftmeta';
 import { useDraftMeta, useDraftSuggestions } from './use-draftmeta';
 import { DraftSummary } from './draft-summary';
+import { DraftTierList } from './draft-tier-list';
 
 type Side = 'team'|'enemy';
 type Zone = Side|'blueBan'|'redBan';
@@ -88,7 +89,7 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
   },[]);
   const map=findMap(mapName)??maps.find(item=>draftMetaMapKey(item.name)===draftMetaMapKey(mapName)&&!item.disabled);
   const mode=map?byModeId.get(map.mode)?.key??null:null;
-  const external=useDraftMeta(mapName,active&&source==='draftmeta');
+  const external=useDraftMeta(mapName,active);
   const global=usePublicStats(null,mapName||null);
   const mapIndex=usePublicStats(null,null);
   const recentMaps=new Set([...external.pool,...(mapIndex.index?.contexts.flatMap(c=>c.map?[c.map]:[])??[])].map(draftMetaMapKey));
@@ -283,6 +284,8 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
         {complete?<button className="text-button" onClick={()=>setSummaryOpen(true)}>Ver análise</button>:
           phase==='ban'&&nextPick&&<button className="text-button" onClick={()=>move(nextPick)}>Ir para picks</button>}
       </div>
+      <DraftTierList meta={external} compact banned={banned} picked={picked} disabled={name=>complete||blocked(name)}
+        onPick={name=>assign(name)}/>
     </section>
     <section className="card draft-field" aria-label="Mapa e recomendações">
       <div className="draft-map-feature">

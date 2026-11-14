@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { Flame } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Battle } from '@/lib/data';
+import type { MatchSeries } from '@/lib/match-series';
 import { dateTime, number, percent, resultName, stats } from '@/lib/data';
 
 const marks = { victory: 'V', defeat: 'D', draw: 'E', unknown: '?' };
 
 export function RecentForm({ matches, onMatch, action }: {
-  matches: Battle[]; onMatch: (battle: Battle) => void; action?: ReactNode;
+  matches: MatchSeries[]; onMatch: (battle: Battle) => void; action?: ReactNode;
 }) {
   const [limit, setLimit] = useState<5|10>(5);
   const recent = matches.slice(0,limit);
@@ -29,15 +30,17 @@ export function RecentForm({ matches, onMatch, action }: {
         <div className="recent-form-legend" aria-label="Legenda">
           <span><b className="victory">V</b> Vitória</span><span><b className="defeat">D</b> Derrota</span>
           <span><b className="draw">E</b> Empate</span>
-          {sample.games>sample.decided+sample.draws&&<span><b className="unknown">?</b> Indisponível</span>}
+          {sample.games>sample.decided+sample.draws&&<span><b className="unknown">?</b> Sem resultado</span>}
         </div>
       </div>
       <ol className="recent-results" aria-label="Resultados em ordem cronológica">
-        {[...recent].reverse().map(battle=>{
-          const result=battle.result??'unknown';
-          const description=[resultName(battle.result),battle.player_brawler,battle.map_name,dateTime(battle.played_at)].filter(Boolean).join(' · ');
-          return <li key={battle.id}><button type="button" className={result} title={description}
-            aria-label={`Abrir partida · ${description}`} onClick={()=>onMatch(battle)}>{marks[result]}</button></li>;
+        {[...recent].reverse().map(match=>{
+          const { latest, rounds, wins, losses } = match;
+          const result=match.result??'unknown';
+          const description=[rounds.length>1&&!match.result?'Resultado em aberto':resultName(match.result),rounds.length>1?`${wins}–${losses} em rodadas`:null,
+            latest.player_brawler,latest.map_name,dateTime(latest.played_at)].filter(Boolean).join(' · ');
+          return <li key={match.id}><button type="button" className={result} title={description}
+            aria-label={`Abrir partida · ${description}`} onClick={()=>onMatch(latest)}>{marks[result]}</button></li>;
         })}
       </ol>
       <div className="form-stats">
