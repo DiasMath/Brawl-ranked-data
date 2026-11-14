@@ -15,6 +15,7 @@ Lista de trabalho do Brawl Ranked Data, em ordem de execução no ambiente local
 | 9 | Analisar os aliados do brawler | Concluída no código e validada em teste | Mostrar o desempenho observado com cada aliado no mesmo recorte da ficha, com resultados decisivos e links para a última vitória e derrota disponíveis. |
 | 10 | Acompanhar um treino por mapa e brawler | Concluída no código e validada em teste | Permitir preencher o plano pela ficha do brawler e comparar o resultado do treino com partidas anteriores do mesmo recorte. |
 | 11 | Preservar o histórico de treinos | Concluída no código e validada em teste | Arquivar o plano anterior ao trocar o ajuste, mapa ou brawler. Exibir período, estado, amostras e variação nas taxas e incluir os planos arquivados na exportação. |
+| 12 | Mostrar a cobertura do histórico coletado | Concluída no código e validada em teste | Mostrar quantas ranqueadas têm duração total, craque, K/D oficial e lista de bans. Abrir uma partida recente com cada campo disponível para conferência. |
 
 ## Critérios para os dados
 
@@ -97,3 +98,9 @@ A referência usa as partidas decisivas mais recentes antes do treino no mesmo r
 Em **Desempenho → Histórico de treinos**, aparecem os planos anteriores que foram substituídos. Cada linha mostra o ajuste, o recorte, o intervalo, o resultado antes e durante e a variação em pontos percentuais quando as duas amostras têm resultados decisivos. A data final usa a conclusão registrada ou, se o plano estava em andamento, a data em que foi substituído.
 
 Editar o estado do mesmo ajuste e recorte preserva o plano. Os testes conferiram a conclusão, a troca de plano, o corte das partidas após o fim, a preservação durante a sincronização e a inclusão do histórico no JSON exportado. Os planos ficam salvos por conta neste navegador.
+
+## Validação da etapa 12
+
+Em **Contas e dados → Cobertura do histórico**, a base são as partidas ranqueadas já coletadas da conta, com uma contagem por série. A duração total exige tempo em todas as rodadas. O craque exige identificação em pelo menos uma rodada. K/D usa os dados oficiais disponíveis para o total da partida. Bans exigem uma lista oficial consistente entre as rodadas que o informaram. Uma lista oficial vazia entra na cobertura.
+
+O atalho **Ver partida** abre o detalhe mais recente com aquele campo, na rodada que contém a evidência quando ela é específica. Os testes conferiram a ausência de dados, duração parcial, K/D anotado, lista vazia, listas conflitantes e os atalhos. A comparação com a tela do jogo continua pendente na etapa 4.
