@@ -983,6 +983,9 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
 .series-performance-grid small { display:flex; align-items:center; gap:5px; color:var(--muted); }
 .series-performance-grid strong { font-size:22px; }
 .series-performance p { margin-top:6px; font-size:11px; }
+.brawler-form { padding-top:12px; }
+.brawler-form > label { display:block; max-width:240px; margin-bottom:8px; color:var(--muted); font-size:11px; }
+.brawler-form select { display:block; margin-top:3px; }
 .mode-tables { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr)); gap:12px; padding:0 14px 12px; }
 .mode-tables > div { min-width:0; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
 .mode-tables h3,.mode-tables p { padding:8px 10px; }

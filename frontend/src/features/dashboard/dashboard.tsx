@@ -12,6 +12,7 @@ import { collectionRequest, defaultMetaPeriod, inMetaPeriod, LiveMeta } from '@/
 import type { LiveReport } from '@/lib/live';
 import { Overview, Performance, PublicMeta } from '@/features/analytics/analytics';
 import { MapTraining } from '@/features/analytics/map-performance';
+import { BrawlerEvolution } from '@/features/analytics/brawler-evolution';
 import { ModePerformance } from '@/features/analytics/mode-performance';
 import { Progression } from '@/features/analytics/progression';
 import { Accounts } from '@/features/collection/accounts';
@@ -179,6 +180,10 @@ export default function Dashboard() {
           <MatchList key={JSON.stringify([filters,rankedOnly])} matches={historySeries} elo={elo} onOpen={b=>setSelected(b.id)}/></Card>}
         {section==='performance'&&<div className="stack" key={`performance:${book.active}`}>
           <ModePerformance matches={rankedSeries}/>
+          <BrawlerEvolution key={JSON.stringify([filters.season,filters.player_brawler,filters.map_name,filters.rank_label])}
+            matches={filteredSeries(series,data.matches,{
+              ...emptyFilters,map_name:filters.map_name,mode:filters.mode,rank_label:filters.rank_label,
+            },true,elo)} initialSeason={filters.season} initialBrawler={filters.player_brawler} mapFilter={filters.map_name}/>
           <MapTraining rows={performanceRows} history={data.matches} elo={elo} accountName={active.name}
             selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training}
             onOpen={setSelected} onReview={(id,value)=>saveCoaching({review:{id,value}})}

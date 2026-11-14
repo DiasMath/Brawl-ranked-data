@@ -15,6 +15,11 @@ export const MAP_MIN_GAMES = 10;
 const FORM_SIZE = 10;
 const SESSION_GAP = 60 * 60 * 1000;
 
+export function recentFormWindows(matches: Pick<Battle,'result'>[]) {
+  const decided=matches.filter(match=>match.result==='victory'||match.result==='defeat');
+  return {recent:stats(decided.slice(0,FORM_SIZE)), previous:stats(decided.slice(FORM_SIZE,FORM_SIZE*2))};
+}
+
 export function mapPerformance(matches: Battle[]) {
   const byMap = new Map<string, Battle[]>();
   for (const match of matches) {
@@ -26,10 +31,28 @@ export function mapPerformance(matches: Battle[]) {
   }
   return [...byMap].map(([key, rows]) => {
     rows.sort((a,b)=>Date.parse(b.played_at)-Date.parse(a.played_at));
-    const decided = rows.filter(match=>match.result==='victory'||match.result==='defeat');
-    return { key, name: rows[0].map_name!, mode: rows[0].mode, rows, summary: stats(rows),
-      recent: stats(decided.slice(0,FORM_SIZE)), previous: stats(decided.slice(FORM_SIZE,FORM_SIZE*2)) };
+    return { key, name: rows[0].map_name!, mode: rows[0].mode, rows, summary: stats(rows), ...recentFormWindows(rows) };
   });
+}
+
+export function brawlerPerformance(matches: MatchSeries[]) {
+  const picks=new Map<string,{label:string;matches:MatchSeries[]}>();
+  const ordered=matches.slice().sort((a,b)=>b.latest.played_at.localeCompare(a.latest.played_at));
+  let known=0;
+  for(const match of ordered){
+    const label=match.rounds.findLast(round=>normalize(round.player_brawler))?.player_brawler;
+    if(!label)continue;
+    const key=normalize(label);
+    const group=picks.get(key);
+    if(group)group.matches.push(match);
+    else picks.set(key,{label,matches:[match]});
+    known++;
+  }
+  const rows=[...picks].map(([key,pick])=>({
+    key, label:pick.label, summary:stats(pick.matches), pickRate:pick.matches.length/known,
+    ...recentFormWindows(pick.matches),
+  }));
+  return {known, total:matches.length, rows};
 }
 
 export function reviewPair(rows: Battle[]) {
