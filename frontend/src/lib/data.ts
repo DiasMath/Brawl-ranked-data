@@ -6,6 +6,7 @@ export type Battle = {
   id: string; played_at: string; event_id?: number | null; trophy_change?: number | null; first_seen_at?: string | null; delay_observed?: boolean; map_name: string | null; mode: string | null; api_type: string | null;
   ranked: boolean; result: 'victory' | 'defeat' | 'draw' | null; duration_seconds: number | null;
   player_brawler: string | null; rank_label: string | null; rank_score: number | null; season: string | null;
+  season_by_date?: { label: string; source_url: string } | null;
   bans: string[] | null; players: Participant[];
   star_player?: { tag: string|null; name: string|null } | null; placement?: number|null;
   rank_reference: string | null; score_reference: string | null; season_reference: string | null; bans_reference: string | null;
@@ -54,6 +55,7 @@ export const percent = (value: number | null) => value === null ? '—' : new In
   maximumFractionDigits: 1, minimumFractionDigits: 1, style: 'percent',
 }).format(value);
 export const normalize = (value: string | null | undefined) => (value ?? '').trim().toLocaleLowerCase('pt-BR');
+export const battleSeason = (battle: Battle) => battle.season ?? battle.season_by_date?.label ?? null;
 
 const modeNames: Record<string, string> = {
   gemGrab: 'Pique-Gema', brawlBall: 'Fute-Brawl', heist: 'Roubo', bounty: 'Caça-Estrelas',
@@ -71,7 +73,7 @@ export function filtered(matches: Battle[], f: Filters, rankedOnly: boolean) {
       if ((f.start && day < f.start) || (f.end && day > f.end)) return false;
     }
     return (['map_name', 'mode', 'player_brawler', 'rank_label', 'season'] as const).every(
-      key => !f[key] || normalize(battle[key]) === normalize(f[key])
+      key => !f[key] || normalize(key === 'season' ? battleSeason(battle) : battle[key]) === normalize(f[key])
     );
   });
 }
@@ -159,6 +161,8 @@ export function parseSnapshot(value: unknown): Dataset {
           && [null, 'victory', 'defeat', 'draw'].includes(b.result) && isCount(b.rank_score)
           && isCount(b.duration_seconds) && [b.map_name, b.mode, b.api_type, b.player_brawler,
               b.rank_label, b.season, b.rank_reference, b.score_reference, b.season_reference, b.bans_reference, b.rank_source, b.score_source, b.season_source, b.bans_source].every(isText)
+          && (b.season_by_date == null || (typeof b.season_by_date.label === 'string'
+            && typeof b.season_by_date.source_url === 'string' && Boolean(safeLink(b.season_by_date.source_url))))
           && (b.bans === null || (Array.isArray(b.bans) && b.bans.every(v => typeof v === 'string')))
           && Array.isArray(b.players) && b.players.every(p => p && isCount(p.team_index)
               && [p.player_tag, p.player_name, p.brawler].every(isText) && isCount(p.power)

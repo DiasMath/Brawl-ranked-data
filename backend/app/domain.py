@@ -61,6 +61,10 @@ def bans(value):
     return names if all(names) else None
 
 
+def battle_bans(battle):
+    return bans(obj(battle.get("draft")).get("bans", battle.get("bans")))
+
+
 def encoded(value):
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
@@ -99,8 +103,7 @@ def parse_battle(item, account):
     event_id = integer(event.get("id"))
     key = sha256(encoded([account, iso(played)]).encode()).hexdigest()
     result = string(battle.get("result"))
-    draft = obj(battle.get("draft"))
-    ban_list = bans(draft.get("bans", battle.get("bans"))) if ranked else None
+    ban_list = battle_bans(battle) if ranked else None
     rank, score, season = ranked_reading(battle) if ranked else (None, None, None)
     return {
         "id": key, "player_tag": account, "played_at": played, "event_id": event_id,

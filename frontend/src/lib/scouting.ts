@@ -3,6 +3,8 @@ import type { Battle, Filters } from '@/lib/data';
 import { groupStats, localDay, normalize, stats } from '@/lib/data';
 import { brawlers } from '@/components/game';
 import { LiveMeta } from '@/lib/live';
+import type { LivePeriod } from '@/lib/live';
+import { draftMetaMapKey } from '@/lib/draftmeta';
 
 export type PublicContext = { key: string; mode: string | null; map: string | null; sets: number; decisive?: number; latest?: string|null };
 export type PublicIndex = {
@@ -33,8 +35,9 @@ function getContext(key: string) {
   return contextCache.get(key)!;
 }
 
-export function usePublicStats(mode: string | null, map: string | null, filters?: Filters) {
-  const { report, period }=useContext(LiveMeta);
+export function usePublicStats(mode: string | null, map: string | null, filters?: Filters, selectedPeriod?: LivePeriod) {
+  const { report, period: contextPeriod }=useContext(LiveMeta);
+  const period = selectedPeriod ?? contextPeriod;
   const [reference, setReference] = useState<PublicIndex | null>(null);
   const [loaded, setLoaded] = useState<{ key: string; sample: PublicStats } | null>(null);
   const [failed, setFailed] = useState(false);
@@ -47,7 +50,7 @@ export function usePublicStats(mode: string | null, map: string | null, filters?
     url:'https://developer.brawlstars.com/', start:live.start, end:live.end, season:'',
     unit:'registros', latest:live.latest, contexts:live.contexts.map((c,i)=>({...c,key:'live'+i})),
   }:null;
-  const mapKey=(s:string|null)=>normalize(s).replace(/[’‘]/g,"'");
+  const mapKey=(s:string|null)=>draftMetaMapKey(s ?? '');
   const dateMismatch = index && filters && ((filters.start && filters.start > index.start) || (filters.end && filters.end < index.end));
   const seasonMismatch = index && filters?.season && normalize(filters.season).replace(/[^a-z0-9]/g,'') !== normalize(index.season);
   const context = dateMismatch || seasonMismatch || filters?.rank_label ? undefined : index?.contexts.find(c =>

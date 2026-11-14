@@ -1,4 +1,5 @@
 from datetime import date
+import json
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException
@@ -6,7 +7,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field, HttpUrl, StringConstraints, model_validator
 
 from ..db import database
-from ..domain import encoded, utc_now
+from ..domain import battle_bans, encoded, obj, ranked_reading, utc_now
 from ..services.explorer import TABLES, explore, parquet
 from .accounts import require_player
 
@@ -20,7 +21,7 @@ Count = Annotated[int, Field(strict=True, ge=0, le=2147483647)]
 
 class Evidence(BaseModel):
     battle_id: str = Field(pattern=r"^[a-f0-9]{64}$")
-    rank_label: str | None = Field(default=None, min_length=1, max_length=60)
+    rank_label: Annotated[str, StringConstraints(min_length=1, max_length=60, strip_whitespace=True)] | None = None
     rank_score: Count | None = None
     season: Label | None = None
     bans: list[Label] | None = Field(default=None, max_length=30)
@@ -28,7 +29,8 @@ class Evidence(BaseModel):
 
     @model_validator(mode="after")
     def check_values(self):
-        if not self.evidence.strip() or all(v is None for v in (self.rank_label, self.rank_score, self.season, self.bans)):
+        self.evidence = self.evidence.strip()
+        if len(self.evidence) < 3 or all(v is None for v in (self.rank_label, self.rank_score, self.season, self.bans)):
             raise ValueError("Informe a referência da evidência e pelo menos um campo observado.")
         return self
 
@@ -36,9 +38,18 @@ class Evidence(BaseModel):
 @router.post("/api/evidence")
 def import_evidence(evidence: Evidence, tag: str | None = None):
     with database() as (connection, cursor):
-        cursor.execute("SELECT ranked FROM battles WHERE id=%s AND player_tag=%s", (evidence.battle_id, require_player(cursor, tag)))
+        cursor.execute("SELECT ranked, rank_label, rank_score, season, bans, raw FROM battles "
+                       "WHERE id=%s AND player_tag=%s FOR UPDATE",
+                       (evidence.battle_id, require_player(cursor, tag)))
         if not (row := cursor.fetchone()) or not row["ranked"]:
             raise HTTPException(404, "Partida ranqueada não encontrada.")
+        raw_battle = obj(json.loads(row["raw"]).get("battle"))
+        fields = ("rank_label", "rank_score", "season", "bans")
+        from_archive = (*ranked_reading(raw_battle), battle_bans(raw_battle))
+        rank, score, season, bans = (getattr(evidence, field) if row[field] is None and archived is None else None
+                                     for field, archived in zip(fields, from_archive))
+        if all(value is None for value in (rank, score, season, bans)):
+            raise HTTPException(409, "Os campos informados já vieram no histórico da Supercell.")
         cursor.execute("""
             INSERT INTO battle_evidence (battle_id, rank_label, rank_score, season, bans,
                rank_reference, score_reference, season_reference, bans_reference, recorded_at)
@@ -52,10 +63,8 @@ def import_evidence(evidence: Evidence, tag: str | None = None):
               season_reference=COALESCE(EXCLUDED.season_reference,battle_evidence.season_reference),
               bans_reference=COALESCE(EXCLUDED.bans_reference,battle_evidence.bans_reference),
               recorded_at=EXCLUDED.recorded_at
-        """, (evidence.battle_id, evidence.rank_label, evidence.rank_score, evidence.season,
-              encoded(evidence.bans) if evidence.bans is not None else None,
-              *(evidence.evidence if field is not None else None for field in
-                (evidence.rank_label, evidence.rank_score, evidence.season, evidence.bans)), utc_now()))
+        """, (evidence.battle_id, rank, score, season, encoded(bans) if bans is not None else None,
+              *(evidence.evidence if field is not None else None for field in (rank, score, season, bans)), utc_now()))
         connection.commit()
     return {"saved": True}
 

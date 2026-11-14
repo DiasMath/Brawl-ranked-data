@@ -1,7 +1,7 @@
 from datetime import timedelta
 import json
 
-from ..domain import integer, iso, obj, ranked_reading, string, utc_now
+from ..domain import battle_bans, integer, iso, obj, ranked_reading, string, utc_now
 
 
 def latest_run(cursor, player, successful=False, *, scheduled=False):
@@ -35,8 +35,9 @@ def remember_retry(cursor, player, error):
 def dataset(cursor, player, after_run=0, include_archive=False):
     cursor.execute("SELECT player_name, fetched_at, raw FROM account_profile WHERE player_tag=%s", (player,))
     profile = cursor.fetchone()
-    changed = " AND o.last_run_id>%s" if after_run else ""
-    params = (player, after_run) if after_run else (player,)
+    changed = (" AND (o.last_run_id>%s OR e.recorded_at >= "
+               "(SELECT started_at FROM update_log WHERE id=%s))") if after_run else ""
+    params = (player, after_run, after_run) if after_run else (player,)
     cursor.execute(f"""
         SELECT b.id, b.played_at, b.event_id, b.map_name, b.mode, b.api_type, b.ranked, b.result, b.duration_seconds,
                b.player_brawler, COALESCE(b.rank_label, e.rank_label) AS rank_label,
@@ -50,9 +51,14 @@ def dataset(cursor, player, after_run=0, include_archive=False):
                CASE WHEN b.rank_score IS NULL AND e.rank_score IS NOT NULL THEN 'evidência' END AS score_source,
                CASE WHEN b.season IS NULL AND e.season IS NOT NULL THEN 'evidência' END AS season_source,
                CASE WHEN b.bans IS NULL AND e.bans IS NOT NULL THEN 'evidência' END AS bans_source,
-               o.first_seen_at, o.delay_observed, b.raw
+               o.first_seen_at, o.delay_observed, b.raw, calendar.season_by_date
         FROM battles b LEFT JOIN battle_evidence e ON e.battle_id=b.id
         LEFT JOIN battle_collection o ON o.battle_id=b.id
+        LEFT JOIN LATERAL (
+            SELECT CASE WHEN COUNT(*)=1 THEN json_build_object('label', MIN(label), 'source_url', MIN(source_url)) END
+                AS season_by_date
+            FROM ranked_seasons WHERE b.ranked AND b.played_at >= starts_at AND b.played_at < ends_at
+        ) calendar ON b.ranked AND b.season IS NULL AND e.season IS NULL
         WHERE b.player_tag=%s{changed} ORDER BY b.played_at DESC
     """, params)
     matches = cursor.fetchall()
@@ -72,17 +78,22 @@ def dataset(cursor, player, after_run=0, include_archive=False):
         match["delay_observed"] = bool(match["delay_observed"])
         match["played_at"] = iso(match["played_at"])
         match["ranked"] = bool(match["ranked"])
+        match["bans"] = json.loads(match["bans"]) if match["bans"] is not None else None
         if match["ranked"]:
             rank, score, season = ranked_reading(battle)
-            for field, value in (("rank_label", rank), ("rank_score", score), ("season", season)):
-                if match[field] is None:
+            for field, prefix, value in (("rank_label", "rank", rank), ("rank_score", "score", score),
+                                         ("season", "season", season), ("bans", "bans", battle_bans(battle))):
+                if value is not None and (match[field] is None or match[f"{prefix}_source"]):
                     match[field] = value
-        match["bans"] = json.loads(match["bans"]) if match["bans"] is not None else None
+                    match[f"{prefix}_source"] = match[f"{prefix}_reference"] = None
+        if match["season"] is not None:
+            match["season_by_date"] = None
         match["players"] = []
     cursor.execute(f"""
         SELECT p.battle_id, p.team_index, p.player_tag, p.player_name, p.brawler_id, p.brawler, p.power, p.side
         FROM battle_players p JOIN battles b ON p.battle_id=b.id
-        LEFT JOIN battle_collection o ON o.battle_id=b.id WHERE b.player_tag=%s{changed}
+        LEFT JOIN battle_collection o ON o.battle_id=b.id
+        LEFT JOIN battle_evidence e ON e.battle_id=b.id WHERE b.player_tag=%s{changed}
         ORDER BY p.battle_id, p.team_index, p.slot
     """, params)
     for participant in cursor.fetchall():

@@ -52,7 +52,7 @@ export const LiveMeta = createContext<{ report: LiveReport | null; period: LiveP
 export type ServerCollection = {
   player_tag: string; configured: boolean; interval_seconds: number;
   last_attempt: (Update & { phase?: 'profile'|'battlelog'|'saving'|null; processed?: number|null; origin?: 'manual'|'scheduled'|null })|null;
-  last_success: string|null; last_scheduled_success?: string|null; last_battle: string|null;
+  last_success: string|null; last_scheduled_success?: string|null; last_battle: string|null; last_evidence?: string|null;
   last_possible_gap: string|null; retry_until: string|null;
 };
 

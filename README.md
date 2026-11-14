@@ -234,6 +234,8 @@ A comparação usa a conta selecionada, o mapa e a janela do snapshot. As datas 
 
 **Bans observados nas minhas partidas** calcula taxas a partir de listas conhecidas, com filtro de mapa e cobertura. Uma lista explicitamente vazia entra no denominador e um campo ausente fica fora. Para acrescentar uma lista completa a uma partida antiga, use **Partidas → Registrar evidência**.
 
+Os detalhes identificam campos vindos do histórico da Supercell e evidências registradas. As evidências novas ficam no Supabase. Quando falta a temporada e há uma única janela cadastrada que abrange a partida, o painel mostra a temporada com o rótulo **Estimativa pela data** e o link do calendário. Rank e pontos do perfil são leituras da conta e ficam na progressão.
+
 A migração `002_external_meta.sql` roda junto das demais na inicialização do backend. O teste manual da integração usa as configurações existentes, com saída HTTPS para `draftmeta.com`. Atualizações recorrentes em volume devem seguir os limites e condições da fonte. [Integração DraftMeta](https://draftmeta.com/ai) · [Termos do DraftMeta](https://draftmeta.com/terms)
 
 ### Atualização completa do DraftMeta
@@ -253,6 +255,10 @@ A tarefa roda a cada 60 minutos, com o Windows ligado e seu usuário conectado. 
 O Draft Lab abre com **DraftMeta** como fonte. A visão geral usa o último snapshot geral salvo para identificar o patch. Ao escolher um mapa, a tela consulta a cópia desse mapa no mesmo patch. As sugestões da tier list mostram win rate observado, presença quando disponível, partidas e data da leitura. Se o mapa ainda estiver sem snapshot nesse patch, a tela indica a lacuna.
 
 Na aba **Picks**, com mapa definido e na vez da equipe azul, o FastAPI pede ao modelo do DraftMeta sugestões para a composição, os bans e a ordem do draft. A interface mostra a projeção após cada pick e após a resposta adversária indicada pelo modelo. A consulta usa todos os ranks do ranqueado solo e envia somente o cenário do draft. Picks ocupados ou banidos ficam fora, e o filtro de poder 11 também vale para as sugestões. Enquanto a projeção carrega ou está indisponível, a tela usa a tier list salva quando houver snapshot para o recorte.
+
+Com seis picks, **Análise do draft** abre no próprio painel. A estimativa final usa um modelo logístico treinado em séries decisivas do conjunto EliF77 de 04/11/2026 e validado em 05/11/2026, anterior ao balanceamento de 11/11. O modelo usa mapa e brawlers dos dois lados. Mapas fora da amostra ou picks com menos de 30 aparições no treino daquele mapa ficam sem projeção. Os confrontos mostram resultados de equipes na amostra disponível do mapa. Os equipamentos são sugestões táticas baseadas nos efeitos dos itens do BrawlAPI e no inventário quando publicado pelo perfil.
+
+Para reproduzir a estimativa, instale `duckdb`, `numpy` e `scipy` no ambiente de análise e execute `python scripts/train_draft_probability.py caminho/season55.parquet`. O script exporta os pesos agregados e a métrica de validação. O site carrega somente o JSON resultante. [Conjunto de treino](https://huggingface.co/datasets/EliF77/brawlstars-ranked) · [Catálogo de equipamentos](https://brawlapi.com/new)
 
 **Bans** mostra sugestões baseadas na força dos brawlers no recorte. Para **counters**, o seletor permite usar a amostra própria, a referência histórica ou a sua conta, com a origem visível.
 

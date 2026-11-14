@@ -1,6 +1,6 @@
 import type { PointerEvent } from 'react';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Ban, Bomb, ChevronDown, ChevronLeft, ChevronRight, Crosshair, Flame, HeartPulse, Map as MapIcon, Search, Shield, SlidersHorizontal, Swords, Target, Undo2, X } from 'lucide-react';
+import { Ban, Bomb, Check, ChevronDown, ChevronLeft, ChevronRight, Crosshair, Flame, HeartPulse, Map as MapIcon, Search, Shield, SlidersHorizontal, Swords, Target, Undo2, X } from 'lucide-react';
 import type { Battle, Dataset, Filters } from '@/lib/data';
 import { dateTime, groupStats, modeName, normalize, number, percent } from '@/lib/data';
 import { byModeId, brawlers, findMap, MapImage, maps, ModeIcon, pickableModes, Portrait, roleName } from '@/components/game';
@@ -11,6 +11,7 @@ import { LiveMeta, metaPeriods } from '@/lib/live';
 import type { LivePeriod } from '@/lib/live';
 import { draftMetaMapKey, draftMetaPicks } from '@/lib/draftmeta';
 import { useDraftMeta, useDraftSuggestions } from './use-draftmeta';
+import { DraftSummary } from './draft-summary';
 
 type Side = 'team'|'enemy';
 type Zone = Side|'blueBan'|'redBan';
@@ -61,10 +62,12 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
   const [rosterRows,setRosterRows]=useState(3);
   const [scrollEdges,setScrollEdges]=useState({left:false,right:false});
   const [compactView,setCompactView]=useState<'roster'|'map'>('roster');
+  const [summaryOpen,setSummaryOpen]=useState(false);
   const [source,setSource]=useState<'draftmeta'|'public'|'account'>('draftmeta');
   const [owned,setOwned]=useState(false);
   const [advice,setAdvice]=useState<Advice>('bans');
   const input=useRef<HTMLInputElement>(null);
+  const roster=useRef<HTMLElement>(null);
   const rail=useRef<HTMLDivElement>(null);
   const drag=useRef<{id:number; x:number; offset:number; moved:boolean}|null>(null);
   const suppressClick=useRef(false);
@@ -124,6 +127,7 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
   const recordedPicks=allies.length+enemies.length;
   const inOrder=order.slice(0,recordedPicks).every(s=>draft[s.side][s.index]);
   const nextPick=order.find(s=>!draft[s.side][s.index]);
+  const complete=recordedPicks===6;
   const model=useDraftSuggestions(active&&source==='draftmeta'&&advice==='picks'&&phase==='pick'&&
     external.sourceMap&&!external.resolvingMap&&inOrder&&nextPick?.side==='team'&&targetPick?.index===nextPick.index?{
       map:external.sourceMap,our_picks:allies,enemy_picks:enemies,
@@ -133,10 +137,35 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
   const next=phase==='ban'?nextBan??nextPick:nextPick;
   const query=normalize(search);
   const available=brawlers.filter(b=>(slot.side!=='team'||!owned||eligible.has(normalize(b.name)))&&normalize(b.name).includes(query));
+  const selectable=available.filter(b=>!blocked(b.name));
   const groups=[...new Set([...Object.keys(classIcons),...available.map(b=>b.role)])].map(key=>({
     key, entries:available.filter(b=>b.role===key), Icon:classIcons[key as keyof typeof classIcons]??Swords,
   })).filter(group=>group.entries.length);
   const groupCounts=groups.map(group=>group.entries.length).join(',');
+  useEffect(()=>{
+    if(complete){setSummaryOpen(true);}
+    else{setSummaryOpen(false);}
+  },[complete]);
+  useEffect(()=>{
+    if(!active||mapOpen||complete||summaryOpen||compactView!=='roster')return;
+    function capture(event:KeyboardEvent){
+      if(event.defaultPrevented||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||
+        event.key.length!==1||event.key===' '||document.querySelector('dialog[open]'))return;
+      const target=event.target;
+      if(target instanceof HTMLElement&&target.closest('input, textarea, select, [contenteditable]'))return;
+      if(!roster.current?.getClientRects().length)return;
+      event.preventDefault();
+      input.current?.focus({preventScroll:true});
+      setSearch(value=>value+event.key);
+    }
+    window.addEventListener('keydown',capture);
+    return()=>window.removeEventListener('keydown',capture);
+  },[active,mapOpen,complete,summaryOpen,compactView]);
+  useEffect(()=>{
+    if(active&&compactView==='roster'&&phase==='pick'&&!mapOpen&&!complete){
+      input.current?.focus({preventScroll:true});
+    }
+  },[active,compactView,phase,slot,mapOpen,complete]);
   useEffect(()=>{if(rail.current)rail.current.scrollLeft=0;},[query]);
   useEffect(()=>{
     const element=rail.current;
@@ -184,7 +213,8 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
 
   function move(to:Slot){
     setSlot(to);setPhase(banZone(to.side)?'ban':'pick');setSearch('');
-    setAdvice(banZone(to.side)?'bans':'picks');setCompactView('roster');input.current?.focus({preventScroll:true});
+    setAdvice(banZone(to.side)?'bans':'picks');setCompactView('roster');
+    input.current?.focus({preventScroll:true});
   }
   function assign(name:string,where=slot){
     if(draft[where.side][where.index]===name||(name&&blocked(name,where)))return;
@@ -231,7 +261,7 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
     return item?[item.role]:[];
   }))].map(roleName);
   return <div className={`draft-workstation compact-view-${compactView}`}>
-    <div className="draft-switch"><button aria-pressed={compactView==='roster'} onClick={()=>setCompactView('roster')}>Brawlers</button>
+      <div className="draft-switch"><button aria-pressed={compactView==='roster'} onClick={()=>setCompactView('roster')}>Brawlers</button>
       <button aria-pressed={compactView==='map'} onClick={()=>setCompactView('map')}>Mapa e recomendações</button></div>
     <section className="card draft-lineup" aria-label="Picks e bans das equipes">
       <header className="draft-panel-title"><h2>Picks e bans</h2><div className="actions">
@@ -247,10 +277,11 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
       <div className="arena-team red"><h2>Adversários <span>VERMELHO</span></h2>{renderSlots('enemy')}<h3><Ban size={12}/> Bans</h3>{renderSlots('redBan')}
         {!!composition(draft.enemy).length&&<div className="team-roles">{composition(draft.enemy).join(' · ')}</div>}</div>
       <div className="draft-stage">
-        <div><small>{phase==='ban'&&nextBan?'FASE DE BANS':nextPick?'FASE DE PICKS':'DRAFT COMPLETO'}</small>
-          <strong>{next?(next.side==='team'||next.side==='blueBan'?'Azul':'Vermelho'):'6 / 6'}</strong></div>
+        <div><small>{complete?'DRAFT COMPLETO':phase==='ban'&&nextBan?'FASE DE BANS':'FASE DE PICKS'}</small>
+          <strong>{complete||!next?'6 / 6':next.side==='team'||next.side==='blueBan'?'Azul':'Vermelho'}</strong></div>
         <div className="pick-timeline">{pickOrder(first).map((s,i)=><span key={i} className={`${s.side==='team'?'blue':'red'} ${draft[s.side][s.index]?'filled':''}`}>{i+1}</span>)}</div>
-        {phase==='ban'&&nextPick&&<button className="text-button" onClick={()=>move(nextPick)}>Ir para picks</button>}
+        {complete?<button className="text-button" onClick={()=>setSummaryOpen(true)}>Ver análise</button>:
+          phase==='ban'&&nextPick&&<button className="text-button" onClick={()=>move(nextPick)}>Ir para picks</button>}
       </div>
     </section>
     <section className="card draft-field" aria-label="Mapa e recomendações">
@@ -327,11 +358,11 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
         </>}
       </div>
     </section>
-    <section className="card draft-roster" aria-label="Brawlers por classe">
+    <section ref={roster} className="card draft-roster" aria-label="Brawlers por classe">
       <header className="draft-panel-title"><div><h2>Brawlers</h2><p>{hasBan?'Ban':'Pick'} · {slot.side==='team'||slot.side==='blueBan'?'Azul':'Vermelho'} · posição {slot.index+1}</p></div>
         <label className="draft-search"><Search size={15}/><input ref={input} aria-label="Buscar brawler" value={search}
           onChange={e=>setSearch(e.target.value)} placeholder="Buscar brawler"
-          onKeyDown={e=>{if(e.key==='Enter'&&available.length===1&&!blocked(available[0].name))assign(available[0].name);}}/></label></header>
+          onKeyDown={e=>{if(e.key==='Enter'&&!e.nativeEvent.isComposing&&query&&selectable.length===1){e.preventDefault();assign(selectable[0].name);}}}/></label></header>
       <div className="draft-roster-guide"><span>{query?number(available.length)+(available.length===1?' encontrado':' encontrados'):'Arraste para ver as classes'}</span>
         <div className="draft-pagination"><button aria-label="Rolar brawlers para a esquerda" disabled={!scrollEdges.left} onClick={()=>stepRoster(-1)}><ChevronLeft size={16}/></button>
           <button aria-label="Rolar brawlers para a direita" disabled={!scrollEdges.right} onClick={()=>stepRoster(1)}><ChevronRight size={16}/></button></div></div>
@@ -342,15 +373,25 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
         {groups.map(({key,Icon,entries})=><section className="draft-class" key={key}>
           <h3><Icon size={16}/>{roleName(key)} <span>{entries.length}</span></h3>
           <div className="draft-class-grid" style={{gridTemplateRows:`repeat(${Math.min(rosterRows,entries.length)}, var(--roster-tile))`}}>
-            {entries.map(b=><button key={b.id} className="roster-brawler" disabled={blocked(b.name)}
-              onClick={()=>assign(b.name)} title={`${b.name} · ${roleName(b.role)}`}>
-              <Portrait id={b.id}/><span>{b.name}</span></button>)}
+            {entries.map(b=>{
+              const key=normalize(b.name);
+              const status=banned.has(key)?'banned':picked.has(key)?'picked':undefined;
+              const label=status==='banned'?'Banido':status==='picked'?'Escolhido':undefined;
+              return <button key={b.id} className="roster-brawler" data-status={status} disabled={blocked(b.name)}
+                onClick={()=>assign(b.name)} aria-label={label?`${b.name}, ${label}`:undefined} title={`${b.name} · ${label??roleName(b.role)}`}>
+                <span className="roster-portrait"><Portrait id={b.id}/>
+                  {label&&<span className="roster-status">{status==='banned'?<Ban size={13}/>:<Check size={13}/>}<span>{label}</span></span>}
+                </span><span className="roster-name">{b.name}</span></button>;
+            })}
           </div>
         </section>)}
         {!available.length&&<p className="section-note">Nenhum brawler encontrado.</p>}
       </div>
       {!!profile?.owned_brawlers?.length&&<label className="checkbox draft-owned"><input type="checkbox" checked={owned} onChange={e=>setOwned(e.target.checked)}/> Só meus picks de poder 11</label>}
     </section>
+    {active&&complete&&summaryOpen&&<DraftSummary map={map} mapName={external.sourceMap||mapName}
+      mode={mode} team={allies} enemy={enemies} sample={global.sample} index={global.index}
+      profile={profile} onClose={()=>setSummaryOpen(false)}/>}
   </div>;
 }
 

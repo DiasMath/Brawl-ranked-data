@@ -5,7 +5,7 @@ import { CalendarDays, ChevronRight, Filter, FlaskConical, History, List, LockKe
 import { Card } from '@/components/dashboard-ui';
 import { FeedbackToast } from '@/components/feedback-toast';
 import { AccountIcon, brawlers } from '@/components/game';
-import { dateTime, draftStats, emptyFilters, filtered, localDay, normalize, number } from '@/lib/data';
+import { battleSeason, dateTime, draftStats, emptyFilters, filtered, localDay, normalize, number } from '@/lib/data';
 import { downloadSnapshot } from '@/lib/browser-store';
 import { collectionRequest, defaultMetaPeriod, inMetaPeriod, LiveMeta } from '@/lib/live';
 import type { LiveReport } from '@/lib/live';
@@ -77,7 +77,7 @@ export default function Dashboard() {
   const commonPublic=section==='meta'||section==='draft';
   const available=useMemo(()=>Object.fromEntries(columnFilters.map(([key])=>{
     const source=section==='matches'&&rankedOnly?data.matches.filter(b=>b.ranked):data.matches;
-    const values=commonPublic?[]:source.map(b=>b[key]);
+    const values=commonPublic?[]:source.map(b=>key==='season'?battleSeason(b):b[key]);
     if(commonPublic){
       const live=period==='reference'?null:report?.windows[period];
       if(key==='map_name')values.push(...(period==='reference'?publicIndex.contexts:live?.contexts??[]).map(c=>c.map));

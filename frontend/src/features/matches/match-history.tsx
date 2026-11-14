@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, FileJson, List, Swords, X } from 'lucide-react';
 import { Empty, Pill } from '@/components/dashboard-ui';
 import { findMap, MapImage, ModeIcon, ModeLabel, Portrait, RankArt } from '@/components/game';
-import { dateTime, modeName, number, resultName } from '@/lib/data';
+import { dateTime, modeName, number, resultName, safeLink } from '@/lib/data';
 import { ReplayAnnotation } from '@/features/analytics/replay-annotation';
 import type { ReplayReview } from '@/lib/coaching';
 import type { Battle } from '@/lib/data';
@@ -22,7 +22,8 @@ export function MatchList({ matches, onOpen, compact = false }: { matches: Battl
     <th>Rank</th><th aria-label="Detalhes" /></tr></thead><tbody>{visible.map(b => <tr key={b.id}>
       <td>{dateTime(b.played_at)}</td><td><span className="image-label"><ModeIcon mode={b.mode}/><span><strong>{b.map_name ?? '—'}</strong><small>{modeName(b.mode)}</small></span></span></td>
       <td><span className="image-label"><Portrait name={b.player_brawler}/>{b.player_brawler ?? '—'}</span></td><td><Pill kind={resultTone(b.result)}>{resultName(b.result)}</Pill></td>
-      <td>{b.rank_label?<span className="image-label inline-rank"><RankArt rank={b.rank_label}/>{b.rank_label}</span>:'—'}</td><td><button className="icon-button" aria-label={`Detalhar partida de ${dateTime(b.played_at)}`}
+      <td>{b.ranked ? b.rank_label ? <span className="image-label inline-rank"><RankArt rank={b.rank_label}/>{b.rank_label}</span> :
+        <span className="muted" title="O histórico da API não trouxe o rank desta partida.">Não informado</span> : '—'}</td><td><button className="icon-button" aria-label={`Detalhar partida de ${dateTime(b.played_at)}`}
         onClick={() => onOpen(b)}><ChevronRight size={16} /></button></td></tr>)}</tbody></table></div>
     {!compact && <div className="pager"><span>{number(matches.length)} registros</span><div>
       <button className="icon-button" disabled={!current} aria-label="Página anterior" onClick={() => setPage(current - 1)}><ChevronLeft size={17} /></button>
@@ -61,6 +62,12 @@ export function MatchDetail({ match, raw, review, onClose, onChange, onReview }:
     finally { setSaving(false); }
   }
   const groups = [...new Set(match.players.map(p => p.team_index))];
+  const fields = [
+    { label:'Rank da partida', value:match.rank_label, reference:match.rank_reference },
+    { label:'Pontos de rank', value:match.rank_score === null ? null : number(match.rank_score), reference:match.score_reference },
+    { label:'Temporada', value:match.season, reference:match.season_reference },
+    { label:'Bans', value:match.bans === null ? null : match.bans.join(', ') || 'Sem bans', reference:match.bans_reference },
+  ];
   return <dialog ref={dialog} className="drawer" onCancel={onClose} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
     <div className="drawer-content"><div className="drawer-head"><div><span className="eyebrow">Histórico de partidas</span>
       <h2>{match.map_name ?? 'Partida'}</h2><p>{modeName(match.mode)} · {dateTime(match.played_at)}</p></div>
@@ -72,10 +79,14 @@ export function MatchDetail({ match, raw, review, onClose, onChange, onReview }:
       {match.placement!=null&&<span>{number(match.placement)}º lugar</span>}
       {match.trophy_change!=null&&<span>{match.trophy_change>0?'+':''}{match.trophy_change} troféus</span>}</div>
     <dl className="detail-grid">
-      <div><dt>Rank</dt><dd>{match.rank_label ?? 'Indisponível'}{match.rank_source && <small>Evidência · {match.rank_reference}</small>}</dd></div>
-      <div><dt>Pontos de rank</dt><dd>{match.rank_score === null ? 'Indisponível' : number(match.rank_score)}{match.score_source && <small>Evidência · {match.score_reference}</small>}</dd></div>
-      <div><dt>Temporada</dt><dd>{match.season ?? 'Indisponível'}{match.season_source && <small>Evidência · {match.season_reference}</small>}</dd></div>
-      <div><dt>Bans</dt><dd>{match.bans === null ? 'Indisponível' : match.bans.join(', ') || 'Nenhum registrado'}{match.bans_source && <small>Evidência · {match.bans_reference}</small>}</dd></div>
+      {match.ranked && fields.map(({label,value,reference}) => {
+        const calendar = label === 'Temporada' && value === null ? match.season_by_date : null;
+        const source = calendar ? safeLink(calendar.source_url) : undefined;
+        return <div key={label}><dt>{label}</dt><dd>{value ?? calendar?.label ?? 'Não informado'}
+          <small>{reference ? 'Evidência · '+reference : value !== null ? 'Histórico da Supercell' : calendar ?
+            <>{'Estimativa pela data'}{source && <> · <a href={source} target="_blank" rel="noreferrer">Calendário</a></>}</> :
+            'Campo ausente no histórico da API'}</small></dd></div>;
+      })}
       {(match.star_player?.name||match.star_player?.tag)&&<div><dt>Craque da partida</dt><dd>{match.star_player.name??match.star_player.tag}</dd></div>}
     </dl>
     {groups.length ? groups.map(group => {
@@ -92,11 +103,11 @@ export function MatchDetail({ match, raw, review, onClose, onChange, onReview }:
       {raw !== undefined && <button className="button subtle" onClick={()=>setRawOpen(v=>!v)}><ChevronDown size={16} /> {rawOpen ? 'Ocultar JSON' : 'Ver JSON da API'}</button>}
     </div>
     {evidenceOpen && <form className="evidence-form" onSubmit={event => { event.preventDefault(); void saveEvidence(new FormData(event.currentTarget)); }}>
-      <p className="muted">Preencha somente campos verificáveis em uma captura ou registro. Campos da API têm prioridade.</p>
+      <p className="muted">No jogo, abra o Registro de batalhas para consultar os bans. Use uma captura da tela de resultado ou do replay como referência.</p>
       <label>Rank observado<input name="rank" maxLength={60} /></label>
       <label>Pontos de rank<input name="score" type="number" min={0} max={2147483647} /></label>
       <label>Temporada<input name="season" maxLength={100} /></label>
-      <label>Lista completa de bans, separados por vírgulas<input name="bans" /></label>
+      <label>Lista completa de bans, separados por vírgulas<input name="bans" maxLength={3000} /></label>
       <label className="checkbox"><input name="noBans" type="checkbox" /> A evidência confirma ausência de bans</label>
       <label>Referência da evidência<input name="source" required minLength={3} maxLength={400} /></label>
       <button className="button primary" disabled={saving}>Salvar evidência</button>

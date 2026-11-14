@@ -9,7 +9,7 @@ import type { Evidence } from '@/features/matches/match-history';
 import type { ReplayReview, TrainingPlan } from '@/lib/coaching';
 import type { Section } from './navigation';
 
-const historyVersion=3;
+const historyVersion=4;
 
 export function useDashboard() {
   const [section,setSection]=useState<Section>('overview');
@@ -190,7 +190,7 @@ export function useDashboard() {
         setServer(status);
         setServerError('');
         const attempt=status.last_attempt;
-        const revision=[status.player_tag,attempt?.id,attempt?.status,attempt?.finished_at].join(':');
+        const revision=[status.player_tag,attempt?.id,attempt?.status,attempt?.finished_at,status.last_evidence].join(':');
         if(status.player_tag!==book.active||!attempt||serverRevision.current===revision||processing.current)return;
         processing.current=true;
         try{
@@ -241,23 +241,14 @@ export function useDashboard() {
     if(!record.evidence.trim()||(record.rank_label===null&&record.rank_score===null&&record.season===null&&record.bans===null)){
       throw new Error('Informe uma referência e pelo menos um dado observado.');
     }
+    const tag=book.active;
     setBusy(true);
     try {
-    const previous=await loadLocal(book.active);
-    const matches=previous.dataset.matches.map(b=>{
-      if(b.id!==match.id)return b;
-      const next={...b};
-      if(record.rank_label!==null&&(b.rank_label===null||b.rank_source)){next.rank_label=record.rank_label;next.rank_reference=record.evidence;next.rank_source='evidência';}
-      if(record.rank_score!==null&&(b.rank_score===null||b.score_source)){next.rank_score=record.rank_score;next.score_reference=record.evidence;next.score_source='evidência';}
-      if(record.season!==null&&(b.season===null||b.season_source)){next.season=record.season;next.season_reference=record.evidence;next.season_source='evidência';}
-      if(record.bans!==null&&(b.bans===null||b.bans_source)){next.bans=record.bans;next.bans_reference=record.evidence;next.bans_source='evidência';}
-      if(next.rank_label===b.rank_label&&next.rank_score===b.rank_score&&next.season===b.season&&next.bans===b.bans
-        &&next.rank_reference===b.rank_reference&&next.score_reference===b.score_reference&&next.season_reference===b.season_reference) {
-        throw new Error('Os campos informados já têm esse valor ou foram confirmados pela API.');
-      }
-      return next;
-    });
-    await persist({...previous,dataset:{...previous.dataset,matches}});
+      await collectionRequest('/api/evidence?'+new URLSearchParams({tag}),{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...record,battle_id:match.id}),
+      });
+      try { await loadHistory(tag); }
+      catch { throw new Error('Evidência salva no servidor. O painel ainda precisa recarregar o histórico.'); }
     } finally {setBusy(false);}
   }
 

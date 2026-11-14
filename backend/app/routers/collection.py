@@ -31,6 +31,9 @@ def collection_status(tag: str | None = None):
         last_scheduled = latest_run(cursor, player, successful=True, scheduled=True)
         cursor.execute("SELECT MAX(played_at) AS latest FROM battles WHERE player_tag=%s", (player,))
         latest_battle = cursor.fetchone()["latest"]
+        cursor.execute("SELECT MAX(e.recorded_at) AS latest FROM battle_evidence e "
+                       "JOIN battles b ON b.id=e.battle_id WHERE b.player_tag=%s", (player,))
+        latest_evidence = cursor.fetchone()["latest"]
         cursor.execute("SELECT last_possible_gap FROM collection_state WHERE player_tag=%s", (player,))
         state = cursor.fetchone() or {}
         waiting = retry_until(cursor)
@@ -42,7 +45,8 @@ def collection_status(tag: str | None = None):
                          "finished_at": iso(last_attempt["finished_at"])} if last_attempt else None,
         "last_success": iso(last_success["finished_at"]) if last_success else None,
         "last_scheduled_success": iso(last_scheduled["finished_at"]) if last_scheduled else None,
-        "last_battle": iso(latest_battle), "last_possible_gap": iso(state.get("last_possible_gap")),
+        "last_battle": iso(latest_battle), "last_evidence": iso(latest_evidence),
+        "last_possible_gap": iso(state.get("last_possible_gap")),
         "retry_until": iso(waiting) if waiting and waiting > utc_now() else None,
     }
 
