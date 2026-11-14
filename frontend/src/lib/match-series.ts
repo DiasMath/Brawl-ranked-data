@@ -1,4 +1,4 @@
-import { filtered, localDay, normalize } from './data';
+import { battleSeason, filtered, localDay, normalize } from './data';
 import { draftMetaMapKey } from './draftmeta';
 import type { Battle, BattleElo, Filters } from './data';
 import type { Progress } from './browser-store';
@@ -11,6 +11,15 @@ export type MatchSeries = {
   wins: number;
   losses: number;
 };
+
+export function seriesSeason(match: MatchSeries) {
+  return match.rounds.map(battleSeason).findLast(season=>season!==null) ?? null;
+}
+
+export function seriesBattle(match: MatchSeries): Battle {
+  return {...match.latest, result:match.result,
+    player_brawler:match.latest.player_brawler??match.rounds.findLast(round=>round.player_brawler)?.player_brawler??null};
+}
 
 function lineup(battle: Battle) {
   if (!battle.ranked || !battle.mode || (!battle.event_id && !battle.map_name) || battle.players.length !== 6) return null;

@@ -8,6 +8,7 @@ Lista de trabalho do Brawl Ranked Data, em ordem de execução no ambiente local
 | 2 | Sugerir ganhos e perdas no plano de subida | Concluída no código e validada em teste | Reaproveitar variações de Elo isoladas no mesmo recorte, mostrar a quantidade de vitórias e derrotas usadas em cada sugestão e permitir edição. Quando faltar amostra, manter a entrada manual. |
 | 3 | Mostrar a evolução por brawler | Concluída no código e validada em teste | Usar todo o histórico coletado ou uma temporada para win rate e pick rate pessoais. Comparar as últimas 10 partidas decisivas com as até 10 anteriores na forma recente. Respeitar modo e mapa e mostrar a amostra de cada taxa. |
 | 4 | Conferir o histórico com partidas reais | Validação parcial | Comparar as partidas da coleta pessoal com o histórico dentro do jogo. Conferir placar, quantidade e ordem das rodadas, duração, craque e viradas. Registrar divergências com o campo recebido e o valor mostrado. |
+| 5 | Uniformizar a contagem nas sugestões pessoais e no treino | Concluída no código e validada em teste | Contar uma série uma única vez nas sugestões do Draft Lab, na busca de counters da conta e no acompanhamento do plano de treino. Permitir limitar a fonte pessoal do Draft Lab por temporada e mapa. |
 
 ## Critérios para os dados
 
@@ -48,3 +49,9 @@ Em 14/11/2026, uma leitura externa da conta no DraftMeta continha 25 registros r
 | Virada | Usar uma série com derrota, vitória e vitória. Ela deve aparecer como vitória por 2–1 e acrescentar uma virada em **Desempenho → Duração e viradas**, no mesmo recorte. |
 
 No dev, **Contas e dados → Exportar histórico** reúne os registros do painel e o JSON das partidas coletadas. Para fechar a comparação, usar esse arquivo e capturas do detalhe das mesmas partidas dentro do jogo. Registrar divergências com o horário, o mapa, o campo da API, o valor exibido e a evidência do jogo.
+
+## Validação da etapa 5
+
+Em **Draft Lab → Recomendações → Minha conta**, o recorte usa o mapa do draft e permite escolher todo o histórico ou uma temporada. Picks, sugestões de ban por derrotas observadas e counters pessoais usam o resultado das séries. A ficha do mapa também usa séries na comparação da conta com a referência competitiva.
+
+Em **Desempenho → Próxima sessão**, o plano conta as séries cuja primeira e última rodadas registradas estão no intervalo do treino. O teste confirmou que uma vitória por 2–1 entra uma vez, que enfrentar dois alvos em uma série não duplica o total de confrontos e que os filtros de temporada e mapa mudam a amostra das sugestões.

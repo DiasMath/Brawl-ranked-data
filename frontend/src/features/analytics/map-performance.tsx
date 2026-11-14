@@ -10,8 +10,8 @@ import { collectionRequest } from '@/lib/live';
 import { ordered } from '@/lib/scouting';
 import { AccountComparison } from '@/features/meta/external-account';
 import { RecentForm } from './recent-form';
-import { matchSeries, seriesInScope } from '@/lib/match-series';
-import type { MatchElo } from '@/lib/match-series';
+import { seriesBattle, seriesInScope } from '@/lib/match-series';
+import type { MatchElo, MatchSeries } from '@/lib/match-series';
 import { ReplayAnnotation } from './replay-annotation';
 import type { DraftMetaSnapshot as Snapshot } from '@/lib/draftmeta';
 
@@ -49,7 +49,7 @@ function MatchReview({match,review,onOpen,onSave}: {match:Battle;review?:ReplayR
 }
 
 function MapSheet({map, history, elo, accountName, reviews, onOpen, onReview, onDraft}: {
-  map:MapPerformance; history:Battle[]; elo:Map<string,MatchElo>; accountName:string; reviews:Record<string,ReplayReview>;
+  map:MapPerformance; history:MatchSeries[]; elo:Map<string,MatchElo>; accountName:string; reviews:Record<string,ReplayReview>;
   onOpen:(id:string)=>void; onReview:(id:string,review:ReplayReview)=>Promise<void>; onDraft:(map:string)=>void;
 }) {
   const [snapshot,setSnapshot]=useState<Snapshot|null>(null);
@@ -86,7 +86,7 @@ function MapSheet({map, history, elo, accountName, reviews, onOpen, onReview, on
       tags.set(key,(tags.get(key)??0)+1);
     }
   }
-  const benchmarkMatches=snapshot?accountInExternalScope(history,snapshot):[];
+  const benchmarkMatches=useMemo(()=>snapshot?accountInExternalScope(history.map(seriesBattle),snapshot):[],[history,snapshot]);
   const pickRates=new Map((snapshot?.presence??snapshot?.map_picks)?.map(row=>[row.name,row.pick_rate]));
   return <>
     <section className="card coaching-card"><div className="card-head"><div className="coaching-map-title"><MapImage map={findMap(map.name,null,map.mode)}/>
@@ -102,7 +102,7 @@ function MapSheet({map, history, elo, accountName, reviews, onOpen, onReview, on
         <Portrait name={row.name}/><span><strong>{row.name}</strong><small>{percent(row.rate)} · {number(row.decided)} decisivas</small></span></div>)}</div>}
       {options.length>0&&<p className="section-note">Com base no seu histórico · Pick para repetir {options[0].name}{options[1]?` · Alternativa ${options[1].name}`:''}</p>}
     </section>
-    <RecentForm matches={seriesInScope(matchSeries(history),map.rows)} elo={elo} onMatch={match=>onOpen(match.id)}/>
+    <RecentForm matches={seriesInScope(history,map.rows)} elo={elo} onMatch={match=>onOpen(match.id)}/>
     <section className="card coaching-card"><div className="card-head"><div><h2>Referência competitiva do mapa</h2>
       <p>{snapshot?`DraftMeta · Patch ${snapshot.patch_date.split('-').reverse().join('/')} · ${snapshot.start} a ${snapshot.end}`:loading?'Carregando snapshot…':'Aguardando snapshot do DraftMeta.'}</p></div>
       <button className="button small subtle" onClick={()=>void updateReference()} disabled={loading||updating}>{updating?'Atualizando…':'Atualizar referência'}</button></div>
@@ -123,7 +123,7 @@ function MapSheet({map, history, elo, accountName, reviews, onOpen, onReview, on
 }
 
 function SessionPlan({strong,weak,plan,history,onChoose,onSave}: {
-  strong?:MapPerformance; weak?:MapPerformance; plan?:TrainingPlan; history:Battle[];
+  strong?:MapPerformance; weak?:MapPerformance; plan?:TrainingPlan; history:MatchSeries[];
   onChoose:(key:string)=>void; onSave:(plan:TrainingPlan)=>Promise<void>;
 }) {
   const [message,setMessage]=useState('');
@@ -156,7 +156,7 @@ function SessionPlan({strong,weak,plan,history,onChoose,onSave}: {
 }
 
 export function MapTraining({rows,history,elo,accountName,reviews,plan,selectedMap,onOpen,onReview,onPlan,onDraft}: {
-  rows:Battle[]; history:Battle[]; elo:Map<string,MatchElo>; accountName:string; reviews:Record<string,ReplayReview>; plan?:TrainingPlan;
+  rows:Battle[]; history:MatchSeries[]; elo:Map<string,MatchElo>; accountName:string; reviews:Record<string,ReplayReview>; plan?:TrainingPlan;
   selectedMap:string; onOpen:(id:string)=>void; onReview:(id:string,review:ReplayReview)=>Promise<void>;
   onPlan:(plan:TrainingPlan)=>Promise<void>; onDraft:(map:string)=>void;
 }) {

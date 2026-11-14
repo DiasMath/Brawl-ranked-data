@@ -32,7 +32,7 @@ import { SampleCollection } from '@/features/meta/sample-collection';
 import publicIndex from '@public/scouting/index.json';
 import { columnFilters, navigation, subtitles } from './navigation';
 import { useDashboard } from './use-dashboard';
-import { filteredSeries, matchEloChanges, matchSeries, seriesInScope } from '@/lib/match-series';
+import { filteredSeries, matchEloChanges, matchSeries, seriesBattle, seriesInScope } from '@/lib/match-series';
 
 export default function Dashboard() {
   const {section, filters, setFilters, book, local, period, setPeriod, server, serverError,
@@ -86,10 +86,11 @@ export default function Dashboard() {
   const metaFilters={...filters,start:'',end:'',rank_label:'',season:period==='reference'?filters.season:''};
   const metaAccount=filtered(data.matches,metaFilters,true);
   const series=useMemo(()=>matchSeries(data.matches),[data.matches]);
+  const rankedHistory=useMemo(()=>series.filter(match=>match.latest.ranked),[series]);
   const elo=useMemo(()=>matchEloChanges(series,local.progress),[series,local.progress]);
   const historySeries=section==='matches'?filteredSeries(series,data.matches,filters,rankedOnly,elo):[];
   const rankedSeries=section==='overview'||section==='performance'?filteredSeries(series,data.matches,filters,true,elo):[];
-  const performanceRows=section==='performance'?rankedSeries.map(match=>({...match.latest,result:match.result})):[];
+  const performanceRows=section==='performance'?rankedSeries.map(seriesBattle):[];
   const selectedSeries=match&&series.find(item=>item.rounds.some(round=>round.id===match.id));
   const comparedAccount=metaAccount.filter(match=>inMetaPeriod(match.played_at,period,report));
   const draft=draftStats(comparedAccount);
@@ -184,7 +185,7 @@ export default function Dashboard() {
             matches={filteredSeries(series,data.matches,{
               ...emptyFilters,map_name:filters.map_name,mode:filters.mode,rank_label:filters.rank_label,
             },true,elo)} initialSeason={filters.season} initialBrawler={filters.player_brawler} mapFilter={filters.map_name}/>
-          <MapTraining rows={performanceRows} history={data.matches} elo={elo} accountName={active.name}
+          <MapTraining rows={performanceRows} history={rankedHistory} elo={elo} accountName={active.name}
             selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training}
             onOpen={setSelected} onReview={(id,value)=>saveCoaching({review:{id,value}})}
             onPlan={training=>saveCoaching({training})}
@@ -192,13 +193,15 @@ export default function Dashboard() {
           <Performance rows={performanceRows}/>
         </div>}
         <div className="draft-surface" hidden={section!=='draftlab'}>
-          <DraftLab active={section==='draftlab'} key={`${book.active}:${draftTarget.revision}`} matches={data.matches.filter(b=>b.ranked)} profile={data.profile} defaultMap={draftTarget.map||filters.map_name}/>
+          <DraftLab active={section==='draftlab'} key={`${book.active}:${draftTarget.revision}`} matches={rankedHistory}
+            profile={data.profile} defaultMap={draftTarget.map||filters.map_name} defaultSeason={filters.season}/>
         </div>
         {section==='draft'&&<div className="stack">
           <MetaPeriods/>
           <MetaRankings map={filters.map_name} filters={metaFilters}/>
           <PublicMeta filters={metaFilters} matches={metaAccount}/>
-          <CounterFinder matches={comparedAccount} mode="" map={filters.map_name} filters={metaFilters} imported={local.matchups}/>
+          <CounterFinder matches={seriesInScope(rankedHistory,metaAccount).map(seriesBattle)
+            .filter(match=>inMetaPeriod(match.played_at,period,report))} mode="" map={filters.map_name} filters={metaFilters} imported={local.matchups}/>
           <div className="two-col equal">
             <VisualRanking title="Meus picks" metric="pick"
               rows={draft.picks?draft.rows.filter(r=>r.picks>0).map(r=>({name:r.label,value:r.picks/draft.picks,detail:number(r.picks)+' picks próprios'})):[]}

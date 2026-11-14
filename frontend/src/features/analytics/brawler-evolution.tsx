@@ -4,15 +4,15 @@ import { Card } from '@/components/dashboard-ui';
 import { PagedTable } from '@/components/data-table';
 import { Portrait } from '@/components/game';
 import { brawlerPerformance } from '@/lib/coaching';
-import { battleSeason, modeName, normalize, number, percent } from '@/lib/data';
+import { modeName, normalize, number, percent } from '@/lib/data';
 import { mapKey } from '@/lib/external-comparison';
 import type { MatchSeries } from '@/lib/match-series';
+import { seriesSeason } from '@/lib/match-series';
 import { ordered } from '@/lib/scouting';
 
 const options=(values:(string|null|undefined)[], key:(value:string)=>string=normalize)=>[...new Map(values.flatMap(value=>value?[[key(value),value] as const]:[]))]
   .sort((a,b)=>a[1].localeCompare(b[1],'pt-BR',{numeric:true}));
 
-const seriesSeason=(match:MatchSeries)=>match.rounds.map(battleSeason).findLast(value=>value!==null);
 const ownMode=(match:MatchSeries)=>normalize(match.latest.mode);
 const ownMap=(match:MatchSeries)=>mapKey(match.latest.map_name);
 

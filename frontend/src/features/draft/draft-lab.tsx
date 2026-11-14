@@ -10,6 +10,8 @@ import type { MetaMatchup } from '@/lib/browser-store';
 import { LiveMeta, metaPeriods } from '@/lib/live';
 import type { LivePeriod } from '@/lib/live';
 import { draftMetaMapKey, draftMetaPicks } from '@/lib/draftmeta';
+import { seriesBattle, seriesSeason } from '@/lib/match-series';
+import type { MatchSeries } from '@/lib/match-series';
 import { useDraftMeta, useDraftSuggestions } from './use-draftmeta';
 import { DraftSummary } from './draft-summary';
 import { DraftTierList } from './draft-tier-list';
@@ -55,8 +57,8 @@ const classIcons={Tank:Shield,Assassin:Swords,Support:HeartPulse,Controller:Slid
 const classNames: Record<string,string>={Controller:'Controladores', 'Damage Dealer':'Damage Dealers', Marksman:'Snipers', Artillery:'Lançadores'};
 const banOrder:Slot[] = [0,1,2].flatMap(index=>[{side:'blueBan',index},{side:'redBan',index}] as Slot[]);
 
-export function DraftLab({ matches,profile,defaultMap,active=true }: {
-  matches:Battle[]; profile:Dataset['profile']; defaultMap?:string; active?:boolean;
+export function DraftLab({ matches,profile,defaultMap,defaultSeason='',active=true }: {
+  matches:MatchSeries[]; profile:Dataset['profile']; defaultMap?:string; defaultSeason?:string; active?:boolean;
 }) {
   const [mapName,setMapName]=useState(defaultMap??'');
   const [mapOpen,setMapOpen]=useState(false);
@@ -73,6 +75,7 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
   const [compactView,setCompactView]=useState<'roster'|'map'>('roster');
   const [summaryOpen,setSummaryOpen]=useState(false);
   const [source,setSource]=useState<'draftmeta'|'public'|'account'>('draftmeta');
+  const [accountSeason,setAccountSeason]=useState<string>();
   const [owned,setOwned]=useState(false);
   const [advice,setAdvice]=useState<Advice>('bans');
   const input=useRef<HTMLInputElement>(null);
@@ -113,7 +116,20 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
     if(banZone(where.side))return draft[where.side].some(v=>normalize(v)===key);
     return banned.has(key)||(owned&&where.side==='team'&&!eligible.has(key));
   };
-  const contextual=useMemo(()=>matches.filter(b=>!mapName||(map&&b.event_id===map.id)||draftMetaMapKey(b.map_name??'')===draftMetaMapKey(mapName)),[matches,map,mapName]);
+  const personalSeason=accountSeason??normalize(defaultSeason);
+  const seasons=useMemo(()=>new Map(matches.flatMap(match=>{
+    const season=seriesSeason(match);
+    return season?[[normalize(season),season] as const]:[];
+  })),[matches]);
+  const contextual=useMemo(()=>{
+    if(source!=='account')return [];
+    const mapKey=draftMetaMapKey(mapName);
+    return matches.filter(match=>{
+      const battle=match.latest;
+      return (!personalSeason||normalize(seriesSeason(match))===personalSeason) &&
+        (!mapKey||(map&&battle.event_id===map.id)||draftMetaMapKey(battle.map_name??'')===mapKey);
+    }).map(seriesBattle);
+  },[matches,map,mapName,personalSeason,source]);
   const accountPicks:ScoutingRow[]=groupStats(contextual,b=>[b.player_brawler]).filter(r=>r.decided>=3)
     .map(r=>({name:r.label,wins:r.wins,games:r.decided,details:[]}));
   const general=source==='public'?publicPicks(global.sample):accountPicks;
@@ -278,6 +294,12 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
           <select aria-label="Fonte das recomendações" value={source} onChange={e=>setSource(e.target.value as typeof source)}><option value="draftmeta">DraftMeta</option><option value="public">Amostra própria e histórico</option><option value="account">Minha conta</option></select></header>
         {source==='public'&&<select className="draft-period-select" aria-label="Período das recomendações" value={period} onChange={e=>setPeriod(e.target.value as LivePeriod)}>
           {metaPeriods(report).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select>}
+        {source==='account'&&<select className="draft-period-select" aria-label="Temporada das recomendações pessoais"
+          value={personalSeason} onChange={e=>setAccountSeason(e.target.value)}>
+          <option value="">Todo o meu histórico</option>
+          {personalSeason&&!seasons.has(personalSeason)&&<option value={personalSeason}>{defaultSeason}</option>}
+          {[...seasons].map(([key,label])=><option key={key} value={key}>{label}</option>)}
+        </select>}
         <div className="tabs">{(['picks','bans','counters'] as Advice[]).map(t=><button key={t} aria-pressed={advice===t} onClick={()=>setAdvice(t)}>
           {t==='picks'?'Picks':t==='bans'?'Bans':'Counters'}</button>)}</div>
         {source==='draftmeta'?<>
@@ -313,7 +335,8 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
           {model.result&&!modelRows.length&&<p className="draft-evidence" role="status">Nenhuma sugestão do modelo passa pelos filtros.</p>}
         </>:<>
         <div className="draft-suggestions">
-          {!recommendations.length&&<p className="section-note">{advice==='counters'&&!enemies.length?'Adicione um pick adversário.':global.loading?'Carregando…':'Sem amostra neste recorte.'}</p>}
+          {!recommendations.length&&<p className="section-note">{advice==='counters'&&!enemies.length?'Adicione um pick adversário.':
+            source==='public'&&global.loading?'Carregando…':'Sem amostra neste recorte.'}</p>}
           {recommendations.slice(0,3).map(r=>{
             const text=[...r.details,...('synergies' in r ? r.synergies as ScoutingRow['details'] : [])].map(d=>`${d.name} ${percent(d.wins/d.games)} · n=${d.games}`).join(' / ');
             return <button className="draft-suggestion" key={r.name} disabled={!applyRecommendation} title={text||`${r.games} observações decisivas`}
@@ -322,7 +345,9 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
                 <b>{r.details.length>1?'↗':percent(r.games?r.wins/r.games:null)}</b></button>;
           })}
         </div>
-        {recommendations.length>0&&<p className="draft-evidence">{advice==='bans'?'Sugestão por força e frequência':advice==='counters'?'Confrontos observados':'Win rate, counters e sinergias'}</p>}
+        {source==='account'?<p className="draft-evidence">{number(contextual.length)} {contextual.length===1?'partida':'partidas'} · {mapName||'Todos os mapas'}
+          {recommendations.length>0&&(advice==='bans'?' · Derrotas contra o brawler':advice==='counters'?' · Confrontos observados':' · Win rate pessoal')}</p>:
+          recommendations.length>0&&<p className="draft-evidence">{advice==='bans'?'Sugestão por força e frequência':advice==='counters'?'Confrontos observados':'Win rate, counters e sinergias'}</p>}
         </>}
       </div>
     </section>
@@ -397,6 +422,7 @@ export function CounterFinder({ matches, mode, map, filters, imported }: {
       <div><h3>Confrontos mais difíceis</h3><ScoutingRows rows={ordered(rows,true)} pairs limit={5} empty="Sem observações."/></div>
     </div>:<ScoutingRows rows={rows} pairs empty={target?'Sem observações suficientes neste recorte.':'Escolha um alvo ou selecione um dos brawlers destacados.'}/>}
     {source==='public'&&meta.index&&<div className="scout-foot"><a href={meta.index.url} target="_blank" rel="noreferrer">{meta.index.source}</a> · {meta.index.start} a {meta.index.end} · {meta.index.unit??'séries'} decisivos</div>}
+    {source==='account'&&<div className="scout-foot">Histórico pessoal · {map||'Todos os mapas'} · {number(matches.length)} partidas no recorte</div>}
     {source==='imported'&&active&&<div className="scout-foot"><a href={active[1].source_url} target="_blank" rel="noreferrer">{active[1].source_name}</a> · {active[1].period_start} a {active[1].period_end}</div>}
   </section>;
 }

@@ -1,7 +1,8 @@
-import { battleSeason, localDay, normalize, stats } from './data';
+import { localDay, normalize, stats } from './data';
 import type { Battle } from './data';
 import type { Progress } from './browser-store';
 import { mapKey } from './external-comparison';
+import { seriesSeason } from './match-series';
 import type { MatchSeries } from './match-series';
 
 export const replayTags = [
@@ -76,7 +77,7 @@ export function reviewPair(rows: Battle[]) {
 export function rankedSessions(matches: MatchSeries[], readings: Progress[]) {
   const ordered = matches.filter(match=>match.latest.ranked).map(match=>{
     const first = match.rounds[0], last = match.latest;
-    const season = match.rounds.map(battleSeason).findLast(value=>value!==null);
+    const season = seriesSeason(match);
     return { match, first, last, season, start:Date.parse(first.played_at), end:Date.parse(last.played_at) };
   }).filter(row=>Number.isFinite(row.start)&&Number.isFinite(row.end)).sort((a,b)=>a.start-b.start);
   const sessions: typeof ordered[] = [];
@@ -104,11 +105,12 @@ export function rankedSessions(matches: MatchSeries[], readings: Progress[]) {
   }).reverse();
 }
 
-export function trainingResults(matches: Battle[], plan: TrainingPlan) {
+export function trainingResults(matches: MatchSeries[], plan: TrainingPlan) {
   const start=Date.parse(plan.startedAt??'');
   const end=plan.completedAt?Date.parse(plan.completedAt):Infinity;
   return stats(matches.filter(match=>{
-    const at=Date.parse(match.played_at);
-    return match.ranked&&at>=start&&at<=end;
+    const first=Date.parse(match.rounds[0].played_at);
+    const last=Date.parse(match.latest.played_at);
+    return match.latest.ranked&&first>=start&&last<=end;
   }));
 }
