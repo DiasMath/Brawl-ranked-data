@@ -165,7 +165,7 @@ export default function Dashboard() {
           action={<label className="switch-label"><input type="checkbox" checked={rankedOnly} onChange={e=>setRankedOnly(e.target.checked)}/> Só ranqueadas</label>}>
           <MatchList key={JSON.stringify([filters,rankedOnly])} matches={historySeries} elo={elo} onOpen={b=>setSelected(b.id)}/></Card>}
         {section==='performance'&&<div className="stack">
-          <ModePerformance key={book.active} rows={performanceRows}/>
+          <ModePerformance key={book.active} matches={rankedSeries}/>
           <MapTraining key={book.active} rows={performanceRows} history={data.matches} elo={elo} accountName={active.name}
             selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training}
             onOpen={setSelected} onReview={(id,value)=>saveCoaching({review:{id,value}})}

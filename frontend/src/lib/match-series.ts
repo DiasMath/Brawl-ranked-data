@@ -79,6 +79,36 @@ export function seriesDuration(match: MatchSeries) {
   return match.rounds.reduce((total,round)=>total+(round.duration_seconds??0),0);
 }
 
+export function seriesPerformance(matches: MatchSeries[]) {
+  const time = { victory:{ seconds:0, count:0 }, defeat:{ seconds:0, count:0 } };
+  const results = { victory:0, defeat:0 };
+  let lostOpening=0, comebacks=0;
+  for(const match of matches){
+    if(!match.latest.ranked||!match.result||match.result==='draw')continue;
+    const {rounds,result}=match;
+    const winnerCount=rounds.filter(round=>round.result===result).length;
+    const loserCount=rounds.filter(round=>round.result===(result==='victory'?'defeat':'victory')).length;
+    if(winnerCount!==2||loserCount>1||rounds.some(round=>round.result===null)||rounds.at(-1)?.result!==result)continue;
+
+    results[result]++;
+    if(rounds[0].result==='defeat'){
+      lostOpening++;
+      if(result==='victory')comebacks++;
+    }
+    const duration=seriesDuration(match);
+    if(duration!==null){
+      time[result].seconds+=duration;
+      time[result].count++;
+    }
+  }
+  const duration=(result:'victory'|'defeat')=>{
+    const {seconds,count}=time[result];
+    return {average:count?Math.round(seconds/count):null,count,total:results[result]};
+  };
+  return {victories:duration('victory'),defeats:duration('defeat'),comebacks,lostOpening,
+    comebackRate:lostOpening?comebacks/lostOpening:null};
+}
+
 export function seriesInScope(series: MatchSeries[], battles: Battle[]) {
   const ids = new Set(battles.map(battle=>battle.id));
   return series.filter(match=>match.rounds.some(round=>ids.has(round.id)));

@@ -42,7 +42,7 @@ $next = Join-Path $frontend 'node_modules/.bin/next.cmd'
 $installedFrontendHash = Get-Content -LiteralPath $frontendStamp -TotalCount 1 -ErrorAction SilentlyContinue
 if ($installedFrontendHash -ne $frontendHash -or !(Test-Path -LiteralPath $next -PathType Leaf)) {
     Write-Host 'Instalando as dependências do Next.js...'
-    & npm.cmd --prefix $frontend ci
+    & npm.cmd --prefix $frontend ci --include=dev
     if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath $next -PathType Leaf)) {
         throw 'A instalação das dependências do frontend falhou. Veja o erro do npm acima e execute npm.cmd run dev novamente.'
     }

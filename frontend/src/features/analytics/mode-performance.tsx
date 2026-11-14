@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, Clock3, RotateCcw } from 'lucide-react';
 import { Card, Empty } from '@/components/dashboard-ui';
 import { findMap, MapImage, ModeIcon, Portrait } from '@/components/game';
-import { groupStats, modeName, normalize, number, percent, stats } from '@/lib/data';
+import { durationLabel, groupStats, modeName, normalize, number, percent, stats } from '@/lib/data';
 import type { Battle } from '@/lib/data';
 import { draftMetaMapKey } from '@/lib/draftmeta';
+import { seriesPerformance } from '@/lib/match-series';
+import type { MatchSeries } from '@/lib/match-series';
 import { ordered } from '@/lib/scouting';
 
 const modeKey=(battle: Battle)=>normalize(battle.mode);
@@ -51,16 +53,42 @@ function BrawlerTable({ title, rows, worst=false }: { title:string; rows:Brawler
   </div>;
 }
 
-export function ModePerformance({ rows }: { rows:Battle[] }) {
+function SeriesPerformance({ sample }: { sample:ReturnType<typeof seriesPerformance> }) {
+  return <section className="series-performance" aria-label="Duração e viradas">
+    <h3>Duração e viradas</h3>
+    <div className="series-performance-grid">
+      {[{title:'Duração média das vitórias',value:sample.victories,kind:'victory'},
+        {title:'Duração média das derrotas',value:sample.defeats,kind:'defeat'}].map(({title,value,kind})=>
+        value.average!==null&&<div key={kind} data-result={kind}>
+          <small><Clock3 size={14}/>{title}</small>
+          <strong>{durationLabel(value.average)}</strong>
+          <small>{number(value.count)} de {number(value.total)} séries com duração registrada</small>
+        </div>)}
+      {sample.comebackRate!==null&&<div data-result="comeback">
+        <small><RotateCcw size={14}/> Vitória após perder a primeira rodada</small>
+        <strong>{percent(sample.comebackRate)}</strong>
+        <small>{number(sample.comebacks)} {sample.comebacks===1?'virada':'viradas'} em {number(sample.lostOpening)} {sample.lostOpening===1?'série':'séries'}</small>
+      </div>}
+    </div>
+    <p className="muted">Séries ranqueadas agrupadas pelo histórico com placar final 2–0 ou 2–1, de qualquer lado. O tempo soma as rodadas registradas.</p>
+  </section>;
+}
+
+export function ModePerformance({ matches }: { matches:MatchSeries[] }) {
   const [mode,setMode]=useState('');
   const [map,setMap]=useState('');
   const [pick,setPick]=useState('');
+  const rows=useMemo(()=>matches.map(match=>({...match.latest,result:match.result})),[matches]);
   const modes=useMemo(()=>breakdown(rows.filter(b=>b.mode),modeKey),[rows]);
   const activeMode=modes.some(row=>row.id===mode)?mode:'';
   const modeRows=useMemo(()=>activeMode?rows.filter(b=>modeKey(b)===activeMode):rows,[rows,activeMode]);
   const maps=useMemo(()=>breakdown(modeRows.filter(b=>b.map_name),mapKey),[modeRows]);
   const activeMap=maps.some(row=>row.id===map)?map:'';
   const scoped=useMemo(()=>activeMap?modeRows.filter(b=>mapKey(b)===activeMap):modeRows,[modeRows,activeMap]);
+  const series=useMemo(()=>{
+    const ids=new Set(scoped.map(b=>b.id));
+    return seriesPerformance(matches.filter(match=>ids.has(match.latest.id)));
+  },[matches,scoped]);
   const picks=useMemo(()=>groupStats(scoped,playerPick),[scoped]);
   const activePick=picks.some(row=>row.label===pick)?pick:'';
   const enemyRows=useMemo(()=>groupStats(activePick?scoped.filter(b=>normalize(b.player_brawler)===normalize(activePick)):scoped,opponents),
@@ -92,6 +120,7 @@ export function ModePerformance({ rows }: { rows:Battle[] }) {
         {hardest&&<div><small>Adversário mais difícil{activePick&&` com ${activePick}`}</small><span className="image-label"><Portrait name={hardest.label}/>
           <strong>{hardest.label}</strong></span><small>{percent(hardest.rate)} · {number(hardest.decided)} decisivas</small></div>}
       </div>
+      {(series.victories.average!==null||series.defeats.average!==null||series.comebackRate!==null)&&<SeriesPerformance sample={series}/>}
       <div className="mode-tables">
         {[{label:'Modos',entries:modes,selected:activeMode,select:(id:string)=>{setMode(id);setMap('');setPick('');},map:false},
           {label:'Mapas',entries:maps,selected:activeMap,select:(id:string)=>{setMap(id);setPick('');},map:true}].map(group=>

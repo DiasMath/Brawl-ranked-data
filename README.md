@@ -72,6 +72,8 @@ npm.cmd run dev
 
 Na primeira execução, o comando cria `backend/.venv` usando `py -3.12` e instala as dependências. Nos próximos inícios, reaproveita a instalação e executa de novo a instalação correspondente se mudarem os arquivos de requisitos ou o `package-lock.json` do frontend.
 
+Ao atualizar o código, encerre o Next.js que estiver rodando e execute `npm.cmd run dev` novamente. O frontend verifica as dependências instaladas, incluindo o GSAP, e sincroniza as versões com o `package-lock.json` antes de iniciar.
+
 Em seguida, o comando abre duas janelas, uma com os logs do FastAPI na porta 8787 e outra com os logs do Next.js na porta 3000. Para encerrar o ambiente, pressione `Ctrl+C` em cada janela. Você também pode iniciar os dois serviços diretamente com `.\Iniciar-Dev.ps1`.
 
 Abra `http://127.0.0.1:3000` e entre com `BRAWL_SITE_USER` e `BRAWL_SITE_PASSWORD` de `frontend/.env.development.local`. Em **Contas e dados**, adicione um jogador pela tag. Com a chave configurada, a primeira consulta da conta selecionada começa automaticamente. Use **Sincronizar agora** para buscar uma atualização. Se precisar confirmar que o FastAPI subiu, acesse `http://127.0.0.1:8787/health`.
