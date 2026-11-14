@@ -7,7 +7,7 @@ Lista de trabalho do Brawl Ranked Data, em ordem de execução no ambiente local
 | 1 | Contar partidas agrupadas na Progressão | Concluída no código e validada em teste | Uma vitória por 2–1 conta como uma partida e uma vitória nas sessões, no ritmo diário e no win rate sugerido. Os filtros de período e temporada mantêm a série inteira. |
 | 2 | Sugerir ganhos e perdas no plano de subida | Concluída no código e validada em teste | Reaproveitar variações de Elo isoladas no mesmo recorte, mostrar a quantidade de vitórias e derrotas usadas em cada sugestão e permitir edição. Quando faltar amostra, manter a entrada manual. |
 | 3 | Mostrar a evolução por brawler | Concluída no código e validada em teste | Usar todo o histórico coletado ou uma temporada para win rate e pick rate pessoais. Comparar as últimas 10 partidas decisivas com as até 10 anteriores na forma recente. Respeitar modo e mapa e mostrar a amostra de cada taxa. |
-| 4 | Conferir o histórico com partidas reais | Pendente | Comparar algumas partidas recém-coletadas com o histórico do jogo. Conferir placar, quantidade e ordem das rodadas, duração, craque e viradas. Registrar divergências com o campo recebido e o valor mostrado. |
+| 4 | Conferir o histórico com partidas reais | Validação parcial | Comparar as partidas da coleta pessoal com o histórico dentro do jogo. Conferir placar, quantidade e ordem das rodadas, duração, craque e viradas. Registrar divergências com o campo recebido e o valor mostrado. |
 
 ## Critérios para os dados
 
@@ -35,3 +35,16 @@ Só as partidas com temporada identificada entram no recorte daquela temporada. 
 Para escolher picks, use a temporada e compare opções no mesmo mapa e modo. Abra o Draft Lab para considerar aliados, adversários e bans da composição. Para treinar, procure quedas de forma em recortes comparáveis e use a ficha do mapa para revisar uma vitória e uma derrota. Os números da conta descrevem os seus resultados e a frequência das suas escolhas. A referência competitiva segue o patch, o mapa e a amostra da fonte.
 
 [Recortes de win rate e pick rate do DraftMeta](https://draftmeta.com/games/brawl-stars/win-rates) · [Modelo de draft do DraftMeta](https://draftmeta.com/model) · [Intervalo de Wilson no NIST](https://www.itl.nist.gov/div898/handbook/prc/section2/prc241.htm)
+
+## Validação parcial da etapa 4
+
+Em 14/11/2026, uma leitura externa da conta no DraftMeta continha 25 registros recentes. Entre eles, 12 estavam classificados como `soloRanked`. Por horário, mapa, brawler e composição dos dois lados, eles formavam seis pares compatíveis com séries, três com duas vitórias e três com duas derrotas. A leitura externa trouxe os brawlers dos dois times. Faltavam as tags dos participantes, a duração e o craque. Essa amostra fornece placares esperados para comparação e não confirma o agrupamento do painel, que também usa as tags. Ainda falta observar uma virada após perder a primeira rodada.
+
+| Verificação | Evidência para concluir |
+| --- | --- |
+| Série e ordem das rodadas | Comparar o placar e as rodadas do histórico do jogo com **Partidas → Detalhe**. Usar mapa, brawler e sequência de resultados para identificar a mesma série. |
+| Duração | Conferir `battle.duration` na rodada correspondente no JSON da API. O tempo da série soma as durações das rodadas quando todas estão presentes. |
+| Craque | Conferir `battle.starPlayer` no JSON de cada rodada e comparar com o nome mostrado no jogo. |
+| Virada | Usar uma série com derrota, vitória e vitória. Ela deve aparecer como vitória por 2–1 e acrescentar uma virada em **Desempenho → Duração e viradas**, no mesmo recorte. |
+
+No dev, **Contas e dados → Exportar histórico** reúne os registros do painel e o JSON das partidas coletadas. Para fechar a comparação, usar esse arquivo e capturas do detalhe das mesmas partidas dentro do jogo. Registrar divergências com o horário, o mapa, o campo da API, o valor exibido e a evidência do jogo.
