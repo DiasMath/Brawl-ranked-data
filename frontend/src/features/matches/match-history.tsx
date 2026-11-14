@@ -6,7 +6,7 @@ import { dateTime, modeName, number, resultName, safeLink } from '@/lib/data';
 import { ReplayAnnotation } from '@/features/analytics/replay-annotation';
 import type { ReplayReview } from '@/lib/coaching';
 import type { Battle } from '@/lib/data';
-import { matchKd } from '@/lib/match-series';
+import { matchKd, seriesBans, seriesRank } from '@/lib/match-series';
 import type { MatchElo, MatchSeries } from '@/lib/match-series';
 
 const pageSize = 15;
@@ -15,22 +15,32 @@ function resultTone(result: Battle['result']) {
   return result === 'victory' ? 'success' : result === 'defeat' ? 'danger' : 'neutral';
 }
 
-export function MatchList({ matches, onOpen, compact = false }: { matches: MatchSeries[]; onOpen: (b: Battle) => void; compact?: boolean }) {
+export function MatchList({ matches, elo, onOpen, compact = false }: {
+  matches: MatchSeries[]; elo?:Map<string,MatchElo>; onOpen: (b: Battle) => void; compact?: boolean;
+}) {
   const [page, setPage] = useState(0);
+  const scroll=useRef<HTMLDivElement>(null);
   const current = Math.min(page, Math.max(0, Math.ceil(matches.length / pageSize) - 1));
+  useEffect(()=>{if(scroll.current)scroll.current.scrollTop=0;},[current]);
   if (!matches.length) return <Empty icon={List} title="Nenhuma partida encontrada">Atualize o histórico ou ajuste os filtros do recorte.</Empty>;
   const visible = compact ? matches.slice(0, 6) : matches.slice(current * pageSize, (current + 1) * pageSize);
-  return <><div className="table-wrap"><table><thead><tr><th>Data e hora</th><th>Mapa / modo</th><th>Brawler</th><th>Resultado</th>
+  return <><div ref={scroll} className={compact?'table-wrap':'table-wrap match-history-scroll'}
+    role={compact?undefined:'region'} aria-label={compact?undefined:'Tabela do histórico de partidas'} tabIndex={compact?undefined:0}>
+    <table><thead><tr><th>Data e hora</th><th>Mapa / modo</th><th>Brawler</th><th>Resultado</th>
     <th>K/D</th><th>Rank</th><th aria-label="Detalhes" /></tr></thead><tbody>{visible.map(series => {
       const {id,latest:b,result,rounds,wins,losses}=series;
       const kd=matchKd(series);
+      const rank=seriesRank(series);
+      const estimatedRank=elo?.get(id)?.rank;
+      const rankLabel=rank?.rank_label??estimatedRank;
       return <tr key={id}>
       <td>{dateTime(b.played_at)}</td><td><span className="image-label"><ModeIcon mode={b.mode}/><span><strong>{b.map_name ?? '—'}</strong><small>{modeName(b.mode)}</small></span></span></td>
       <td><span className="image-label"><Portrait name={b.player_brawler}/>{b.player_brawler ?? '—'}</span></td><td>
         <Pill kind={resultTone(result)}>{rounds.length>1&&!result?'Resultado em aberto':resultName(result)}</Pill>
         {rounds.length>1&&<small title="Agrupamento inferido a partir do histórico">{wins}–{losses} · {rounds.length} rodadas</small>}</td>
       <td title={kd?'Eliminações / mortes':'Sem registro completo'}>{kd?`${number(kd.kills)} / ${number(kd.deaths)}`:'—'}</td>
-      <td>{b.ranked ? b.rank_label ? <span className="image-label inline-rank"><RankArt rank={b.rank_label}/>{b.rank_label}</span> :
+      <td>{b.ranked ? rankLabel ? <span className="image-label inline-rank" title={rank && rank!==b?'Rank registrado em outra rodada da série':undefined}>
+        <RankArt rank={rankLabel}/><span>{rankLabel}{!rank&&<small>Estimativa · Perfil</small>}</span></span> :
         <span className="muted" title="O histórico da API não trouxe o rank desta partida.">Não informado</span> : '—'}</td><td><button className="icon-button" aria-label={`Detalhar partida de ${dateTime(b.played_at)}`}
         onClick={() => onOpen(b)}><ChevronRight size={16} /></button></td></tr>;
     })}</tbody></table></div>
@@ -80,11 +90,18 @@ export function MatchDetail({ match, series, elo, onRound, raw, review, onClose,
   const groups = [...new Set(match.players.map(p => p.team_index))];
   const grouped = series && series.rounds.length>1 ? series : null;
   const totalKd=grouped?matchKd(grouped):null;
+  const rank=series?seriesRank(series,match):match;
+  const bans=series?seriesBans(series,match):match;
+  const banNames=bans?.bans;
   const fields = [
-    { label:'Rank da partida', value:match.rank_label, reference:match.rank_reference },
-    { label:'Pontos de rank', value:match.rank_score === null ? null : number(match.rank_score), reference:match.score_reference },
+    { label:'Rank da partida', value:rank?.rank_label ?? elo?.rank ?? null, reference:rank?.rank_reference, otherRound:rank && rank!==match,
+      note:!rank?.rank_label && elo?.rank ? 'Estimativa · Mesma divisão antes e depois' : null },
+    { label:'Pontos de rank', value:match.rank_score !== null ? number(match.rank_score) : elo ? number(elo.after) : null,
+      reference:match.rank_score !== null ? match.score_reference : elo?.reference,
+      note:match.rank_score === null && elo ? (elo.reference?'Após a partida':'Estimativa após a partida · Perfil') : null },
     { label:'Temporada', value:match.season, reference:match.season_reference },
-    { label:'Bans', value:match.bans === null ? null : match.bans.join(', ') || 'Sem bans', reference:match.bans_reference },
+    { label:'Bans', value:banNames==null ? null : banNames.join(', ') || 'Sem bans', reference:bans?.bans_reference,
+      otherRound:bans && bans!==match },
   ];
   return <dialog ref={dialog} className="drawer" onCancel={onClose} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
     <div className="drawer-content"><div className="drawer-head"><div><span className="eyebrow">Histórico de partidas</span>
@@ -118,13 +135,13 @@ export function MatchDetail({ match, series, elo, onRound, raw, review, onClose,
         <small>{match.kd?(match.kd.reference?'Evidência · '+match.kd.reference:'Histórico da Supercell'):'Eliminações e mortes não informadas'}</small></dd></div>
       {match.ranked&&<div><dt>Variação de Elo</dt><dd>{elo?`${number(elo.before)} → ${number(elo.after)} (${elo.after>elo.before?'+':''}${number(elo.after-elo.before)})`:'—'}
         <small>{elo?(elo.reference?'Evidência · '+elo.reference:'Estimativa por leituras do perfil'):'Sem leitura isolada desta partida'}</small></dd></div>}
-      {match.ranked && fields.map(({label,value,reference}) => {
+      {match.ranked && fields.map(({label,value,reference,otherRound,note}) => {
         const calendar = label === 'Temporada' && value === null ? match.season_by_date : null;
         const source = calendar ? safeLink(calendar.source_url) : undefined;
         return <div key={label}><dt>{label}</dt><dd>{value ?? calendar?.label ?? 'Não informado'}
-          <small>{reference ? 'Evidência · '+reference : value !== null ? 'Histórico da Supercell' : calendar ?
+          <small>{reference ? 'Evidência · '+reference : note ?? (value !== null ? 'Histórico da Supercell' : calendar ?
             <>{'Estimativa pela data'}{source && <> · <a href={source} target="_blank" rel="noreferrer">Calendário</a></>}</> :
-            'Campo ausente no histórico da API'}</small></dd></div>;
+            'Campo ausente no histórico da API')}{otherRound?' · Outra rodada da série':''}</small></dd></div>;
       })}
       {(match.star_player?.name||match.star_player?.tag)&&<div><dt>{grouped?'Craque da rodada':'Craque da partida'}</dt><dd>{match.star_player.name??match.star_player.tag}</dd></div>}
     </dl>

@@ -63,9 +63,12 @@ export function seriesInScope(series: MatchSeries[], battles: Battle[]) {
   return series.filter(match=>match.rounds.some(round=>ids.has(round.id)));
 }
 
-export function filteredSeries(series: MatchSeries[], battles: Battle[], filters: Filters, rankedOnly: boolean) {
-  const scoped = filtered(battles,{...filters,start:'',end:''},rankedOnly);
+export function filteredSeries(series: MatchSeries[], battles: Battle[], filters: Filters, rankedOnly: boolean, elo?:Map<string,MatchElo>) {
+  const scoped = filtered(battles,{...filters,start:'',end:'',rank_label:''},rankedOnly);
   return seriesInScope(series,scoped).filter(match=>{
+    const rank=seriesRank(match)?.rank_label??elo?.get(match.id)?.rank;
+    if (filters.rank_label && normalize(rank)!==normalize(filters.rank_label) &&
+      !match.rounds.some(round=>normalize(round.rank_label)===normalize(filters.rank_label))) return false;
     if (!filters.start && !filters.end) return true;
     const day = localDay(match.latest.played_at);
     return (!filters.start || day >= filters.start) && (!filters.end || day <= filters.end);
@@ -79,7 +82,22 @@ export function matchKd(match: MatchSeries) {
   }),{kills:0,deaths:0});
 }
 
-export type MatchElo = Omit<BattleElo,'reference'> & { reference: string|null };
+export type MatchElo = Omit<BattleElo,'reference'> & { reference: string|null; rank?:string };
+
+export function seriesRank(match: MatchSeries, round=match.latest) {
+  if (round.rank_label) return round;
+  const known = match.rounds.filter(item=>item.rank_label);
+  return known.every(item=>normalize(item.rank_label)===normalize(known[0]?.rank_label))
+    ? known.find(item=>!item.rank_source)??known[0] : undefined;
+}
+
+export function seriesBans(match: MatchSeries, round=match.latest) {
+  if (round.bans!==null) return round;
+  const known=match.rounds.filter(item=>item.bans!==null);
+  const signature=(item: Battle)=>JSON.stringify(item.bans?.map(normalize).sort());
+  return known.every(item=>signature(item)===signature(known[0]))
+    ? known.find(item=>!item.bans_source)??known[0] : undefined;
+}
 
 export function matchEloChanges(series: MatchSeries[], readings: Progress[]) {
   const ranked = series.filter(match=>match.latest.ranked).reverse();
@@ -97,16 +115,29 @@ export function matchEloChanges(series: MatchSeries[], readings: Progress[]) {
     const start = Date.parse(match.rounds[0].played_at);
     const end = Date.parse(match.latest.played_at) + match.latest.duration_seconds*1000;
     while (readingIndex<scores.length && Date.parse(scores[readingIndex].at)<start) readingIndex++;
-    const before = scores[readingIndex-1], after = scores[readingIndex];
+    const before = scores[readingIndex-1];
+    let endIndex = readingIndex;
+    while (endIndex<scores.length && Date.parse(scores[endIndex].at)<=end) endIndex++;
+    const after = scores[endIndex];
     if (!before || !after || before.season!==after.season || before.score===null || after.score===null) continue;
     const from = Date.parse(before.at), to = Date.parse(after.at);
     const previous = ranked[index-1]?.latest, next = ranked[index+1]?.rounds[0];
     const previousEnd = previous ? Date.parse(previous.played_at)+(previous.duration_seconds??0)*1000 : -Infinity;
-    if (to<=end || to-from>20*60_000 || previousEnd>=from || (next && Date.parse(next.played_at)<=to)) continue;
+    if (to-from>20*60_000 || previousEnd>=from || (next && Date.parse(next.played_at)<=to)) continue;
     if (match.rounds.some(round=>round.season && normalize(round.season)!==normalize(before.season))) continue;
+    // Accept intermediate readings that remain at the starting score or settle at the ending score.
+    const during=scores.slice(readingIndex,endIndex);
+    let reachedAfter=false;
+    if (during.some(read=>{
+      if (read.season!==before.season || (read.score!==after.score && (reachedAfter || read.score!==before.score))) return true;
+      if (read.score===after.score) reachedAfter=true;
+      return false;
+    })) continue;
     const delta=after.score-before.score;
     if ((match.result==='victory' && delta<=0) || (match.result==='defeat' && delta>=0) || match.result==='draw') continue;
-    values.set(match.id,{before:before.score,after:after.score,reference:null});
+    const rank = before.rank && normalize(before.rank)===normalize(after.rank) &&
+      during.every(read=>!read.rank||normalize(read.rank)===normalize(before.rank)) ? before.rank : undefined;
+    values.set(match.id,{before:before.score,after:after.score,reference:null,...(rank?{rank}:{})});
   }
   return values;
 }

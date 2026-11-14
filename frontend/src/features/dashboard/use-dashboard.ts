@@ -29,7 +29,7 @@ export function useDashboard() {
   const [ready,setReady]=useState(false);
   const [busy,setBusy]=useState(false);
   const [menuOpen,setMenuOpen]=useState(false);
-  const [rankedOnly,setRankedOnly]=useState(false);
+  const [rankedOnly,setRankedOnly]=useState(true);
   const [selected,setSelected]=useState<string|null>(null);
   const active=book.accounts.find(a=>a.tag===book.active)??{tag:book.active,name:'Minha conta'};
   const data=local.dataset;

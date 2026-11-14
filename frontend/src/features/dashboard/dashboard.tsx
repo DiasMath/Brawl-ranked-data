@@ -72,8 +72,8 @@ export default function Dashboard() {
   const metaAccount=filtered(data.matches,metaFilters,true);
   const series=useMemo(()=>matchSeries(data.matches),[data.matches]);
   const elo=useMemo(()=>matchEloChanges(series,local.progress),[series,local.progress]);
-  const historySeries=section==='matches'?filteredSeries(series,data.matches,filters,rankedOnly):[];
-  const rankedSeries=section==='overview'?filteredSeries(series,data.matches,filters,true):[];
+  const historySeries=section==='matches'?filteredSeries(series,data.matches,filters,rankedOnly,elo):[];
+  const rankedSeries=section==='overview'?filteredSeries(series,data.matches,filters,true,elo):[];
   const selectedSeries=match&&series.find(item=>item.rounds.some(round=>round.id===match.id));
   const comparedAccount=metaAccount.filter(match=>inMetaPeriod(match.played_at,period,report));
   const draft=draftStats(comparedAccount);
@@ -86,6 +86,9 @@ export default function Dashboard() {
   const available=useMemo(()=>Object.fromEntries(columnFilters.map(([key])=>{
     const source=section==='matches'&&rankedOnly?data.matches.filter(b=>b.ranked):data.matches;
     const values=commonPublic?[]:source.map(b=>key==='season'?battleSeason(b):b[key]);
+    if(key==='rank_label'&&(section==='matches'||section==='overview')){
+      for(const reading of elo.values())if(reading.rank)values.push(reading.rank);
+    }
     if(commonPublic){
       const live=period==='reference'?null:report?.windows[period];
       if(key==='map_name')values.push(...(period==='reference'?publicIndex.contexts:live?.contexts??[]).map(c=>c.map));
@@ -97,7 +100,7 @@ export default function Dashboard() {
     }
     if(key==='season'&&section==='progress')values.push(data.profile?.season??null,...local.progress.map(p=>p.season));
     return [key,[...new Map(values.filter((v):v is string=>Boolean(v)).map(v=>[normalize(v),v])).values()].sort((a,b)=>a.localeCompare(b,'pt-BR'))];
-  })),[data,local.progress,section,rankedOnly,commonPublic,period,report]);
+  })),[data,local.progress,section,rankedOnly,commonPublic,period,report,elo]);
 
   return <LiveMeta.Provider value={{report,period,setPeriod:changePeriod}}><div className={`shell lab-shell ${section==='draftlab'?'draft-shell':''}`}>
     {menuOpen&&<button className="mobile-scrim" aria-label="Fechar menu" onClick={()=>setMenuOpen(false)}/>}
@@ -156,7 +159,7 @@ export default function Dashboard() {
           matches={filtered(data.matches,progressFilters,true)} onSave={saveProgress}/>}
         {section==='matches'&&<Card title="Histórico de partidas" icon={List} sub={`${number(historySeries.length)} no recorte · ${number(series.length)} no histórico${historySeries[0]?' · Mais recente '+dateTime(historySeries[0].latest.played_at):''} · Horário de Brasília`}
           action={<label className="switch-label"><input type="checkbox" checked={rankedOnly} onChange={e=>setRankedOnly(e.target.checked)}/> Só ranqueadas</label>}>
-          <MatchList key={JSON.stringify([filters,rankedOnly])} matches={historySeries} onOpen={b=>setSelected(b.id)}/></Card>}
+          <MatchList key={JSON.stringify([filters,rankedOnly])} matches={historySeries} elo={elo} onOpen={b=>setSelected(b.id)}/></Card>}
         {section==='performance'&&<div className="stack">
           <MapTraining key={book.active} rows={ranked} history={data.matches} elo={elo} accountName={active.name}
             selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training}
@@ -182,7 +185,7 @@ export default function Dashboard() {
           <DraftTierList meta={draftTier}/>
           <Card title="Drafts recentes" icon={History} sub="Composições dos registros ranqueados."
             action={<button className="button small subtle" onClick={()=>navigate('draftlab')}><FlaskConical size={15}/> Abrir Draft Lab</button>}>
-            <MatchList matches={seriesInScope(series,comparedAccount.filter(b=>b.players.some(p=>p.side==='ally')&&b.players.some(p=>p.side==='opponent')))} compact onOpen={b=>setSelected(b.id)}/>
+            <MatchList matches={seriesInScope(series,comparedAccount.filter(b=>b.players.some(p=>p.side==='ally')&&b.players.some(p=>p.side==='opponent')))} elo={elo} compact onOpen={b=>setSelected(b.id)}/>
           </Card>
         </div>}
         {section==='meta'&&<div className="stack">

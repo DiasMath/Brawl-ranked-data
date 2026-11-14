@@ -70,8 +70,10 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
   const input=useRef<HTMLInputElement>(null);
   const roster=useRef<HTMLElement>(null);
   const rail=useRef<HTMLDivElement>(null);
-  const drag=useRef<{id:number; x:number; offset:number; moved:boolean; lastX:number; at:number; velocity:number}|null>(null);
+  const drag=useRef<{id:number; x:number; offset:number; moved:boolean; samples:{x:number;at:number}[]}|null>(null);
   const momentum=useRef<number|null>(null);
+  const wheelTarget=useRef<{left:number;at:number}|null>(null);
+  const wheelFrame=useRef<number|null>(null);
   const suppressClick=useRef(false);
   const {period,setPeriod,report}=useContext(LiveMeta);
   useEffect(()=>{
@@ -192,9 +194,12 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
   function startDrag(event:PointerEvent<HTMLDivElement>){
     if(event.pointerType!=='mouse'||event.button!==0)return;
     stopMomentum();
+    wheelTarget.current=null;
+    const element=event.currentTarget;
+    element.scrollTo({left:element.scrollLeft,behavior:'instant'});
     suppressClick.current=false;
-    drag.current={id:event.pointerId,x:event.clientX,offset:event.currentTarget.scrollLeft,moved:false,
-      lastX:event.clientX,at:event.timeStamp,velocity:0};
+    drag.current={id:event.pointerId,x:event.clientX,offset:element.scrollLeft,moved:false,
+      samples:[{x:event.clientX,at:event.timeStamp}]};
   }
   function moveDrag(event:PointerEvent<HTMLDivElement>){
     const current=drag.current;
@@ -208,33 +213,62 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
     }
     suppressClick.current=true;
     event.currentTarget.scrollLeft=current.offset-delta;
-    const elapsed=event.timeStamp-current.at;
-    if(elapsed>0){
-      const speed=(current.lastX-event.clientX)/elapsed;
-      current.velocity=Math.max(-2.1,Math.min(2.1,speed));
-      current.lastX=event.clientX;
-      current.at=event.timeStamp;
-    }
+    const recent=current.samples.filter(sample=>event.timeStamp-sample.at<=125);
+    current.samples=[...(recent.length?recent:current.samples.slice(-1)),{x:event.clientX,at:event.timeStamp}];
   }
   function finishDrag(event:PointerEvent<HTMLDivElement>){
     const current=drag.current;
     if(!current||current.id!==event.pointerId)return;
     drag.current=null;
-    if(!current.moved||event.timeStamp-current.at>90||Math.abs(current.velocity)<.08||
+    const last=current.samples.at(-1)!;
+    const first=current.samples.find(sample=>last.at-sample.at<=105&&sample.at<last.at)??current.samples[0];
+    let velocity=Math.max(-3,Math.min(3,(first.x-last.x)/Math.max(12,last.at-first.at)));
+    if(!current.moved||event.timeStamp-last.at>110||Math.abs(velocity)<.06||
       window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
     const element=event.currentTarget;
-    let previous=performance.now(), position=element.scrollLeft, velocity=current.velocity;
+    let previous=performance.now(), position=element.scrollLeft;
     function glide(now:number){
       const elapsed=Math.max(0,Math.min(32,now-previous));
       previous=now;
       position+=velocity*elapsed;
       const max=element.scrollWidth-element.clientWidth;
       element.scrollLeft=Math.max(0,Math.min(max,position));
-      velocity*=Math.exp(-elapsed/110);
-      momentum.current=Math.abs(velocity)>.035&&position>0&&position<max?window.requestAnimationFrame(glide):null;
+      velocity*=Math.exp(-elapsed/185);
+      momentum.current=Math.abs(velocity)>.025&&position>0&&position<max?window.requestAnimationFrame(glide):null;
     }
     momentum.current=window.requestAnimationFrame(glide);
   }
+  useEffect(()=>{
+    const element=rail.current;
+    if(!element||!active)return;
+    function wheel(event:WheelEvent){
+      stopMomentum();
+      if(!element||event.ctrlKey||event.shiftKey||Math.abs(event.deltaX)>=Math.abs(event.deltaY))return;
+      const max=element.scrollWidth-element.clientWidth;
+      if(max<=0)return;
+      const previous=wheelTarget.current;
+      const base=previous&&event.timeStamp-previous.at<220?previous.left:element.scrollLeft;
+      const unit=event.deltaMode===1?16:event.deltaMode===2?element.clientWidth:1;
+      const left=Math.max(0,Math.min(max,base+event.deltaY*unit));
+      event.preventDefault();
+      wheelTarget.current={left,at:event.timeStamp};
+      if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+        element.scrollTo({left,behavior:'instant'});
+        return;
+      }
+      if(wheelFrame.current===null)wheelFrame.current=window.requestAnimationFrame(()=>{
+        wheelFrame.current=null;
+        if(wheelTarget.current)element.scrollTo({left:wheelTarget.current.left,behavior:'smooth'});
+      });
+    }
+    element.addEventListener('wheel',wheel,{passive:false});
+    return ()=>{
+      element.removeEventListener('wheel',wheel);
+      if(wheelFrame.current!==null)window.cancelAnimationFrame(wheelFrame.current);
+      wheelFrame.current=null;
+      wheelTarget.current=null;
+    };
+  },[active,query,compactView]);
   function stepRoster(direction:number){
     const element=rail.current;
     if(!element)return;
@@ -406,7 +440,8 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
           <button aria-label="Rolar brawlers para a direita" disabled={!scrollEdges.right} onClick={()=>stepRoster(1)}><ChevronRight size={16}/></button></div></div>
       <div ref={rail} className="draft-roster-rail" aria-label="Faixa de brawlers por classe" tabIndex={0}
         onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={finishDrag}
-        onPointerCancel={()=>{drag.current=null;stopMomentum();}} onLostPointerCapture={()=>{drag.current=null;}} onWheel={stopMomentum}
+        onPointerCancel={()=>{drag.current=null;stopMomentum();}} onLostPointerCapture={()=>{drag.current=null;}}
+        onDragStart={event=>event.preventDefault()}
         onClickCapture={e=>{if(suppressClick.current&&e.detail){e.preventDefault();e.stopPropagation();suppressClick.current=false;}}}
         onKeyDown={e=>{if(e.target===e.currentTarget&&(e.key==='ArrowRight'||e.key==='ArrowLeft')){e.preventDefault();stepRoster(e.key==='ArrowRight'?1:-1);}}}>
         {groups.map(({key,Icon,entries})=><section className="draft-class" key={key}>

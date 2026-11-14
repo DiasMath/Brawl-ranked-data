@@ -31,7 +31,7 @@ export function DraftTierList({ meta, compact = false, banned, picked, onPick, d
           const key=normalize(brawler.name);
           const status=banned?.has(key)?'Banido':picked?.has(key)?'Escolhido':null;
           const label=[brawler.name,status,stats?`${percent(stats.winRate)} de vitória · ${number(stats.games)} partidas`:'Sem classificação'].filter(Boolean).join(' · ');
-          const content=<><Portrait id={brawler.id} name={brawler.name}/><span>{brawler.name}</span>
+          const content=<><Portrait id={brawler.id} name={brawler.name} alt={onPick?'':brawler.name}/>
             {status==='Banido'?<Ban size={13}/>:status==='Escolhido'?<Check size={13}/>:null}</>;
           return <li key={key} data-status={status??undefined} title={label}>{onPick?
             <button type="button" aria-label={label} disabled={disabled?.(brawler.name)||!brawler.id} onClick={()=>onPick(brawler.name)}>{content}</button>:
