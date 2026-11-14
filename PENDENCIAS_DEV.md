@@ -11,6 +11,7 @@ Lista de trabalho do Brawl Ranked Data, em ordem de execução no ambiente local
 | 5 | Uniformizar a contagem nas sugestões pessoais e no treino | Concluída no código e validada em teste | Contar uma série uma única vez nas sugestões do Draft Lab, na busca de counters da conta e no acompanhamento do plano de treino. Permitir limitar a fonte pessoal do Draft Lab por temporada e mapa. |
 | 6 | Alinhar os indicadores pessoais de draft e meta | Concluída no código e validada em teste | Calcular os picks e bans por série. Dar aos indicadores pessoais um recorte por temporada ou histórico inteiro e mostrar a cobertura dos bans. Usar séries nas comparações da conta com a meta. |
 | 7 | Levar os resultados por brawler e mapa ao Draft Lab | Concluída no código e validada em teste | Mostrar win rate, pick rate e amostra por mapa para o brawler escolhido. Abrir o Draft Lab no mapa e na temporada da ficha, com a fonte pessoal e a aba Picks. |
+| 8 | Detalhar os confrontos do brawler | Concluída no código e validada em teste | Mostrar vitórias, derrotas e cobertura por adversário. Respeitar a temporada, o mapa e o modo da ficha e abrir diretamente o detalhe da última vitória ou derrota do confronto. |
 
 ## Critérios para os dados
 
@@ -69,3 +70,9 @@ A cobertura de bans divide as séries com lista oficial conhecida pelo total do 
 Em **Desempenho → Evolução por brawler**, a tabela por mapa usa o brawler, a temporada, o modo e o mapa selecionados na ficha. Cada linha calcula o pick rate sobre as partidas com escolha conhecida naquele mapa. A ordenação usa win rate e tamanho da amostra.
 
 O botão da tabela abre o **Draft Lab** no mapa da linha, com a mesma temporada da ficha ou todo o histórico. Ele abre **Minha conta → Picks** e deixa a composição disponível para montar. O teste confirmou o denominador por mapa, a troca de temporada e o recorte que chega às recomendações do Draft Lab.
+
+## Validação da etapa 8
+
+A tabela **Confrontos** em **Desempenho → Evolução por brawler** mostra o resultado da equipe quando enfrentou cada adversário no recorte. O mesmo adversário conta uma vez por série, mesmo quando aparece em mais de uma rodada. A cobertura informa quantas séries registraram ao menos um adversário. O win rate usa os resultados decisivos e a ordenação leva em conta o tamanho da amostra.
+
+Os testes confirmaram a deduplicação, o tratamento de séries em aberto e sem composição, o filtro de temporada, a ordenação e a abertura de uma vitória por 2–1 diretamente no histórico.

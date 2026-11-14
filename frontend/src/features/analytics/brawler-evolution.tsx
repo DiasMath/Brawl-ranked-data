@@ -3,7 +3,7 @@ import { Crosshair, FlaskConical } from 'lucide-react';
 import { Card } from '@/components/dashboard-ui';
 import { PagedTable } from '@/components/data-table';
 import { ModeIcon, Portrait } from '@/components/game';
-import { brawlerMapPerformance, brawlerPerformance } from '@/lib/coaching';
+import { brawlerMapPerformance, brawlerOpponents, brawlerPerformance } from '@/lib/coaching';
 import { modeName, normalize, number, percent } from '@/lib/data';
 import { mapKey } from '@/lib/external-comparison';
 import type { MatchSeries } from '@/lib/match-series';
@@ -16,15 +16,17 @@ const options=(values:(string|null|undefined)[], key:(value:string)=>string=norm
 const ownMode=(match:MatchSeries)=>normalize(match.latest.mode);
 const ownMap=(match:MatchSeries)=>mapKey(match.latest.map_name);
 
-export function BrawlerEvolution({ matches, initialSeason, initialBrawler, mapFilter, onDraft }: {
+export function BrawlerEvolution({ matches, initialSeason, initialBrawler, mapFilter, onDraft, onMatch }: {
   matches:MatchSeries[]; initialSeason:string; initialBrawler:string; mapFilter:string;
   onDraft:(map:string,season:string)=>void;
+  onMatch:(id:string)=>void;
 }) {
   const [season,setSeason]=useState(normalize(initialSeason));
   const [mode,setMode]=useState('');
   const [map,setMap]=useState('');
   const [brawler,setBrawler]=useState(normalize(initialBrawler));
   const [sort,setSort]=useState<'pick'|'win'>('pick');
+  const [hardFirst,setHardFirst]=useState(true);
   const seasons=useMemo(()=>options(matches.map(seriesSeason)),[matches]);
   const seasonRows=useMemo(()=>season?matches.filter(match=>normalize(seriesSeason(match))===season):matches,[matches,season]);
   const modes=useMemo(()=>options(seasonRows.map(match=>match.latest.mode)),[seasonRows]);
@@ -39,6 +41,7 @@ export function BrawlerEvolution({ matches, initialSeason, initialBrawler, mapFi
   const selected=rows.find(row=>row.key===brawler)??rows[0];
   const selectedKey=selected?.key;
   const byMap=useMemo(()=>selectedKey?ordered(brawlerMapPerformance(scoped,selectedKey)):[],[scoped,selectedKey]);
+  const opponents=useMemo(()=>selectedKey?brawlerOpponents(scoped,selectedKey):null,[scoped,selectedKey]);
   const seasonLabel=seasons.find(([key])=>key===season)?.[1]??(season?initialSeason:'');
   const delta=selected&&selected.recent.rate!==null&&selected.previous.rate!==null?
     Math.round((selected.recent.rate-selected.previous.rate)*1000)/10:null;
@@ -103,6 +106,30 @@ export function BrawlerEvolution({ matches, initialSeason, initialBrawler, mapFi
           <td><button type="button" className="button small subtle" aria-label={`Abrir Draft Lab em ${row.name}`}
             onClick={()=>onDraft(row.name,seasonLabel)}><FlaskConical size={14}/> Abrir Draft Lab</button></td>
         </tr>}/>:<p className="section-note">Sem mapas identificados para este brawler no recorte.</p>}
+      {opponents&&<section aria-label="Confrontos do brawler">
+        <div className="card-head"><div>
+          <h3>Confrontos de {selected.label}</h3>
+          <p>{number(opponents.covered)} de {number(opponents.total)} partidas com adversário identificado</p>
+        </div>{opponents.rows.length>1&&<label>Ordenar confrontos<select value={hardFirst?'hard':'favorable'}
+          onChange={event=>setHardFirst(event.target.value==='hard')}>
+          <option value="hard">Mais difíceis</option><option value="favorable">Mais favoráveis</option>
+        </select></label>}</div>
+        {opponents.rows.length?<><PagedTable label={`Adversários de ${selected.label}`} rows={ordered(opponents.rows,hardFirst)}
+          pageKey={JSON.stringify([selectedKey,season,activeMode,activeMap,hardFirst])}
+          headings={<><th>Adversário</th><th>Win rate pessoal</th><th>Últimas partidas</th></>}
+          renderRow={row=><tr key={row.key}>
+            <td><span className="image-label"><Portrait name={row.name}/>{row.name}</span></td>
+            <td><strong>{percent(row.rate)}</strong><small>{number(row.wins)} V · {number(row.losses)} D</small></td>
+            <td><div className="actions">
+              {row.defeat&&<button type="button" className="button small subtle" aria-label={`Ver derrota contra ${row.name}`}
+                onClick={()=>onMatch(row.defeat!.id)}>Ver derrota</button>}
+              {row.victory&&<button type="button" className="button small subtle" aria-label={`Ver vitória contra ${row.name}`}
+                onClick={()=>onMatch(row.victory!.id)}>Ver vitória</button>}
+            </div></td>
+          </tr>}/>
+          <p className="section-note">A taxa mostra o resultado da sua equipe quando enfrentou esse brawler. A ordem leva em conta o tamanho da amostra.</p>
+        </>:<p className="section-note">Nenhum adversário identificado neste recorte.</p>}
+      </section>}
     </>:<p className="section-note">Nenhuma partida com brawler identificado neste recorte.</p>}
   </Card>;
 }

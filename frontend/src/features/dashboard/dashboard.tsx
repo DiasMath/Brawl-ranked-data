@@ -190,7 +190,8 @@ export default function Dashboard() {
           <BrawlerEvolution key={JSON.stringify([filters.season,filters.player_brawler,filters.map_name,filters.rank_label])}
             matches={filteredSeries(series,data.matches,{
               ...emptyFilters,map_name:filters.map_name,mode:filters.mode,rank_label:filters.rank_label,
-            },true,elo)} initialSeason={filters.season} initialBrawler={filters.player_brawler} mapFilter={filters.map_name} onDraft={openDraft}/>
+            },true,elo)} initialSeason={filters.season} initialBrawler={filters.player_brawler} mapFilter={filters.map_name}
+            onDraft={openDraft} onMatch={setSelected}/>
           <MapTraining rows={performanceRows} history={rankedHistory} elo={elo} accountName={active.name}
             selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training}
             onOpen={setSelected} onReview={(id,value)=>saveCoaching({review:{id,value}})}

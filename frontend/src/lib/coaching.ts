@@ -70,6 +70,34 @@ export function brawlerMapPerformance(matches: MatchSeries[], brawler: string) {
   });
 }
 
+export function brawlerOpponents(matches: MatchSeries[], brawler: string) {
+  const groups=new Map<string,{name:string;battles:Battle[]}>();
+  const own=matches.map(seriesBattle).filter(battle=>normalize(battle.player_brawler)===brawler)
+    .sort((a,b)=>b.played_at.localeCompare(a.played_at));
+  let covered=0;
+  for(const battle of own){
+    const seen=new Set<string>();
+    for(const player of battle.players){
+      const name=player.brawler?.trim();
+      if(player.side!=='opponent'||!name)continue;
+      const key=normalize(name);
+      if(seen.has(key))continue;
+      seen.add(key);
+      const group=groups.get(key);
+      if(group)group.battles.push(battle);
+      else groups.set(key,{name,battles:[battle]});
+    }
+    if(seen.size)covered++;
+  }
+  const rows=[...groups].map(([key,{name,battles}])=>{
+    const {wins,losses,decided,rate}=stats(battles);
+    return {key,name,wins,losses,games:decided,rate,
+      victory:battles.find(battle=>battle.result==='victory'),
+      defeat:battles.find(battle=>battle.result==='defeat')};
+  });
+  return {rows,covered,total:own.length};
+}
+
 export function reviewPair(rows: Battle[]) {
   const victory = rows.find(match=>match.result==='victory');
   const defeat = rows.find(match=>match.result==='defeat');
