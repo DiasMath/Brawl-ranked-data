@@ -174,3 +174,32 @@ def fetch_snapshot(map_name=None):
     with draftmeta_session() as client:
         changes = client.call("meta_changes", update="latest")
         return read_tier(client, changes, map_name, include_map_info=True)
+
+
+def fetch_draft_suggestions(map_name, our_picks, enemy_picks, bans, first_pick):
+    pick_number = len(our_picks) + len(enemy_picks) + 1
+    unavailable = {name.casefold() for name in our_picks + enemy_picks + bans}
+    with draftmeta_session() as client:
+        data = client.call("draft_suggest", map=map_name, our_picks=our_picks, enemy_picks=enemy_picks,
+                           bans=bans, first_pick=first_pick, rank="all", limit=10)
+        if (data["map"] != map_name or data["toMove"] != "us" or data["pickNumber"] != pick_number
+                or data["population"] != "soloRanked" or data["band"] != "all"):
+            raise ValueError("Composição retornada é diferente da solicitada")
+        suggestions = []
+        seen = set(unavailable)
+        for row in data["suggestions"][:10]:
+            name, reply = row["brawler"], row["bestReply"]
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError("Brawler inválido")
+            if name.casefold() in seen:
+                continue
+            if reply is not None and (not isinstance(reply, str) or not reply.strip()
+                                      or reply.casefold() in unavailable or reply.casefold() == name.casefold()):
+                raise ValueError("Resposta adversária inválida")
+            suggestions.append({
+                "name": name, "after_pick": rate(row["winChanceAfterPick"]),
+                "after_reply": rate(row["winChanceAfterBestReply"]) if reply else None, "reply": reply,
+            })
+            seen.add(name.casefold())
+        return {"source_url": source_link(data["link"]), "current_chance": rate(data["ourWinChanceNow"]),
+                "suggestions": suggestions}

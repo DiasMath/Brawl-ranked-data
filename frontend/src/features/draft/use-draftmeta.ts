@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { draftMetaMapKey } from '@/lib/draftmeta';
-import type { DraftMetaResponse, DraftMetaSnapshot } from '@/lib/draftmeta';
+import type { DraftMetaResponse, DraftMetaSnapshot, DraftSuggestionRequest, DraftSuggestionResponse } from '@/lib/draftmeta';
 import { collectionRequest } from '@/lib/live';
 
 export function useDraftMeta(map: string, enabled: boolean) {
@@ -34,7 +34,26 @@ export function useDraftMeta(map: string, enabled: boolean) {
     return ()=>controller.abort();
   },[enabled,key,patch,sourceMap]);
   const selected=read?.key===key?read:null;
-  return {snapshot:map?selected?.snapshot??null:index?.snapshot??null,pool,patch,
-    loading:enabled&&((!index&&!indexFailed)||Boolean(map&&patch&&!selected)),
+  const resolvingMap=enabled&&!index&&!indexFailed;
+  return {snapshot:map?selected?.snapshot??null:index?.snapshot??null,pool,patch,sourceMap,resolvingMap,
+    loading:resolvingMap||Boolean(enabled&&map&&patch&&!selected),
     failed:indexFailed||Boolean(map&&selected?.failed)};
+}
+
+export function useDraftSuggestions(request: DraftSuggestionRequest|null) {
+  const body=request?JSON.stringify(request):null;
+  const [read,setRead]=useState<{body:string;result:DraftSuggestionResponse|null}|null>(null);
+  useEffect(()=>{
+    if(!body)return;
+    const controller=new AbortController();
+    const timer=window.setTimeout(()=>{
+      void collectionRequest<DraftSuggestionResponse>('/api/meta/draft-suggest',{
+        method:'POST',headers:{'Content-Type':'application/json'},body,signal:controller.signal,
+      }).then(result=>{if(!controller.signal.aborted)setRead({body,result});})
+        .catch(()=>{if(!controller.signal.aborted)setRead({body,result:null});});
+    },600);
+    return ()=>{window.clearTimeout(timer);controller.abort();};
+  },[body]);
+  const current=body&&read?.body===body?read:null;
+  return {result:current?.result??null,loading:Boolean(body&&!current),failed:Boolean(current&&!current.result)};
 }

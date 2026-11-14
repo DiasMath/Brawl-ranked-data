@@ -10,7 +10,7 @@ import type { MetaMatchup } from '@/lib/browser-store';
 import { LiveMeta, metaPeriods } from '@/lib/live';
 import type { LivePeriod } from '@/lib/live';
 import { draftMetaMapKey, draftMetaPicks } from '@/lib/draftmeta';
-import { useDraftMeta } from './use-draftmeta';
+import { useDraftMeta, useDraftSuggestions } from './use-draftmeta';
 
 type Side = 'team'|'enemy';
 type Zone = Side|'blueBan'|'redBan';
@@ -120,7 +120,15 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
       .map(r=>({name:r.label,wins:r.losses,games:r.decided,details:[]})))
     .filter(r=>r.games&&targetBan&&!blocked(r.name,targetBan))
     .sort((a,b)=>(b.wins/b.games-.5)*Math.sqrt(b.games)-(a.wins/a.games-.5)*Math.sqrt(a.games));
-  const nextPick=pickOrder(first).find(s=>!draft[s.side][s.index]);
+  const order=pickOrder(first);
+  const recordedPicks=allies.length+enemies.length;
+  const inOrder=order.slice(0,recordedPicks).every(s=>draft[s.side][s.index]);
+  const nextPick=order.find(s=>!draft[s.side][s.index]);
+  const model=useDraftSuggestions(active&&source==='draftmeta'&&advice==='picks'&&phase==='pick'&&
+    external.sourceMap&&!external.resolvingMap&&inOrder&&nextPick?.side==='team'&&targetPick?.index===nextPick.index?{
+      map:external.sourceMap,our_picks:allies,enemy_picks:enemies,
+      bans:[...new Set([...draft.blueBan,...draft.redBan].filter(Boolean))],first_pick:first==='team',
+    }:null);
   const nextBan=banOrder.find(s=>!draft[s.side][s.index]);
   const next=phase==='ban'?nextBan??nextPick:nextPick;
   const query=normalize(search);
@@ -207,6 +215,10 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
   }
   const recommendations=advice==='picks'?picks:advice==='bans'?threats:counters;
   const externalTarget=advice==='bans'?targetBan:targetPick;
+  const modelRows=model.result?.suggestions.flatMap(row=>{
+    const name=rosterNames.get(normalize(row.name));
+    return name&&targetPick&&!blocked(name,targetPick)?[{...row,name}]:[];
+  })??[];
   const externalRows=draftMetaPicks(external.snapshot).flatMap(row=>{
     const rosterName=rosterNames.get(normalize(row.name));
     return rosterName&&externalTarget&&!blocked(rosterName,externalTarget)&&(advice!=='bans'||!banned.has(normalize(rosterName)))?[{...row,name:rosterName}]:[];
@@ -271,7 +283,17 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
           {t==='picks'?'Picks':t==='bans'?'Bans':'Counters'}</button>)}</div>
         {source==='draftmeta'?<>
           <div className="draft-suggestions" aria-live="polite">
-            {advice==='counters'?<p className="section-note">Counters por mapa indisponíveis neste snapshot. Consulte outra fonte no seletor.</p>:
+            {model.result&&modelRows.length>0?<>
+              <p className="draft-evidence"><a href={model.result.source_url} target="_blank" rel="noreferrer">Projeção DraftMeta</a>
+                {' · Agora '+percent(model.result.current_chance/100)+' · Todos os ranks'}</p>
+              {modelRows.slice(0,3).map(row=><button type="button" className="draft-suggestion" key={row.name}
+                disabled={!applyRecommendation} onClick={()=>applyRecommendation?.(row.name)}
+                title={row.reply?`${percent(row.after_pick/100)} após o pick · ${percent(row.after_reply===null?null:row.after_reply/100)} após resposta com ${row.reply}`:`${percent(row.after_pick/100)} após o pick`}>
+                <Portrait name={row.name}/><span><strong>{row.name}</strong>
+                  {row.reply&&row.after_reply!==null?<small>{percent(row.after_reply/100)} após {row.reply}</small>:<small>Após o pick</small>}</span>
+                <b>{percent(row.after_pick/100)}</b>
+              </button>)}
+            </>:advice==='counters'?<p className="section-note">Counters por mapa indisponíveis neste snapshot. Consulte outra fonte no seletor.</p>:
               external.loading?<p className="section-note">Carregando Meta do patch…</p>:
               external.failed?<p className="section-note">Não foi possível ler o snapshot do DraftMeta.</p>:
               !external.snapshot?<p className="section-note">Sem snapshot salvo para este {mapName?'mapa':'recorte'} no patch{external.patch?` de ${external.patch.split('-').reverse().join('/')}`:''}.</p>:
@@ -283,10 +305,13 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
                 <b>{percent(row.winRate)}</b>
               </button>)}
           </div>
-          {external.snapshot&&<p className="draft-evidence"><a href={external.snapshot.source_url} target="_blank" rel="noreferrer">DraftMeta</a>
+          {!modelRows.length&&external.snapshot&&advice!=='counters'&&<p className="draft-evidence"><a href={external.snapshot.source_url} target="_blank" rel="noreferrer">DraftMeta</a>
             {' · Patch '+external.snapshot.patch_date.split('-').reverse().join('/')+' · '+dateTime(external.snapshot.fetched_at)}
             {!external.snapshot.fresh&&' · Cópia salva'}
-            {advice==='bans'&&' · Sugestões por força no recorte'}</p>}
+            {advice==='bans'?' · Sugestões por força no recorte':' · Win rate observado'}</p>}
+          {model.loading&&<p className="draft-evidence" role="status">Calculando projeção do draft…</p>}
+          {model.failed&&<p className="draft-evidence" role="status">Projeção do draft indisponível.</p>}
+          {model.result&&!modelRows.length&&<p className="draft-evidence" role="status">Nenhuma sugestão do modelo passa pelos filtros.</p>}
         </>:<>
         <div className="draft-suggestions">
           {!recommendations.length&&<p className="section-note">{advice==='counters'&&!enemies.length?'Adicione um pick adversário.':global.loading?'Carregando…':'Sem amostra neste recorte.'}</p>}

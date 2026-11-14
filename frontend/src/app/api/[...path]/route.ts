@@ -9,7 +9,7 @@ const routes = new Set([
   'GET /api/collection/history', 'POST /api/sync',
   'GET /api/supercell/credential', 'POST /api/supercell/credential',
   'GET /api/meta/sample', 'POST /api/meta/sample',
-  'GET /api/meta/external', 'POST /api/meta/external',
+  'GET /api/meta/external', 'POST /api/meta/external', 'POST /api/meta/draft-suggest',
 ]);
 const headers = { 'Cache-Control': 'private, no-store' };
 
@@ -44,12 +44,13 @@ async function forward(request: NextRequest) {
   const credential = path === '/api/supercell/credential';
   const metaSample = path === '/api/meta/sample';
   const externalMeta = path === '/api/meta/external';
+  const draftSuggestion = path === '/api/meta/draft-suggest';
   let body: string | undefined;
   if (request.method === 'POST') {
     if (!request.headers.get('content-type')?.includes('application/json')) {
       return Response.json({ detail: 'Envie dados em JSON.' }, { status: 415, headers });
     }
-    body = path === '/api/accounts' || credential || metaSample || externalMeta ? await request.text() : '{}';
+    body = path === '/api/accounts' || credential || metaSample || externalMeta || draftSuggestion ? await request.text() : '{}';
     if (body.length > (credential ? 8192 : 2048)) {
       return Response.json({ detail: 'Dados muito extensos.' }, { status: 413, headers });
     }
@@ -59,7 +60,7 @@ async function forward(request: NextRequest) {
     const target = new URL(path, base);
     const local = ['localhost', '127.0.0.1', '[::1]'].includes(target.hostname);
     if (target.protocol !== 'https:' && !(local && target.protocol === 'http:')) throw new Error('Origem inválida.');
-    if (path !== '/api/accounts' && !credential && !metaSample && !externalMeta) {
+    if (path !== '/api/accounts' && !credential && !metaSample && !externalMeta && !draftSuggestion) {
       const tag = request.nextUrl.searchParams.get('tag');
       if (tag !== null) {
         if (!/^#?[0289PYLQGRJCUV]{3,16}$/i.test(tag)) return Response.json({ detail: 'Tag inválida.' }, { status: 400, headers });
@@ -85,7 +86,9 @@ async function forward(request: NextRequest) {
       method: request.method,
       headers: { Authorization: 'Bearer ' + secret, 'Content-Type': 'application/json' },
       body,
-      cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(50000),
+      cache: 'no-store', redirect: 'error', signal: draftSuggestion
+        ? AbortSignal.any([request.signal, AbortSignal.timeout(15000)])
+        : AbortSignal.timeout(50000),
     });
     if (upstream.status === 401) {
       return Response.json({ detail: 'Use o mesmo BRAWL_SERVICE_TOKEN no Next.js e no FastAPI.' }, { status: 502, headers });

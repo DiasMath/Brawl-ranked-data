@@ -250,7 +250,9 @@ A tarefa roda a cada 60 minutos, com o Windows ligado e seu usuário conectado. 
 
 ### Draft Lab e Meta do patch
 
-O Draft Lab abre com **DraftMeta** como fonte. A visão geral usa o último snapshot geral salvo para identificar o patch. Ao escolher um mapa, a tela consulta a cópia desse mapa no mesmo patch. As sugestões seguem a ordem da tier list e mostram win rate, presença quando disponível, partidas e data da leitura. As escolhas já usadas ou banidas saem da lista de picks. Se o mapa ainda estiver sem snapshot nesse patch, a tela indica a lacuna. O Draft Lab lê o Supabase pelo backend e as consultas à fonte continuam no coletor.
+O Draft Lab abre com **DraftMeta** como fonte. A visão geral usa o último snapshot geral salvo para identificar o patch. Ao escolher um mapa, a tela consulta a cópia desse mapa no mesmo patch. As sugestões da tier list mostram win rate observado, presença quando disponível, partidas e data da leitura. Se o mapa ainda estiver sem snapshot nesse patch, a tela indica a lacuna.
+
+Na aba **Picks**, com mapa definido e na vez da equipe azul, o FastAPI pede ao modelo do DraftMeta sugestões para a composição, os bans e a ordem do draft. A interface mostra a projeção após cada pick e após a resposta adversária indicada pelo modelo. A consulta usa todos os ranks do ranqueado solo e envia somente o cenário do draft. Picks ocupados ou banidos ficam fora, e o filtro de poder 11 também vale para as sugestões. Enquanto a projeção carrega ou está indisponível, a tela usa a tier list salva quando houver snapshot para o recorte.
 
 **Bans** mostra sugestões baseadas na força dos brawlers no recorte. Para **counters**, o seletor permite usar a amostra própria, a referência histórica ou a sua conta, com a origem visível.
 

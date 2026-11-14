@@ -18,6 +18,15 @@ export type DraftMetaResponse = {
   snapshot: DraftMetaSnapshot|null; patches: string[]; coverage?: Coverage|null; saved_maps?: string[];
 };
 
+export type DraftSuggestionRequest = {
+  map: string; our_picks: string[]; enemy_picks: string[]; bans: string[]; first_pick: boolean;
+};
+export type DraftSuggestionResponse = {
+  source_url: string;
+  current_chance: number;
+  suggestions: { name: string; after_pick: number; after_reply: number|null; reply: string|null }[];
+};
+
 export function draftMetaMapKey(name: string) {
   return name.trim().toLowerCase().replace(/['’‘]/g, '');
 }
