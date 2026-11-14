@@ -243,7 +243,7 @@ Na raiz do Windows, execute:
 ```powershell
 .\Agendar-DraftMeta.ps1 -TestarAgora
 .\Agendar-DraftMeta.ps1
-Get-Content .\backend\.venv\draftmeta-coleta-development.log -Tail 20
+Get-Content .\backend\.venv\draftmeta-coleta-development.log -Encoding UTF8 -Tail 20
 ```
 
 A tarefa roda a cada 60 minutos, com o Windows ligado e seu usuário conectado. O job atualiza a tier list geral e consulta todos os mapas do pool ranqueado publicado pelo DraftMeta, com todos os ranks. O filtro de mapa é só para navegação. **Meta → DraftMeta** mostra a cobertura do patch, os mapas sem snapshot e os que ficaram com a cópia anterior. Um HTTP 429 interrompe a rodada e preserva os snapshots já salvos. O comando equivalente para um executor que já tenha `DATABASE_URL` configurado é `python -m app.jobs.collect_draftmeta`, a partir de `backend`.

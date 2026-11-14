@@ -28,7 +28,7 @@ if ($TestarAgora) {
     try {
         & $python @jobArgs --log-file $logName
         $result = $LASTEXITCODE
-        Get-Content -LiteralPath $logFile -Tail 15
+        Get-Content -LiteralPath $logFile -Encoding UTF8 -Tail 15
         if ($result -ne 0) { throw 'A atualização ficou incompleta. Confira o log.' }
     } finally {
         Pop-Location
