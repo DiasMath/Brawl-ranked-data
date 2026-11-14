@@ -11,6 +11,7 @@ import { ordered } from '@/lib/scouting';
 import { AccountComparison } from '@/features/meta/external-account';
 import { RecentForm } from './recent-form';
 import { matchSeries, seriesInScope } from '@/lib/match-series';
+import type { MatchElo } from '@/lib/match-series';
 import { ReplayAnnotation } from './replay-annotation';
 import type { DraftMetaSnapshot as Snapshot } from '@/lib/draftmeta';
 
@@ -47,8 +48,8 @@ function MatchReview({match,review,onOpen,onSave}: {match:Battle;review?:ReplayR
   </section>;
 }
 
-function MapSheet({map, history, accountName, reviews, onOpen, onReview, onDraft}: {
-  map:MapPerformance; history:Battle[]; accountName:string; reviews:Record<string,ReplayReview>;
+function MapSheet({map, history, elo, accountName, reviews, onOpen, onReview, onDraft}: {
+  map:MapPerformance; history:Battle[]; elo:Map<string,MatchElo>; accountName:string; reviews:Record<string,ReplayReview>;
   onOpen:(id:string)=>void; onReview:(id:string,review:ReplayReview)=>Promise<void>; onDraft:(map:string)=>void;
 }) {
   const [snapshot,setSnapshot]=useState<Snapshot|null>(null);
@@ -101,7 +102,7 @@ function MapSheet({map, history, accountName, reviews, onOpen, onReview, onDraft
         <Portrait name={row.name}/><span><strong>{row.name}</strong><small>{percent(row.rate)} · {number(row.decided)} decisivas</small></span></div>)}</div>}
       {options.length>0&&<p className="section-note">Com base no seu histórico · Pick para repetir {options[0].name}{options[1]?` · Alternativa ${options[1].name}`:''}</p>}
     </section>
-    <RecentForm matches={seriesInScope(matchSeries(history),map.rows)} onMatch={match=>onOpen(match.id)}/>
+    <RecentForm matches={seriesInScope(matchSeries(history),map.rows)} elo={elo} onMatch={match=>onOpen(match.id)}/>
     <section className="card coaching-card"><div className="card-head"><div><h2>Referência competitiva do mapa</h2>
       <p>{snapshot?`DraftMeta · Patch ${snapshot.patch_date.split('-').reverse().join('/')} · ${snapshot.start} a ${snapshot.end}`:loading?'Carregando snapshot…':'Aguardando snapshot do DraftMeta.'}</p></div>
       <button className="button small subtle" onClick={()=>void updateReference()} disabled={loading||updating}>{updating?'Atualizando…':'Atualizar referência'}</button></div>
@@ -154,8 +155,8 @@ function SessionPlan({strong,weak,plan,history,onChoose,onSave}: {
   </section>;
 }
 
-export function MapTraining({rows,history,accountName,reviews,plan,selectedMap,onOpen,onReview,onPlan,onDraft}: {
-  rows:Battle[]; history:Battle[]; accountName:string; reviews:Record<string,ReplayReview>; plan?:TrainingPlan;
+export function MapTraining({rows,history,elo,accountName,reviews,plan,selectedMap,onOpen,onReview,onPlan,onDraft}: {
+  rows:Battle[]; history:Battle[]; elo:Map<string,MatchElo>; accountName:string; reviews:Record<string,ReplayReview>; plan?:TrainingPlan;
   selectedMap:string; onOpen:(id:string)=>void; onReview:(id:string,review:ReplayReview)=>Promise<void>;
   onPlan:(plan:TrainingPlan)=>Promise<void>; onDraft:(map:string)=>void;
 }) {
@@ -179,7 +180,7 @@ export function MapTraining({rows,history,accountName,reviews,plan,selectedMap,o
         <option value="">{maps.length?'Selecione um mapa':'Sem mapas no recorte'}</option>{maps.map(row=><option key={row.key} value={row.key}>{row.name}</option>)}
       </select></label></div>
     </section>
-    {active&&<MapSheet key={active.key} map={active} history={history} accountName={accountName} reviews={reviews}
+    {active&&<MapSheet key={active.key} map={active} history={history} elo={elo} accountName={accountName} reviews={reviews}
       onOpen={onOpen} onReview={onReview} onDraft={onDraft}/>}
     <SessionPlan history={history} strong={strong} weak={weak} plan={plan} onChoose={setMap} onSave={onPlan}/>
   </>;

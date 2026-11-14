@@ -2,11 +2,15 @@ export type Participant = {
   team_index: number; player_tag: string | null; player_name: string | null;
   brawler: string | null; brawler_id?: number | null; power: number | null; side: 'self' | 'ally' | 'opponent' | 'unknown';
 };
+export type BattleKd = { kills: number; deaths: number; reference: string | null };
+export type BattleElo = { before: number; after: number; reference: string };
 export type Battle = {
   id: string; played_at: string; event_id?: number | null; trophy_change?: number | null; first_seen_at?: string | null; delay_observed?: boolean; map_name: string | null; mode: string | null; api_type: string | null;
   ranked: boolean; result: 'victory' | 'defeat' | 'draw' | null; duration_seconds: number | null;
   player_brawler: string | null; rank_label: string | null; rank_score: number | null; season: string | null;
   season_by_date?: { label: string; source_url: string } | null;
+  kd?: BattleKd | null;
+  elo_evidence?: BattleElo | null;
   bans: string[] | null; players: Participant[];
   star_player?: { tag: string|null; name: string|null } | null; placement?: number|null;
   rank_reference: string | null; score_reference: string | null; season_reference: string | null; bans_reference: string | null;
@@ -159,6 +163,10 @@ export function parseSnapshot(value: unknown): Dataset {
           !isDate(d.profile.fetched_at) || !isCount(d.profile.trophies)))
       || !d.matches.every(b => b && typeof b.id === 'string' && isDate(b.played_at) && typeof b.ranked === 'boolean'
           && [null, 'victory', 'defeat', 'draw'].includes(b.result) && isCount(b.rank_score)
+          && (b.kd == null || (b.kd.kills != null && b.kd.deaths != null && isCount(b.kd.kills)
+            && isCount(b.kd.deaths) && isText(b.kd.reference)))
+          && (b.elo_evidence == null || (b.elo_evidence.before != null && b.elo_evidence.after != null
+            && isCount(b.elo_evidence.before) && isCount(b.elo_evidence.after) && typeof b.elo_evidence.reference === 'string'))
           && isCount(b.duration_seconds) && [b.map_name, b.mode, b.api_type, b.player_brawler,
               b.rank_label, b.season, b.rank_reference, b.score_reference, b.season_reference, b.bans_reference, b.rank_source, b.score_source, b.season_source, b.bans_source].every(isText)
           && (b.season_by_date == null || (typeof b.season_by_date.label === 'string'

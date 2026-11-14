@@ -82,6 +82,7 @@ export function mergeBattles(previous: Battle[], incoming: Battle[]) {
       ...old, ...next, event_id: next.event_id ?? old.event_id, map_name: next.map_name ?? old.map_name,
       mode: next.mode ?? old.mode, result: next.result ?? old.result, player_brawler: next.player_brawler ?? old.player_brawler,
       trophy_change: next.trophy_change ?? old.trophy_change,
+      kd: next.kd ?? old.kd, elo_evidence: next.elo_evidence ?? old.elo_evidence,
       first_seen_at: old.first_seen_at && (!next.first_seen_at || old.first_seen_at < next.first_seen_at)
         ? old.first_seen_at : next.first_seen_at,
       delay_observed: old.first_seen_at && (!next.first_seen_at || old.first_seen_at < next.first_seen_at)

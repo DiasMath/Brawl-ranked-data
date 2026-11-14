@@ -1,6 +1,7 @@
 import { filtered, localDay, normalize } from './data';
 import { draftMetaMapKey } from './draftmeta';
-import type { Battle, Filters } from './data';
+import type { Battle, BattleElo, Filters } from './data';
+import type { Progress } from './browser-store';
 
 export type MatchSeries = {
   id: string;
@@ -69,4 +70,43 @@ export function filteredSeries(series: MatchSeries[], battles: Battle[], filters
     const day = localDay(match.latest.played_at);
     return (!filters.start || day >= filters.start) && (!filters.end || day <= filters.end);
   });
+}
+
+export function matchKd(match: MatchSeries) {
+  if ((match.rounds.length > 1 && !match.result) || match.rounds.some(round=>!round.kd)) return null;
+  return match.rounds.reduce((total,round)=>({
+    kills:total.kills+(round.kd?.kills??0), deaths:total.deaths+(round.kd?.deaths??0),
+  }),{kills:0,deaths:0});
+}
+
+export type MatchElo = Omit<BattleElo,'reference'> & { reference: string|null };
+
+export function matchEloChanges(series: MatchSeries[], readings: Progress[]) {
+  const ranked = series.filter(match=>match.latest.ranked).reverse();
+  const scores = readings.filter(read=>read.method==='api' && read.id.startsWith('server:') && read.score!==null && read.season)
+    .sort((a,b)=>Date.parse(a.at)-Date.parse(b.at));
+  const values = new Map<string, MatchElo>();
+  let readingIndex = 0;
+  for (const [index,match] of ranked.entries()) {
+    const evidence = match.rounds.flatMap(round=>round.elo_evidence ? [round.elo_evidence] : []);
+    if (evidence.length) {
+      if (evidence.every(item=>item.before===evidence[0].before && item.after===evidence[0].after)) values.set(match.id,evidence[0]);
+      continue;
+    }
+    if (match.latest.duration_seconds==null || !match.result || match.rounds.some(round=>!round.delay_observed)) continue;
+    const start = Date.parse(match.rounds[0].played_at);
+    const end = Date.parse(match.latest.played_at) + match.latest.duration_seconds*1000;
+    while (readingIndex<scores.length && Date.parse(scores[readingIndex].at)<start) readingIndex++;
+    const before = scores[readingIndex-1], after = scores[readingIndex];
+    if (!before || !after || before.season!==after.season || before.score===null || after.score===null) continue;
+    const from = Date.parse(before.at), to = Date.parse(after.at);
+    const previous = ranked[index-1]?.latest, next = ranked[index+1]?.rounds[0];
+    const previousEnd = previous ? Date.parse(previous.played_at)+(previous.duration_seconds??0)*1000 : -Infinity;
+    if (to<=end || to-from>20*60_000 || previousEnd>=from || (next && Date.parse(next.played_at)<=to)) continue;
+    if (match.rounds.some(round=>round.season && normalize(round.season)!==normalize(before.season))) continue;
+    const delta=after.score-before.score;
+    if ((match.result==='victory' && delta<=0) || (match.result==='defeat' && delta>=0) || match.result==='draw') continue;
+    values.set(match.id,{before:before.score,after:after.score,reference:null});
+  }
+  return values;
 }

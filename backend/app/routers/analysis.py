@@ -7,7 +7,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field, HttpUrl, StringConstraints, model_validator
 
 from ..db import database
-from ..domain import battle_bans, encoded, obj, ranked_reading, utc_now
+from ..domain import battle_bans, battle_kd, encoded, obj, ranked_reading, utc_now
 from ..services.explorer import TABLES, explore, parquet
 from .accounts import require_player
 
@@ -25,35 +25,51 @@ class Evidence(BaseModel):
     rank_score: Count | None = None
     season: Label | None = None
     bans: list[Label] | None = Field(default=None, max_length=30)
+    kills: Count | None = None
+    deaths: Count | None = None
+    elo_before: Count | None = None
+    elo_after: Count | None = None
     evidence: str = Field(min_length=3, max_length=400)
 
     @model_validator(mode="after")
     def check_values(self):
         self.evidence = self.evidence.strip()
-        if len(self.evidence) < 3 or all(v is None for v in (self.rank_label, self.rank_score, self.season, self.bans)):
+        if len(self.evidence) < 3 or all(v is None for v in
+                                        (self.rank_label, self.rank_score, self.season, self.bans, self.kills, self.elo_before)):
             raise ValueError("Informe a referência da evidência e pelo menos um campo observado.")
+        if (self.kills is None) != (self.deaths is None) or (self.elo_before is None) != (self.elo_after is None):
+            raise ValueError("Informe os dois valores de K/D ou os dois valores de Elo.")
         return self
 
 
 @router.post("/api/evidence")
 def import_evidence(evidence: Evidence, tag: str | None = None):
     with database() as (connection, cursor):
+        player = require_player(cursor, tag)
         cursor.execute("SELECT ranked, rank_label, rank_score, season, bans, raw FROM battles "
                        "WHERE id=%s AND player_tag=%s FOR UPDATE",
-                       (evidence.battle_id, require_player(cursor, tag)))
-        if not (row := cursor.fetchone()) or not row["ranked"]:
-            raise HTTPException(404, "Partida ranqueada não encontrada.")
+                       (evidence.battle_id, player))
+        if not (row := cursor.fetchone()):
+            raise HTTPException(404, "Partida não encontrada.")
+        if not row["ranked"] and any(value is not None for value in
+                                     (evidence.rank_label, evidence.rank_score, evidence.season, evidence.bans, evidence.elo_before)):
+            raise HTTPException(422, "Rank, temporada, bans e Elo exigem uma partida ranqueada.")
         raw_battle = obj(json.loads(row["raw"]).get("battle"))
         fields = ("rank_label", "rank_score", "season", "bans")
         from_archive = (*ranked_reading(raw_battle), battle_bans(raw_battle))
         rank, score, season, bans = (getattr(evidence, field) if row[field] is None and archived is None else None
                                      for field, archived in zip(fields, from_archive))
-        if all(value is None for value in (rank, score, season, bans)):
+        performance = {}
+        if evidence.kills is not None and battle_kd(raw_battle, player) is None:
+            performance["kd"] = {"kills": evidence.kills, "deaths": evidence.deaths, "reference": evidence.evidence}
+        if evidence.elo_before is not None:
+            performance["elo"] = {"before": evidence.elo_before, "after": evidence.elo_after, "reference": evidence.evidence}
+        if not performance and all(value is None for value in (rank, score, season, bans)):
             raise HTTPException(409, "Os campos informados já vieram no histórico da Supercell.")
         cursor.execute("""
             INSERT INTO battle_evidence (battle_id, rank_label, rank_score, season, bans,
-               rank_reference, score_reference, season_reference, bans_reference, recorded_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) 
+               rank_reference, score_reference, season_reference, bans_reference, performance, recorded_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s)
             ON CONFLICT (battle_id) DO UPDATE SET rank_label=COALESCE(EXCLUDED.rank_label,battle_evidence.rank_label),
               rank_score=COALESCE(EXCLUDED.rank_score,battle_evidence.rank_score),
               season=COALESCE(EXCLUDED.season,battle_evidence.season),
@@ -62,9 +78,11 @@ def import_evidence(evidence: Evidence, tag: str | None = None):
               score_reference=COALESCE(EXCLUDED.score_reference,battle_evidence.score_reference),
               season_reference=COALESCE(EXCLUDED.season_reference,battle_evidence.season_reference),
               bans_reference=COALESCE(EXCLUDED.bans_reference,battle_evidence.bans_reference),
+              performance=battle_evidence.performance || EXCLUDED.performance,
               recorded_at=EXCLUDED.recorded_at
         """, (evidence.battle_id, rank, score, season, encoded(bans) if bans is not None else None,
-              *(evidence.evidence if field is not None else None for field in (rank, score, season, bans)), utc_now()))
+              *(evidence.evidence if field is not None else None for field in (rank, score, season, bans)),
+              encoded(performance), utc_now()))
         connection.commit()
     return {"saved": True}
 

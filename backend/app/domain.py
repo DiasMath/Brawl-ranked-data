@@ -65,6 +65,24 @@ def battle_bans(battle):
     return bans(obj(battle.get("draft")).get("bans", battle.get("bans")))
 
 
+def battle_kd(battle, account):
+    teams = battle.get("teams")
+    players = battle.get("players")
+    if isinstance(teams, list):
+        players = [player for team in teams if isinstance(team, list) for player in team]
+    if not isinstance(players, list):
+        return None
+    matching = [obj(player) for player in players if obj(player).get("tag") == account]
+    if len(matching) != 1:
+        return None
+    player = matching[0]
+    for stats in (obj(player.get("statistics")), player):
+        kills, deaths = integer(stats.get("kills")), integer(stats.get("deaths"))
+        if kills is not None and deaths is not None and kills >= 0 and deaths >= 0:
+            return {"kills": kills, "deaths": deaths, "reference": None}
+    return None
+
+
 def encoded(value):
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 

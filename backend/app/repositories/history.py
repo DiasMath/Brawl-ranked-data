@@ -1,7 +1,7 @@
 from datetime import timedelta
 import json
 
-from ..domain import battle_bans, integer, iso, obj, ranked_reading, string, utc_now
+from ..domain import battle_bans, battle_kd, integer, iso, obj, ranked_reading, string, utc_now
 
 
 def latest_run(cursor, player, successful=False, *, scheduled=False):
@@ -51,7 +51,7 @@ def dataset(cursor, player, after_run=0, include_archive=False):
                CASE WHEN b.rank_score IS NULL AND e.rank_score IS NOT NULL THEN 'evidência' END AS score_source,
                CASE WHEN b.season IS NULL AND e.season IS NOT NULL THEN 'evidência' END AS season_source,
                CASE WHEN b.bans IS NULL AND e.bans IS NOT NULL THEN 'evidência' END AS bans_source,
-               o.first_seen_at, o.delay_observed, b.raw, calendar.season_by_date
+               o.first_seen_at, o.delay_observed, b.raw, calendar.season_by_date, e.performance
         FROM battles b LEFT JOIN battle_evidence e ON e.battle_id=b.id
         LEFT JOIN battle_collection o ON o.battle_id=b.id
         LEFT JOIN LATERAL (
@@ -67,6 +67,9 @@ def dataset(cursor, player, after_run=0, include_archive=False):
     for match in matches:
         item = json.loads(match.pop("raw"))
         battle = obj(item.get("battle"))
+        performance = obj(match.pop("performance"))
+        match["kd"] = battle_kd(battle, player) or performance.get("kd")
+        match["elo_evidence"] = performance.get("elo")
         if include_archive:
             raw_battles[match["id"]] = item
         match["trophy_change"] = integer(battle.get("trophyChange")) if match["api_type"] == "ranked" else None

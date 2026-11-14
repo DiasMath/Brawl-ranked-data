@@ -28,7 +28,7 @@ import { SampleCollection } from '@/features/meta/sample-collection';
 import publicIndex from '@public/scouting/index.json';
 import { columnFilters, navigation, subtitles } from './navigation';
 import { useDashboard } from './use-dashboard';
-import { filteredSeries, matchSeries, seriesInScope } from '@/lib/match-series';
+import { filteredSeries, matchEloChanges, matchSeries, seriesInScope } from '@/lib/match-series';
 
 export default function Dashboard() {
   const {section, filters, setFilters, book, local, period, setPeriod, server, serverError,
@@ -71,6 +71,7 @@ export default function Dashboard() {
   const ranked=useMemo(()=>filtered(data.matches,filters,true),[data.matches,filters]);
   const metaAccount=filtered(data.matches,metaFilters,true);
   const series=useMemo(()=>matchSeries(data.matches),[data.matches]);
+  const elo=useMemo(()=>matchEloChanges(series,local.progress),[series,local.progress]);
   const historySeries=section==='matches'?filteredSeries(series,data.matches,filters,rankedOnly):[];
   const rankedSeries=section==='overview'?filteredSeries(series,data.matches,filters,true):[];
   const selectedSeries=match&&series.find(item=>item.rounds.some(round=>round.id===match.id));
@@ -149,7 +150,7 @@ export default function Dashboard() {
                 {available[key].map(v=><option key={v} value={v}>{v}</option>)}</select></label>)}</div>
           {dateError&&!commonPublic&&<p className="section-note error" role="alert">A data final deve ser igual ou posterior à data inicial.</p>}
         </section>}
-        {section==='overview'&&<Overview local={local} account={active} matches={rankedSeries} historyCount={series.length} filters={filters}
+        {section==='overview'&&<Overview local={local} account={active} matches={rankedSeries} elo={elo} historyCount={series.length} filters={filters}
           busy={busy||!ready||sending} syncing={sending} onSettings={()=>navigate('sources')} onProgress={()=>navigate('progress')} onDraft={()=>navigate('draftlab')} onMeta={()=>navigate('meta')} onSync={()=>void sync()} onMatch={b=>setSelected(b.id)} onHistory={()=>navigate('matches')} collectorLinked={!!server?.configured}/>}
         {section==='progress'&&<Progression key={book.active} local={local} filters={progressFilters}
           matches={filtered(data.matches,progressFilters,true)} onSave={saveProgress}/>}
@@ -157,7 +158,7 @@ export default function Dashboard() {
           action={<label className="switch-label"><input type="checkbox" checked={rankedOnly} onChange={e=>setRankedOnly(e.target.checked)}/> Só ranqueadas</label>}>
           <MatchList key={JSON.stringify([filters,rankedOnly])} matches={historySeries} onOpen={b=>setSelected(b.id)}/></Card>}
         {section==='performance'&&<div className="stack">
-          <MapTraining key={book.active} rows={ranked} history={data.matches} accountName={active.name}
+          <MapTraining key={book.active} rows={ranked} history={data.matches} elo={elo} accountName={active.name}
             selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training}
             onOpen={setSelected} onReview={(id,value)=>saveCoaching({review:{id,value}})}
             onPlan={training=>saveCoaching({training})}
@@ -209,7 +210,7 @@ export default function Dashboard() {
       {syncProgress&&<SyncProgressCard progress={syncProgress} account={active.name}/>}
       {feedback&&<FeedbackToast key={feedback} message={feedback} onDismiss={dismissFeedback}/>}
     </div>}
-    {match&&<MatchDetail key={selectedSeries?.id??match.id} match={match} series={selectedSeries} onRound={setSelected}
+    {match&&<MatchDetail key={selectedSeries?.id??match.id} match={match} series={selectedSeries} elo={selectedSeries&&elo.get(selectedSeries.id)} onRound={setSelected}
       raw={local.raw[match.id]} review={local.reviews?.[match.id]} onClose={()=>setSelected(null)} onChange={saveEvidence}
       onReview={value=>saveCoaching({review:{id:match.id,value}})}/>}
   </div></LiveMeta.Provider>;

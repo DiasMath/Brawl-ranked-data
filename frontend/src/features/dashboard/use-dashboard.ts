@@ -9,7 +9,7 @@ import type { Evidence } from '@/features/matches/match-history';
 import type { ReplayReview, TrainingPlan } from '@/lib/coaching';
 import type { Section } from './navigation';
 
-const historyVersion=4;
+const historyVersion=5;
 
 export function useDashboard() {
   const [section,setSection]=useState<Section>('overview');
@@ -238,7 +238,7 @@ export function useDashboard() {
   async function saveEvidence(record:Evidence){
     if(!match)return;
     if(busy||processing.current)throw new Error('Aguarde a atualização em andamento.');
-    if(!record.evidence.trim()||(record.rank_label===null&&record.rank_score===null&&record.season===null&&record.bans===null)){
+    if(!record.evidence.trim()||[record.rank_label,record.rank_score,record.season,record.bans,record.kills,record.elo_before].every(value=>value==null)){
       throw new Error('Informe uma referência e pelo menos um dado observado.');
     }
     const tag=book.active;

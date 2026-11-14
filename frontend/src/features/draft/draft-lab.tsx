@@ -70,7 +70,8 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
   const input=useRef<HTMLInputElement>(null);
   const roster=useRef<HTMLElement>(null);
   const rail=useRef<HTMLDivElement>(null);
-  const drag=useRef<{id:number; x:number; offset:number; moved:boolean}|null>(null);
+  const drag=useRef<{id:number; x:number; offset:number; moved:boolean; lastX:number; at:number; velocity:number}|null>(null);
+  const momentum=useRef<number|null>(null);
   const suppressClick=useRef(false);
   const {period,setPeriod,report}=useContext(LiveMeta);
   useEffect(()=>{
@@ -168,6 +169,7 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
     }
   },[active,compactView,phase,slot,mapOpen,complete]);
   useEffect(()=>{if(rail.current)rail.current.scrollLeft=0;},[query]);
+  useEffect(()=>stopMomentum,[query,active,compactView]);
   useEffect(()=>{
     const element=rail.current;
     if(!element)return;
@@ -183,10 +185,16 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
     return()=>{resize.disconnect();element.removeEventListener('scroll',update);};
   },[groupCounts,rosterRows]);
 
+  function stopMomentum(){
+    if(momentum.current!==null)window.cancelAnimationFrame(momentum.current);
+    momentum.current=null;
+  }
   function startDrag(event:PointerEvent<HTMLDivElement>){
     if(event.pointerType!=='mouse'||event.button!==0)return;
+    stopMomentum();
     suppressClick.current=false;
-    drag.current={id:event.pointerId,x:event.clientX,offset:event.currentTarget.scrollLeft,moved:false};
+    drag.current={id:event.pointerId,x:event.clientX,offset:event.currentTarget.scrollLeft,moved:false,
+      lastX:event.clientX,at:event.timeStamp,velocity:0};
   }
   function moveDrag(event:PointerEvent<HTMLDivElement>){
     const current=drag.current;
@@ -200,12 +208,39 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
     }
     suppressClick.current=true;
     event.currentTarget.scrollLeft=current.offset-delta;
+    const elapsed=event.timeStamp-current.at;
+    if(elapsed>0){
+      const speed=(current.lastX-event.clientX)/elapsed;
+      current.velocity=Math.max(-2.1,Math.min(2.1,speed));
+      current.lastX=event.clientX;
+      current.at=event.timeStamp;
+    }
+  }
+  function finishDrag(event:PointerEvent<HTMLDivElement>){
+    const current=drag.current;
+    if(!current||current.id!==event.pointerId)return;
+    drag.current=null;
+    if(!current.moved||event.timeStamp-current.at>90||Math.abs(current.velocity)<.08||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    const element=event.currentTarget;
+    let previous=performance.now(), position=element.scrollLeft, velocity=current.velocity;
+    function glide(now:number){
+      const elapsed=Math.max(0,Math.min(32,now-previous));
+      previous=now;
+      position+=velocity*elapsed;
+      const max=element.scrollWidth-element.clientWidth;
+      element.scrollLeft=Math.max(0,Math.min(max,position));
+      velocity*=Math.exp(-elapsed/110);
+      momentum.current=Math.abs(velocity)>.035&&position>0&&position<max?window.requestAnimationFrame(glide):null;
+    }
+    momentum.current=window.requestAnimationFrame(glide);
   }
   function stepRoster(direction:number){
     const element=rail.current;
     if(!element)return;
+    stopMomentum();
     const distance=Math.max(100,element.clientWidth*.8);
-    element.scrollBy({left:direction*distance,behavior:'auto'});
+    element.scrollBy({left:direction*distance,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
   }
 
   const mapPages=Math.max(1,Math.ceil(distinctMaps.length/7));
@@ -370,7 +405,8 @@ export function DraftLab({ matches,profile,defaultMap,active=true }: {
         <div className="draft-pagination"><button aria-label="Rolar brawlers para a esquerda" disabled={!scrollEdges.left} onClick={()=>stepRoster(-1)}><ChevronLeft size={16}/></button>
           <button aria-label="Rolar brawlers para a direita" disabled={!scrollEdges.right} onClick={()=>stepRoster(1)}><ChevronRight size={16}/></button></div></div>
       <div ref={rail} className="draft-roster-rail" aria-label="Faixa de brawlers por classe" tabIndex={0}
-        onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={()=>{drag.current=null;}} onPointerCancel={()=>{drag.current=null;}}
+        onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={finishDrag}
+        onPointerCancel={()=>{drag.current=null;stopMomentum();}} onLostPointerCapture={()=>{drag.current=null;}} onWheel={stopMomentum}
         onClickCapture={e=>{if(suppressClick.current&&e.detail){e.preventDefault();e.stopPropagation();suppressClick.current=false;}}}
         onKeyDown={e=>{if(e.target===e.currentTarget&&(e.key==='ArrowRight'||e.key==='ArrowLeft')){e.preventDefault();stepRoster(e.key==='ArrowRight'?1:-1);}}}>
         {groups.map(({key,Icon,entries})=><section className="draft-class" key={key}>

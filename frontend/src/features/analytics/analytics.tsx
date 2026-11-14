@@ -10,7 +10,7 @@ import { ProfileDetails } from '@/features/analytics/profile-details';
 import { byId, ordered, publicPicks, usePublicStats } from '@/lib/scouting';
 import type { PublicStats, ScoutingRow } from '@/lib/scouting';
 import { inMetaPeriod, LiveMeta } from '@/lib/live';
-import type { MatchSeries } from '@/lib/match-series';
+import type { MatchElo, MatchSeries } from '@/lib/match-series';
 
 type RankRow = ScoutingRow & { mode?: string | null };
 
@@ -86,8 +86,8 @@ function RankedActivity({matches,filters}:{matches:MatchSeries[];filters:Filters
   </section>;
 }
 
-export function Overview({ local, account, matches, historyCount, filters, onSettings, onProgress, onDraft, onMeta, onSync, onMatch, onHistory, busy, syncing, collectorLinked }: {
-  local: LocalData; account: Account; matches: MatchSeries[]; historyCount:number; filters: Filters; onSettings:()=>void; onProgress:()=>void; onDraft:()=>void;
+export function Overview({ local, account, matches, elo, historyCount, filters, onSettings, onProgress, onDraft, onMeta, onSync, onMatch, onHistory, busy, syncing, collectorLinked }: {
+  local: LocalData; account: Account; matches: MatchSeries[]; elo: Map<string,MatchElo>; historyCount:number; filters: Filters; onSettings:()=>void; onProgress:()=>void; onDraft:()=>void;
   onMeta:()=>void; onSync:()=>void; onMatch:(battle:Battle)=>void; onHistory:()=>void; busy:boolean; syncing:boolean; collectorLinked:boolean;
 }) {
   const rows=progressSeries(local);
@@ -132,7 +132,7 @@ export function Overview({ local, account, matches, historyCount, filters, onSet
       <div className="card game-metric"><span className="game-metric-icon orange"><Crosshair size={22}/></span><div><small>Brawlers usados</small>
         <strong>{s.games?number(new Set(results.flatMap(b=>b.player_brawler?[normalize(b.player_brawler)]:[])).size):'—'}</strong><span>Picks identificados no recorte</span></div></div>
     </div>
-    <div className="two-col equal"><RecentForm matches={matches} onMatch={onMatch}
+    <div className="two-col equal"><RecentForm matches={matches} elo={elo} onMatch={onMatch}
       action={<button className="button small subtle" onClick={onHistory}>Histórico <ArrowRight size={14}/></button>}/>
       <RankedActivity matches={matches} filters={filters}/></div>
     <div className="two-col equal"><TrendChart rows={trophyRows} field="trophies" label="Subida de troféus" note="Total da conta por data, independente da temporada"/>

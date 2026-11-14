@@ -34,10 +34,12 @@ export function draftEquipment(name: string, mode: string | null, enemies: strin
   const gearOrder = mode === 'heist' ? ['damage','shield'] : dive && !closeRange ? ['shield','health'] :
     mode === 'hotZone' ? ['health','shield'] : closeRange ? ['damage','health'] : ['shield','damage'];
   if (mode === 'gemGrab' || mode === 'bounty') gearOrder.push('vision');
-  const gears = gearOrder.map(key => commonGears[key]).map(item => ({
+  const alternatives = Object.keys(commonGears).filter(key => !gearOrder.includes(key) &&
+    owned?.gears?.some(gear=>gear.id===commonGears[key].id));
+  const gears = [...gearOrder,...alternatives].map(key => commonGears[key]).map(item => ({
     ...item, reason:item.description,
     unlocked:owned?.gears?.some(gear => gear.id === item.id),
-  })).sort((a,b) => Number(b.unlocked === true) - Number(a.unlocked === true)).slice(0,2);
+  })).sort((a,b) => Number(b.unlocked === true) - Number(a.unlocked === true)).slice(0,3);
 
   return {
     gadgets:options(items?.gadgets ?? [], owned?.gadgets),

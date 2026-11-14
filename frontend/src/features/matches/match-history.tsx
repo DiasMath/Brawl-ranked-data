@@ -6,7 +6,8 @@ import { dateTime, modeName, number, resultName, safeLink } from '@/lib/data';
 import { ReplayAnnotation } from '@/features/analytics/replay-annotation';
 import type { ReplayReview } from '@/lib/coaching';
 import type { Battle } from '@/lib/data';
-import type { MatchSeries } from '@/lib/match-series';
+import { matchKd } from '@/lib/match-series';
+import type { MatchElo, MatchSeries } from '@/lib/match-series';
 
 const pageSize = 15;
 
@@ -20,14 +21,19 @@ export function MatchList({ matches, onOpen, compact = false }: { matches: Match
   if (!matches.length) return <Empty icon={List} title="Nenhuma partida encontrada">Atualize o histórico ou ajuste os filtros do recorte.</Empty>;
   const visible = compact ? matches.slice(0, 6) : matches.slice(current * pageSize, (current + 1) * pageSize);
   return <><div className="table-wrap"><table><thead><tr><th>Data e hora</th><th>Mapa / modo</th><th>Brawler</th><th>Resultado</th>
-    <th>Rank</th><th aria-label="Detalhes" /></tr></thead><tbody>{visible.map(({id,latest:b,result,rounds,wins,losses}) => <tr key={id}>
+    <th>K/D</th><th>Rank</th><th aria-label="Detalhes" /></tr></thead><tbody>{visible.map(series => {
+      const {id,latest:b,result,rounds,wins,losses}=series;
+      const kd=matchKd(series);
+      return <tr key={id}>
       <td>{dateTime(b.played_at)}</td><td><span className="image-label"><ModeIcon mode={b.mode}/><span><strong>{b.map_name ?? '—'}</strong><small>{modeName(b.mode)}</small></span></span></td>
       <td><span className="image-label"><Portrait name={b.player_brawler}/>{b.player_brawler ?? '—'}</span></td><td>
         <Pill kind={resultTone(result)}>{rounds.length>1&&!result?'Resultado em aberto':resultName(result)}</Pill>
         {rounds.length>1&&<small title="Agrupamento inferido a partir do histórico">{wins}–{losses} · {rounds.length} rodadas</small>}</td>
+      <td title={kd?'Eliminações / mortes':'Sem registro completo'}>{kd?`${number(kd.kills)} / ${number(kd.deaths)}`:'—'}</td>
       <td>{b.ranked ? b.rank_label ? <span className="image-label inline-rank"><RankArt rank={b.rank_label}/>{b.rank_label}</span> :
         <span className="muted" title="O histórico da API não trouxe o rank desta partida.">Não informado</span> : '—'}</td><td><button className="icon-button" aria-label={`Detalhar partida de ${dateTime(b.played_at)}`}
-        onClick={() => onOpen(b)}><ChevronRight size={16} /></button></td></tr>)}</tbody></table></div>
+        onClick={() => onOpen(b)}><ChevronRight size={16} /></button></td></tr>;
+    })}</tbody></table></div>
     {!compact && <div className="pager"><span>{number(matches.length)} {matches.length===1?'partida':'partidas'}</span><div>
       <button className="icon-button" disabled={!current} aria-label="Página anterior" onClick={() => setPage(current - 1)}><ChevronLeft size={17} /></button>
       <span>{current + 1} / {Math.ceil(matches.length / pageSize)}</span>
@@ -35,10 +41,11 @@ export function MatchList({ matches, onOpen, compact = false }: { matches: Match
         onClick={() => setPage(current + 1)}><ChevronRight size={17} /></button></div></div>}</>;
 }
 
-export type Evidence = { rank_label: string|null; rank_score: number|null; season: string|null; bans: string[]|null; evidence:string };
-export function MatchDetail({ match, series, onRound, raw, review, onClose, onChange, onReview }: {
+export type Evidence = { rank_label: string|null; rank_score: number|null; season: string|null; bans: string[]|null; evidence:string;
+  kills?:number|null; deaths?:number|null; elo_before?:number|null; elo_after?:number|null };
+export function MatchDetail({ match, series, elo, onRound, raw, review, onClose, onChange, onReview }: {
   match: Battle; raw: unknown; review?: ReplayReview; onClose: () => void;
-  series?: MatchSeries; onRound?: (id: string) => void;
+  series?: MatchSeries; elo?:MatchElo; onRound?: (id: string) => void;
   onChange: (record:Evidence) => Promise<void>; onReview: (value:ReplayReview) => Promise<void>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -53,12 +60,17 @@ export function MatchDetail({ match, series, onRound, raw, review, onClose, onCh
   }, []);
   async function saveEvidence(form: FormData) {
     const value = (key: string) => String(form.get(key) ?? '').trim();
+    const count = (key:string) => value(key)===''?null:Number(value(key));
+    const kills=count('kills'), deaths=count('deaths'), before=count('before'), after=count('after');
+    if ((kills===null)!==(deaths===null)||(before===null)!==(after===null)) {
+      setFeedback('Preencha os dois valores de K/D ou os dois valores de Elo.');return;
+    }
     setSaving(true);
     try {
       await onChange({
         rank_label: value('rank') || null, rank_score: value('score') ? Number(value('score')) : null,
         season: value('season') || null, bans: form.get('noBans') ? [] : (value('bans') ? value('bans').split(',').map(s => s.trim()).filter(Boolean) : null),
-        evidence: value('source'),
+        evidence: value('source'), kills, deaths, elo_before:before, elo_after:after,
       });
       setEvidenceOpen(false);
       setFeedback('Evidência registrada.');
@@ -67,6 +79,7 @@ export function MatchDetail({ match, series, onRound, raw, review, onClose, onCh
   }
   const groups = [...new Set(match.players.map(p => p.team_index))];
   const grouped = series && series.rounds.length>1 ? series : null;
+  const totalKd=grouped?matchKd(grouped):null;
   const fields = [
     { label:'Rank da partida', value:match.rank_label, reference:match.rank_reference },
     { label:'Pontos de rank', value:match.rank_score === null ? null : number(match.rank_score), reference:match.score_reference },
@@ -94,10 +107,17 @@ export function MatchDetail({ match, series, onRound, raw, review, onClose, onCh
           setRawOpen(false);setEvidenceOpen(false);setFeedback('');onRound?.(round.id);
         }} disabled={saving}>
         <span>Rodada {index+1}<small>{dateTime(round.played_at)}{round.duration_seconds!=null?` · ${round.duration_seconds}s`:''}</small></span>
+        {round.kd&&<span aria-label="Eliminações e mortes">{round.kd.kills} / {round.kd.deaths}</span>}
         <Pill kind={resultTone(round.result)}>{resultName(round.result)}</Pill>
       </button>)}
     </section>}
     <dl className="detail-grid">
+      {grouped&&<div><dt>K/D final da série</dt><dd>{totalKd?`${number(totalKd.kills)} / ${number(totalKd.deaths)}`:'—'}
+        <small>{totalKd?'Soma das rodadas':'Sem registro completo das rodadas'}</small></dd></div>}
+      <div><dt>{grouped?'K/D da rodada':'K/D final'}</dt><dd>{match.kd?`${number(match.kd.kills)} / ${number(match.kd.deaths)}`:'—'}
+        <small>{match.kd?(match.kd.reference?'Evidência · '+match.kd.reference:'Histórico da Supercell'):'Eliminações e mortes não informadas'}</small></dd></div>
+      {match.ranked&&<div><dt>Variação de Elo</dt><dd>{elo?`${number(elo.before)} → ${number(elo.after)} (${elo.after>elo.before?'+':''}${number(elo.after-elo.before)})`:'—'}
+        <small>{elo?(elo.reference?'Evidência · '+elo.reference:'Estimativa por leituras do perfil'):'Sem leitura isolada desta partida'}</small></dd></div>}
       {match.ranked && fields.map(({label,value,reference}) => {
         const calendar = label === 'Temporada' && value === null ? match.season_by_date : null;
         const source = calendar ? safeLink(calendar.source_url) : undefined;
@@ -118,16 +138,26 @@ export function MatchDetail({ match, series, onRound, raw, review, onClose, onCh
     }) : <Empty icon={Swords} title="Composição indisponível" />}
     {feedback && <p className="feedback" role="status">{feedback}</p>}
     <div className="actions">
-      {match.ranked && <button className="button subtle" onClick={() => setEvidenceOpen(v => !v)}><FileJson size={16} /> Registrar evidência</button>}
+      <button className="button subtle" onClick={() => setEvidenceOpen(v => !v)}><FileJson size={16} /> Registrar evidência</button>
       {raw !== undefined && <button className="button subtle" onClick={()=>setRawOpen(v=>!v)}><ChevronDown size={16} /> {rawOpen ? 'Ocultar JSON' : 'Ver JSON da API'}</button>}
     </div>
     {evidenceOpen && <form className="evidence-form" onSubmit={event => { event.preventDefault(); void saveEvidence(new FormData(event.currentTarget)); }}>
-      <p className="muted">No jogo, abra o Registro de batalhas para consultar os bans. Use uma captura da tela de resultado ou do replay como referência.</p>
+      <p className="muted">Use a tela de resultado ou o replay como referência. {grouped?'Registre o K/D da rodada selecionada e o Elo da série inteira.':''}</p>
+      <div className="evidence-pair">
+        <label>Eliminações<input name="kills" type="number" min={0} max={2147483647} defaultValue={match.kd?.kills} disabled={!!match.kd&&!match.kd.reference}/></label>
+        <label>Mortes<input name="deaths" type="number" min={0} max={2147483647} defaultValue={match.kd?.deaths} disabled={!!match.kd&&!match.kd.reference}/></label>
+      </div>
+      {match.ranked&&<>
+      <div className="evidence-pair">
+        <label>Elo antes da partida<input name="before" type="number" min={0} max={2147483647} defaultValue={match.elo_evidence?.before}/></label>
+        <label>Elo depois da partida<input name="after" type="number" min={0} max={2147483647} defaultValue={match.elo_evidence?.after}/></label>
+      </div>
       <label>Rank observado<input name="rank" maxLength={60} /></label>
       <label>Pontos de rank<input name="score" type="number" min={0} max={2147483647} /></label>
       <label>Temporada<input name="season" maxLength={100} /></label>
       <label>Lista completa de bans, separados por vírgulas<input name="bans" maxLength={3000} /></label>
       <label className="checkbox"><input name="noBans" type="checkbox" /> A evidência confirma ausência de bans</label>
+      </>}
       <label>Referência da evidência<input name="source" required minLength={3} maxLength={400} /></label>
       <button className="button primary" disabled={saving}>Salvar evidência</button>
     </form>}

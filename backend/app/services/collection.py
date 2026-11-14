@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import psycopg
 
 from ..db import database
@@ -74,6 +76,7 @@ def collect_account(player, *, scheduled=False):
                 with official_client(key) as client:
                     path = "players/%23" + player[1:]
                     profile = fetch(client, path)
+                    profile_at = utc_now()
                     publish_progress(connection, cursor, run_id, "battlelog")
                     log = fetch(client, path + "/battlelog")
                 if profile.get("tag") != player or not isinstance(profile.get("name"), str):
@@ -89,7 +92,7 @@ def collect_account(player, *, scheduled=False):
                 cursor.execute(
                     "INSERT INTO account_profile (player_tag,player_name,raw,fetched_at) VALUES (%s,%s,%s,%s) "
                     "ON CONFLICT (player_tag) DO UPDATE SET player_name=EXCLUDED.player_name, raw=EXCLUDED.raw, "
-                    "fetched_at=EXCLUDED.fetched_at", (player, profile["name"], encoded(profile), utc_now()),
+                    "fetched_at=EXCLUDED.fetched_at", (player, profile["name"], encoded(profile), profile_at),
                 )
                 observed_at = utc_now()
                 added = 0
@@ -111,7 +114,7 @@ def collect_account(player, *, scheduled=False):
                         "INSERT INTO collection_state (player_tag, last_possible_gap) VALUES (%s,%s) "
                         "ON CONFLICT (player_tag) DO UPDATE SET last_possible_gap=EXCLUDED.last_possible_gap", (player, observed_at),
                     )
-                record_profile_reading(cursor, player, run_id, observed_at, profile)
+                record_profile_reading(cursor, player, run_id, profile_at, profile)
                 cursor.execute("UPDATE update_log SET finished_at=%s, status='success', received=%s, added=%s, processed=%s "
                                "WHERE id=%s", (utc_now(), received, added, received, run_id))
                 connection.commit()
@@ -135,11 +138,12 @@ def record_profile_reading(cursor, player, run_id, at, profile):
     readings = (integer(profile.get("trophies")), score, rank, season)
     if not any(value is not None for value in readings[:3]):
         return
-    cursor.execute("SELECT trophies, rank_score, rank_label, season FROM profile_readings "
+    cursor.execute("SELECT observed_at, trophies, rank_score, rank_label, season FROM profile_readings "
                    "WHERE player_tag=%s ORDER BY run_id DESC LIMIT 1", (player,))
     previous = cursor.fetchone()
-    if previous and tuple(previous.values()) == readings:
-        return
+    if previous and tuple(previous[key] for key in ("trophies", "rank_score", "rank_label", "season")) == readings:
+        if score is None or not season or at - previous["observed_at"] < timedelta(minutes=5):
+            return
     cursor.execute(
         "INSERT INTO profile_readings (player_tag, run_id, observed_at, trophies, rank_score, rank_label, season) "
         "VALUES (%s,%s,%s,%s,%s,%s,%s)", (player, run_id, at, *readings),

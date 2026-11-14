@@ -87,7 +87,7 @@ export function DraftSummary({map,mapName,mode,team,enemy,sample,index,profile,o
       </section>
       <section className="draft-summary-section">
         <h3><Settings2 size={16}/> Sugestões de equipamento</h3>
-        <p className="muted">Sugestões táticas por efeito e confronto. {owned&&'Itens desbloqueados têm prioridade. '}{profile?.fetched_at&&owned&&'Perfil lido em '+dateTime(profile.fetched_at)+'.'}
+        <p className="muted">Equipe os itens marcados com ✓. {owned&&'Itens desbloqueados têm prioridade. '}{profile?.fetched_at&&owned&&'Perfil lido em '+dateTime(profile.fetched_at)+'.'}
           {' '}<a href="https://brawlapi.com/new" target="_blank" rel="noreferrer">Catálogo BrawlAPI</a></p>
         <div className="draft-build-choices" aria-label="Brawler da equipe azul">
           {team.map(brawler=><button type="button" className="button small subtle" key={brawler} aria-pressed={name===brawler}
@@ -95,13 +95,17 @@ export function DraftSummary({map,mapName,mode,team,enemy,sample,index,profile,o
         </div>
         <div className="draft-build-grid">{categories.map(({key,label,folder,Icon})=><div key={key}>
           <h4>{label}</h4>
-          <div className="draft-build-items">{items[key].map((item,i)=><button type="button" key={item.name}
-            aria-label={`${label} ${i+1} · ${item.name}`} aria-pressed={detail===item.name} title={item.name}
+          <div className="draft-build-items">{items[key].map((item,i)=>{
+            const recommended=i<(key==='gears'?2:1)&&item.unlocked!==false;
+            return <button type="button" key={item.name} data-recommended={recommended}
+            aria-label={`${label} · ${item.name}${recommended?' · Equipar':item.unlocked===false?' · Bloqueado':' · Alternativa'}`}
+            aria-pressed={detail===item.name} title={item.name}
             onClick={()=>setDetail(detail===item.name?null:item.name)}>
             {item.id!==null&&!missingIcons.includes(item.id)?<img alt="" src={`https://cdn.brawlify.com/${folder}/regular/${item.id}.png`}
               referrerPolicy="no-referrer" onError={()=>{const id=item.id;if(id!==null)setMissingIcons(list=>[...list,id]);}}/>:<Icon size={21}/>}
-            <span>{i+1}</span>
-          </button>)}</div>
+            <span className="build-item-order">{recommended?'✓':i+1}</span>
+            <strong>{item.name}</strong><small>{recommended?'Equipar':item.unlocked===false?'Bloqueado':'Alternativa'}</small>
+          </button>})}</div>
           {!items[key].length&&<p className="muted">Sem itens no catálogo.</p>}
         </div>)}</div>
         {Object.values(items).flat().filter(item=>item.name===detail).map(item=><p className="draft-build-detail" key={item.name}>
