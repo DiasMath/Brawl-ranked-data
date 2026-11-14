@@ -248,6 +248,12 @@ Get-Content .\backend\.venv\draftmeta-coleta-development.log -Encoding UTF8 -Tai
 
 A tarefa roda a cada 60 minutos, com o Windows ligado e seu usuário conectado. O job atualiza a tier list geral e consulta todos os mapas do pool ranqueado publicado pelo DraftMeta, com todos os ranks. O filtro de mapa é só para navegação. **Meta → DraftMeta** mostra a cobertura do patch, os mapas sem snapshot e os que ficaram com a cópia anterior. Um HTTP 429 interrompe a rodada e preserva os snapshots já salvos. O comando equivalente para um executor que já tenha `DATABASE_URL` configurado é `python -m app.jobs.collect_draftmeta`, a partir de `backend`.
 
+### Draft Lab e Meta do patch
+
+O Draft Lab abre com **DraftMeta** como fonte. A visão geral usa o último snapshot geral salvo para identificar o patch. Ao escolher um mapa, a tela consulta a cópia desse mapa no mesmo patch. As sugestões seguem a ordem da tier list e mostram win rate, presença quando disponível, partidas e data da leitura. As escolhas já usadas ou banidas saem da lista de picks. Se o mapa ainda estiver sem snapshot nesse patch, a tela indica a lacuna. O Draft Lab lê o Supabase pelo backend e as consultas à fonte continuam no coletor.
+
+**Bans** mostra sugestões baseadas na força dos brawlers no recorte. Para **counters**, o seletor permite usar a amostra própria, a referência histórica ou a sua conta, com a origem visível.
+
 ### Revisão por mapa e sessões
 
 Em **Desempenho**, abra um mapa para ver suas últimas 10 partidas decisivas e as 10 anteriores, os brawlers usados e a comparação com o snapshot do DraftMeta. Os rankings dos mapas exigem 10 partidas decisivas. Para revisar, abra as fichas de vitória e derrota ou o detalhe de qualquer ranqueada. As observações vêm do replay assistido no jogo e ficam salvas por conta neste navegador. O plano da próxima sessão registra um ajuste e acompanha os resultados das partidas coletadas entre o início e a conclusão. A exportação do histórico inclui essas anotações.

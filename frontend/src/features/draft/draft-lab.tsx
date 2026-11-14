@@ -2,13 +2,15 @@ import type { PointerEvent } from 'react';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, Bomb, ChevronDown, ChevronLeft, ChevronRight, Crosshair, Flame, HeartPulse, Map as MapIcon, Search, Shield, SlidersHorizontal, Swords, Target, Undo2, X } from 'lucide-react';
 import type { Battle, Dataset, Filters } from '@/lib/data';
-import { groupStats, modeName, normalize, number, percent } from '@/lib/data';
+import { dateTime, groupStats, modeName, normalize, number, percent } from '@/lib/data';
 import { byModeId, brawlers, findMap, MapImage, maps, ModeIcon, pickableModes, Portrait, roleName } from '@/components/game';
 import { accountCounters, draftPicks, ordered, publicCounters, publicPicks, usePublicStats } from '@/lib/scouting';
 import type { ScoutingRow } from '@/lib/scouting';
 import type { MetaMatchup } from '@/lib/browser-store';
 import { LiveMeta, metaPeriods } from '@/lib/live';
 import type { LivePeriod } from '@/lib/live';
+import { draftMetaMapKey, draftMetaPicks } from '@/lib/draftmeta';
+import { useDraftMeta } from './use-draftmeta';
 
 type Side = 'team'|'enemy';
 type Zone = Side|'blueBan'|'redBan';
@@ -16,6 +18,7 @@ type Slot = { side: Zone; index:number };
 type DraftState = Record<Zone,string[]>;
 type Advice = 'picks'|'bans'|'counters';
 const fresh = ():DraftState => ({team:['','',''],enemy:['','',''],blueBan:['','',''],redBan:['','','']});
+const rosterNames = new Map(brawlers.map(brawler=>[normalize(brawler.name),brawler.name]));
 const banZone = (side:Zone) => side==='blueBan'||side==='redBan';
 
 function ScoutingRows({ rows, onPick, empty, pairs=false, slots, unit='séries', limit=8 }: {
@@ -41,10 +44,10 @@ function pickOrder(first:Side): Slot[] {
 const classIcons={Assassin:Swords,Tank:Shield,'Damage Dealer':Flame,Controller:SlidersHorizontal,Marksman:Crosshair,Artillery:Bomb,Support:HeartPulse};
 const banOrder:Slot[] = [0,1,2].flatMap(index=>[{side:'blueBan',index},{side:'redBan',index}] as Slot[]);
 
-export function DraftLab({ matches,profile,defaultMap }: {
-  matches:Battle[]; profile:Dataset['profile']; defaultMap?:string;
+export function DraftLab({ matches,profile,defaultMap,active=true }: {
+  matches:Battle[]; profile:Dataset['profile']; defaultMap?:string; active?:boolean;
 }) {
-  const [mapId,setMapId]=useState(findMap(defaultMap)?.id??0);
+  const [mapName,setMapName]=useState(defaultMap??'');
   const [mapOpen,setMapOpen]=useState(false);
   const [mapSearch,setMapSearch]=useState('');
   const [mapPage,setMapPage]=useState(0);
@@ -58,7 +61,7 @@ export function DraftLab({ matches,profile,defaultMap }: {
   const [rosterRows,setRosterRows]=useState(3);
   const [scrollEdges,setScrollEdges]=useState({left:false,right:false});
   const [compactView,setCompactView]=useState<'roster'|'map'>('roster');
-  const [source,setSource]=useState<'public'|'account'>('public');
+  const [source,setSource]=useState<'draftmeta'|'public'|'account'>('draftmeta');
   const [owned,setOwned]=useState(false);
   const [advice,setAdvice]=useState<Advice>('bans');
   const input=useRef<HTMLInputElement>(null);
@@ -80,15 +83,16 @@ export function DraftLab({ matches,profile,defaultMap }: {
     resize.observe(element);
     return()=>resize.disconnect();
   },[]);
-  const map=maps.find(m=>m.id===mapId);
+  const map=findMap(mapName)??maps.find(item=>draftMetaMapKey(item.name)===draftMetaMapKey(mapName)&&!item.disabled);
   const mode=map?byModeId.get(map.mode)?.key??null:null;
-  const global=usePublicStats(null,map?.name??null);
+  const external=useDraftMeta(mapName,active&&source==='draftmeta');
+  const global=usePublicStats(null,mapName||null);
   const mapIndex=usePublicStats(null,null);
-  const recentMaps=new Set(mapIndex.index?.contexts.flatMap(c=>c.map?[normalize(c.map)]:[])??[]);
-  const availableMaps=maps.filter(m=>(archived||recentMaps.has(normalize(m.name))||(!m.disabled&&pickableModes.some(mode=>mode.id===m.mode)))
-    &&normalize(m.name).includes(normalize(mapSearch)));
-  const distinctMaps=[...new Set(availableMaps.map(m=>m.name))].flatMap(name=>findMap(name)??[]).sort((a,b)=>
-    Number(recentMaps.has(normalize(b.name)))-Number(recentMaps.has(normalize(a.name)))||a.name.localeCompare(b.name));
+  const recentMaps=new Set([...external.pool,...(mapIndex.index?.contexts.flatMap(c=>c.map?[c.map]:[])??[])].map(draftMetaMapKey));
+  const availableMaps=maps.filter(m=>archived||recentMaps.has(draftMetaMapKey(m.name))||(!m.disabled&&pickableModes.some(mode=>mode.id===m.mode)));
+  const distinctMaps=[...new Map([...availableMaps.map(m=>m.name),...external.pool].map(name=>[draftMetaMapKey(name),name])).values()]
+    .filter(name=>draftMetaMapKey(name).includes(draftMetaMapKey(mapSearch)))
+    .sort((a,b)=>Number(recentMaps.has(draftMetaMapKey(b)))-Number(recentMaps.has(draftMetaMapKey(a)))||a.localeCompare(b));
   const picked=new Set([...draft.team,...draft.enemy].filter(Boolean).map(normalize));
   const banned=new Set([...draft.blueBan,...draft.redBan].filter(Boolean).map(normalize));
   const eligible=new Set(profile?.owned_brawlers?.filter(b=>b.power>=11).map(b=>normalize(b.name))??[]);
@@ -99,7 +103,7 @@ export function DraftLab({ matches,profile,defaultMap }: {
     if(banZone(where.side))return draft[where.side].some(v=>normalize(v)===key);
     return banned.has(key)||(owned&&where.side==='team'&&!eligible.has(key));
   };
-  const contextual=useMemo(()=>matches.filter(b=>!map||b.event_id===map.id||normalize(b.map_name)===normalize(map.name)),[matches,map]);
+  const contextual=useMemo(()=>matches.filter(b=>!mapName||(map&&b.event_id===map.id)||draftMetaMapKey(b.map_name??'')===draftMetaMapKey(mapName)),[matches,map,mapName]);
   const accountPicks:ScoutingRow[]=groupStats(contextual,b=>[b.player_brawler]).filter(r=>r.decided>=3)
     .map(r=>({name:r.label,wins:r.wins,games:r.decided,details:[]}));
   const general=source==='public'?publicPicks(global.sample):accountPicks;
@@ -202,6 +206,12 @@ export function DraftLab({ matches,profile,defaultMap }: {
     })}</div>;
   }
   const recommendations=advice==='picks'?picks:advice==='bans'?threats:counters;
+  const externalTarget=advice==='bans'?targetBan:targetPick;
+  const externalRows=draftMetaPicks(external.snapshot).flatMap(row=>{
+    const rosterName=rosterNames.get(normalize(row.name));
+    return rosterName&&externalTarget&&!blocked(rosterName,externalTarget)&&(advice!=='bans'||!banned.has(normalize(rosterName)))?[{...row,name:rosterName}]:[];
+  });
+  if(advice==='bans')externalRows.sort((a,b)=>(b.presence??0)*Math.max(0,b.winRate-.5)-(a.presence??0)*Math.max(0,a.winRate-.5)||b.winRate-a.winRate);
   const applyRecommendation:((name:string)=>void)|undefined=advice==='bans'?(targetBan?name=>assign(name,targetBan):undefined):
     (targetPick?name=>assign(name,targetPick):undefined);
   const composition=(line:string[])=>[...new Set(line.flatMap(name=>{
@@ -234,15 +244,18 @@ export function DraftLab({ matches,profile,defaultMap }: {
     <section className="card draft-field" aria-label="Mapa e recomendações">
       <div className="draft-map-feature">
         <button className="draft-map-button" aria-expanded={mapOpen} onClick={()=>{setMapOpen(v=>!v);setMapSearch('');setMapPage(0);}}>
-          <span className="draft-map-label"><span><MapIcon size={14}/> {map?.name??'Escolher mapa'}</span><ChevronDown size={16}/></span>
+          <span className="draft-map-label"><span><MapIcon size={14}/> {mapName||'Escolher mapa'}</span><ChevronDown size={16}/></span>
           <span className="draft-map-picture"><MapImage map={map}/></span>
           {mode&&<span className="image-label"><ModeIcon mode={mode}/>{modeName(mode)}</span>}
         </button>
         {mapOpen&&<div className="map-menu"><label><Search size={15}/><input autoFocus value={mapSearch} aria-label="Buscar mapa" placeholder="Buscar mapa"
           onChange={e=>{setMapSearch(e.target.value);setMapPage(0);}} onKeyDown={e=>{if(e.key==='Escape')setMapOpen(false);}}/></label>
-          <button className="map-option" onClick={()=>{setMapId(0);setMapOpen(false);}}>Todos os mapas</button>
-          {displayedMaps.map(m=><button className="map-option" key={m.id} onClick={()=>{setMapId(m.id);setMapOpen(false);}}>
-            <MapImage map={m}/><span>{m.name}<small>{modeName(byModeId.get(m.mode)?.key??null)}</small></span></button>)}
+          <button className="map-option" onClick={()=>{setMapName('');setMapOpen(false);}}>Todos os mapas</button>
+          {displayedMaps.map(name=>{
+            const item=findMap(name)??availableMaps.find(m=>draftMetaMapKey(m.name)===draftMetaMapKey(name));
+            return <button className="map-option" key={name} onClick={()=>{setMapName(name);setMapOpen(false);}}>
+              <MapImage map={item}/><span>{name}{item&&<small>{modeName(byModeId.get(item.mode)?.key??null)}</small>}</span></button>;
+          })}
           {!displayedMaps.length&&<p className="section-note">Nenhum mapa encontrado.</p>}
           {mapPages>1&&<div className="draft-pagination"><button aria-label="Página anterior de mapas" disabled={!currentMapPage} onClick={()=>setMapPage(currentMapPage-1)}><ChevronLeft size={16}/></button>
             <span>{currentMapPage+1} / {mapPages}</span><button aria-label="Próxima página de mapas" disabled={currentMapPage+1>=mapPages} onClick={()=>setMapPage(currentMapPage+1)}><ChevronRight size={16}/></button></div>}
@@ -251,11 +264,30 @@ export function DraftLab({ matches,profile,defaultMap }: {
       </div>
       <div className="draft-recommendations">
         <header className="draft-panel-title"><h2><Target size={15}/> Recomendações</h2>
-          <select aria-label="Fonte das recomendações" value={source} onChange={e=>setSource(e.target.value as typeof source)}><option value="public">Meta</option><option value="account">Minha conta</option></select></header>
+          <select aria-label="Fonte das recomendações" value={source} onChange={e=>setSource(e.target.value as typeof source)}><option value="draftmeta">DraftMeta</option><option value="public">Amostra própria e histórico</option><option value="account">Minha conta</option></select></header>
         {source==='public'&&<select className="draft-period-select" aria-label="Período das recomendações" value={period} onChange={e=>setPeriod(e.target.value as LivePeriod)}>
           {metaPeriods(report).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select>}
         <div className="tabs">{(['picks','bans','counters'] as Advice[]).map(t=><button key={t} aria-pressed={advice===t} onClick={()=>setAdvice(t)}>
           {t==='picks'?'Picks':t==='bans'?'Bans':'Counters'}</button>)}</div>
+        {source==='draftmeta'?<>
+          <div className="draft-suggestions" aria-live="polite">
+            {advice==='counters'?<p className="section-note">Counters por mapa indisponíveis neste snapshot. Consulte outra fonte no seletor.</p>:
+              external.loading?<p className="section-note">Carregando Meta do patch…</p>:
+              external.failed?<p className="section-note">Não foi possível ler o snapshot do DraftMeta.</p>:
+              !external.snapshot?<p className="section-note">Sem snapshot salvo para este {mapName?'mapa':'recorte'} no patch{external.patch?` de ${external.patch.split('-').reverse().join('/')}`:''}.</p>:
+              !externalRows.length?<p className="section-note">Sem sugestões disponíveis para esta posição.</p>:
+              externalRows.slice(0,3).map(row=><button type="button" className="draft-suggestion" key={row.name}
+                disabled={!applyRecommendation} onClick={()=>applyRecommendation?.(row.name)}>
+                <Portrait name={row.name}/><span><strong>{row.name} · {row.tier}</strong>
+                  <small>{number(row.games)} partidas · {row.presence===null?'Presença —':`${percent(row.presence)} presença`}</small></span>
+                <b>{percent(row.winRate)}</b>
+              </button>)}
+          </div>
+          {external.snapshot&&<p className="draft-evidence"><a href={external.snapshot.source_url} target="_blank" rel="noreferrer">DraftMeta</a>
+            {' · Patch '+external.snapshot.patch_date.split('-').reverse().join('/')+' · '+dateTime(external.snapshot.fetched_at)}
+            {!external.snapshot.fresh&&' · Cópia salva'}
+            {advice==='bans'&&' · Sugestões por força no recorte'}</p>}
+        </>:<>
         <div className="draft-suggestions">
           {!recommendations.length&&<p className="section-note">{advice==='counters'&&!enemies.length?'Adicione um pick adversário.':global.loading?'Carregando…':'Sem amostra neste recorte.'}</p>}
           {recommendations.slice(0,3).map(r=>{
@@ -267,6 +299,7 @@ export function DraftLab({ matches,profile,defaultMap }: {
           })}
         </div>
         {recommendations.length>0&&<p className="draft-evidence">{advice==='bans'?'Sugestão por força e frequência':advice==='counters'?'Confrontos observados':'Win rate, counters e sinergias'}</p>}
+        </>}
       </div>
     </section>
     <section className="card draft-roster" aria-label="Brawlers por classe">

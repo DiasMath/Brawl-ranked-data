@@ -158,7 +158,7 @@ export default function Dashboard() {
           <Performance rows={ranked}/>
         </div>}
         <div className="draft-surface" hidden={section!=='draftlab'}>
-          <DraftLab key={`${book.active}:${draftTarget.revision}`} matches={data.matches.filter(b=>b.ranked)} profile={data.profile} defaultMap={draftTarget.map||filters.map_name}/>
+          <DraftLab active={section==='draftlab'} key={`${book.active}:${draftTarget.revision}`} matches={data.matches.filter(b=>b.ranked)} profile={data.profile} defaultMap={draftTarget.map||filters.map_name}/>
         </div>
         {section==='draft'&&<div className="stack">
           <MetaPeriods/>

@@ -11,7 +11,7 @@ import { ordered } from '@/lib/scouting';
 import { AccountComparison } from '@/features/meta/external-account';
 import { RecentForm } from './recent-form';
 import { ReplayAnnotation } from './replay-annotation';
-import type { Snapshot } from '@/features/meta/external-meta';
+import type { DraftMetaSnapshot as Snapshot } from '@/lib/draftmeta';
 
 type MapPerformance = ReturnType<typeof mapPerformance>[number];
 

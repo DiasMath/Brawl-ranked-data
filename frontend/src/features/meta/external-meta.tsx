@@ -5,25 +5,10 @@ import { dateTime, number, percent } from '@/lib/data';
 import type { Battle } from '@/lib/data';
 import { accountInExternalScope } from '@/lib/external-comparison';
 import { AccountBans, AccountComparison } from './external-account';
-import type { BrawlerStats } from './external-account';
 import { collectionRequest } from '@/lib/live';
 
-type Movement = { name: string; win_change: number; pick_change: number; games: number };
-type Window = { start: string; end: string; battles: number };
-export type Snapshot = Window & {
-  provider: string; patch_date: string; map: string | null; source_url: string; fetched_at: string; fresh: boolean;
-  tiers: { tier: string; brawlers: BrawlerStats[] }[];
-  map_picks: { name: string; pick_rate: number }[];
-  presence?: { name: string; pick_rate: number }[] | null;
-  movements: {
-    current?: Window; previous: Window; source_url: string; win_risers: Movement[]; win_fallers: Movement[];
-    pick_risers: Movement[]; pick_fallers: Movement[];
-  } | null;
-};
+import type { DraftMetaResponse, DraftMetaSnapshot as Snapshot } from '@/lib/draftmeta';
 
-type Coverage = { patch_date: string; updated_at: string;
-  maps: { name: string; status: 'updated'|'unavailable'|'pending'; saved: boolean }[] };
-type ExternalResponse = { snapshot: Snapshot|null; patches: string[]; coverage?: Coverage|null; saved_maps?: string[] };
 const fallbackMaps = maps.filter(m => !m.disabled && pickableModes.some(mode => mode.id === m.mode)).map(m => m.name);
 const dateLabel = (day: string) => day.split('-').reverse().join('/');
 const points = (value: number) => `${value > 0 ? '+' : ''}${value.toLocaleString('pt-BR')} p.p.`;
@@ -52,7 +37,7 @@ export function ExternalMeta({matches,accountName}: {matches:Battle[]; accountNa
   const [map,setMap] = useState('');
   const [patch,setPatch] = useState('');
   const [patches,setPatches] = useState<string[]>([]);
-  const [coverage,setCoverage] = useState<Coverage|null>(null);
+  const [coverage,setCoverage] = useState<DraftMetaResponse['coverage']>(null);
   const [savedMaps,setSavedMaps] = useState<string[]>([]);
   const [snapshot,setSnapshot] = useState<Snapshot|null>(null);
   const [loading,setLoading] = useState(true);
@@ -65,7 +50,7 @@ export function ExternalMeta({matches,accountName}: {matches:Battle[]; accountNa
     setMessage('');
     const params=new URLSearchParams({map});
     if(patch) params.set('patch',patch);
-    void collectionRequest<ExternalResponse>(`/api/meta/external?${params}`, {signal:controller.signal})
+    void collectionRequest<DraftMetaResponse>(`/api/meta/external?${params}`, {signal:controller.signal})
       .then(data=>{
         if(controller.signal.aborted) return;
         setSnapshot(data.snapshot);

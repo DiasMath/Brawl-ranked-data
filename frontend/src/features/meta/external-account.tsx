@@ -5,7 +5,7 @@ import { normalize, number, percent } from '@/lib/data';
 import type { Battle } from '@/lib/data';
 import { accountBrawlerRows, mapKey, observedBans } from '@/lib/external-comparison';
 
-export type BrawlerStats = { name: string; win_rate: number; games: number };
+import type { DraftMetaBrawler as BrawlerStats } from '@/lib/draftmeta';
 const MIN_DELTA_GAMES = 10;
 const deltaText = (value: number) => {
   const rounded = Math.round(value * 10) / 10;
