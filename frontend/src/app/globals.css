@@ -359,6 +359,11 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
 .form-grid label,.account-form label,.counter-controls label,.draft-context label:not(.checkbox) { display: grid; gap: 5px; min-width: 0; }
 .form-grid .button,.account-form .button { justify-self: start; }
 .planner-notes { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 11px; padding: 0 16px 13px; }
+.planner-elo-suggestions { padding: 0 16px 13px; }
+.planner-elo-suggestions > p { margin-bottom: 6px; color: var(--muted); font-size: 11px; }
+.planner-elo-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 8px; }
+.planner-elo-options > div { display: grid; justify-items: start; gap: 3px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-alt); }
+.planner-elo-options small { color: var(--muted); }
 .planner-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 9px; padding: 0 16px; }
 .planner-grid > div { display: grid; gap: 4px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: #201d32; }
 .planner-grid svg { color: var(--lavender); }

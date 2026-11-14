@@ -5,7 +5,8 @@ import { rankedSessions } from '@/lib/coaching';
 import type { LocalData, Progress } from '@/lib/browser-store';
 import { dateTime, localDay, normalize, number, percent, stats } from '@/lib/data';
 import type { Dataset, Filters } from '@/lib/data';
-import type { MatchSeries } from '@/lib/match-series';
+import { summarizeMatchElo } from '@/lib/match-series';
+import type { MatchElo, MatchSeries } from '@/lib/match-series';
 import { gameRank, nextRank, RankArt, referenceRank, TrophyArt } from '@/components/game';
 import { useDataTooltip } from '@/components/data-tooltip';
 
@@ -149,8 +150,8 @@ function SessionHistory({matches,readings}: {matches:MatchSeries[];readings:Prog
   </section>;
 }
 
-export function Progression({ local, filters, matches }: {
-  local: LocalData; filters: Filters; matches:MatchSeries[];
+export function Progression({ local, filters, matches, elo }: {
+  local: LocalData; filters: Filters; matches:MatchSeries[]; elo:ReadonlyMap<string,MatchElo>;
 }) {
   const rows = progressSeries(local);
   const summary = rankProgress(rows);
@@ -164,6 +165,7 @@ export function Progression({ local, filters, matches }: {
   const [winRate, setWinRate] = useState('');
   const recent = matches.filter(match=>match.result==='victory'||match.result==='defeat').slice(0,30);
   const sample = stats(recent);
+  const historicalElo = summarizeMatchElo(matches,elo);
   const activity = observedPace(matches);
   const paceRounded=activity.perDay===null?null:Number(activity.perDay.toPrecision(2));
   const decisivePace=activity.span?stats(matches).decided/activity.span:0;
@@ -213,14 +215,31 @@ export function Progression({ local, filters, matches }: {
         <label>Prazo em dias<input type="number" min="1" value={horizon} onChange={e => setHorizon(e.target.value)} /></label>
         <label>Partidas decisivas por dia<input type="number" min="0" step="any" value={pace} onChange={e => setPace(e.target.value)} /></label>
         <label>Win rate esperado (%)<input type="number" min="0" max="100" step="0.1" value={winRate} onChange={e => setWinRate(e.target.value)} /></label>
-        <label>Pontos por vitória<input type="number" min="1" value={gain} onChange={e => setGain(e.target.value)} /></label>
-        <label>Pontos perdidos por derrota<input type="number" min="0" value={loss} onChange={e => setLoss(e.target.value)} /></label>
+        <label>Pontos por vitória<input type="number" min="1" step="0.1" value={gain} onChange={e => setGain(e.target.value)} /></label>
+        <label>Pontos perdidos por derrota<input type="number" min="0" step="0.1" value={loss} onChange={e => setLoss(e.target.value)} /></label>
       </div>
       <div className="planner-notes">
         {suggested && !target && <span>Próxima divisão de referência: {suggested.label}. O alvo em pontos é editável.</span>}
         {plannerPace!==null&&<button className="text-button" onClick={()=>setPace(String(plannerPace))}>Usar {number(plannerPace)} decisivas/dia do histórico</button>}
         {sample.rate !== null && <button className="text-button" onClick={() => setWinRate(String(Math.round(sample.rate! * 1000)/10))}>
           Usar {percent(sample.rate)} do histórico ({number(sample.decided)} {sample.decided===1?'partida decisiva':'partidas decisivas'})</button>}
+      </div>
+      <div className="planner-elo-suggestions">
+        <p>Variações de Elo estimadas a partir das leituras do perfil no recorte</p>
+        <div className="planner-elo-options">
+          {([{ direction:'Ganho médio', result:'vitória', estimate:historicalElo.gain, setValue:setGain },
+            { direction:'Perda média', result:'derrota', estimate:historicalElo.loss, setValue:setLoss }]).map(({direction,result,estimate,setValue})=>
+            <div key={result}>
+              <span>{direction} por {result}</span>
+              {estimate.points===null?
+                <small>Nenhuma {result} com variação isolada. Preencha o campo manualmente.</small>:
+                <><strong>{number(estimate.points)} pontos</strong>
+                  <small>{number(estimate.count)} {result}{estimate.count!==1?'s':''} com variação isolada</small>
+                  <button type="button" className="text-button" onClick={()=>setValue(String(estimate.points))}>
+                    Usar {number(estimate.points)} pontos por {result}
+                  </button></>}
+            </div>)}
+        </div>
       </div>
       <div className="planner-grid">
         {[[Target,'Pontos restantes',remaining],[Flag,'Partidas estimadas',games],[CalendarClock,'Dias no seu ritmo',days],[TrendingUp,'Partidas/dia no prazo',required]].map(([item,title,value]) => {

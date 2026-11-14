@@ -135,6 +135,27 @@ export function matchKd(match: MatchSeries) {
 
 export type MatchElo = Pick<BattleElo,'before'|'after'> & { rank?:string };
 
+export function summarizeMatchElo(matches: MatchSeries[], elo: ReadonlyMap<string,MatchElo>) {
+  const wins = {sum:0, count:0};
+  const losses = {sum:0, count:0};
+  for (const match of matches) {
+    const reading = elo.get(match.id);
+    if (!match.latest.ranked || !reading) continue;
+    const delta = reading.after-reading.before;
+    if (!Number.isFinite(delta)) continue;
+    if (match.result==='victory' && delta>0) {
+      wins.sum+=delta;
+      wins.count++;
+    }
+    if (match.result==='defeat' && delta<0) {
+      losses.sum-=delta;
+      losses.count++;
+    }
+  }
+  const average = ({sum,count}:typeof wins) => ({count, points:count?Math.round(sum/count*10)/10:null});
+  return { gain:average(wins), loss:average(losses) };
+}
+
 export function seriesRank(match: MatchSeries, round=match.latest) {
   if (round.rank_label&&!round.rank_source) return round;
   const known = match.rounds.filter(item=>item.rank_label&&!item.rank_source);
