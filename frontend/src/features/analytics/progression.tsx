@@ -4,7 +4,8 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight, CalendarClock, Flag, Gauge, T
 import { rankedSessions } from '@/lib/coaching';
 import type { LocalData, Progress } from '@/lib/browser-store';
 import { dateTime, localDay, normalize, number, percent, stats } from '@/lib/data';
-import type { Battle, Dataset, Filters } from '@/lib/data';
+import type { Dataset, Filters } from '@/lib/data';
+import type { MatchSeries } from '@/lib/match-series';
 import { gameRank, nextRank, RankArt, referenceRank, TrophyArt } from '@/components/game';
 import { useDataTooltip } from '@/components/data-tooltip';
 
@@ -65,8 +66,8 @@ export function RankGoal({ data, onProgress }: {data:ReturnType<typeof rankProgr
   </section>;
 }
 
-function observedPace(matches:Battle[]) {
-  const days=[...new Set(matches.map(b=>localDay(b.played_at)))].sort();
+function observedPace(matches:MatchSeries[]) {
+  const days=[...new Set(matches.map(match=>localDay(match.latest.played_at)))].sort();
   const span=days.length ? (Date.parse(days.at(-1)!)-Date.parse(days[0]))/86400000+1 : 0;
   return {days:days.length,span,perDay:span?matches.length/span:null};
 }
@@ -127,7 +128,7 @@ export function TrendChart({ rows, field, label, note }: { rows: Progress[]; fie
   </section>;
 }
 
-function SessionHistory({matches,readings}: {matches:Battle[];readings:Progress[]}) {
+function SessionHistory({matches,readings}: {matches:MatchSeries[];readings:Progress[]}) {
   const sessions=useMemo(()=>rankedSessions(matches,readings),[matches,readings]);
   const hasElo=sessions.some(session=>session.observed>0);
   return <section className="card account-card"><div className="card-head"><div><h2><CalendarClock size={17}/> Sessões do Ranqueado</h2>
@@ -135,7 +136,9 @@ function SessionHistory({matches,readings}: {matches:Battle[];readings:Progress[
     {sessions.length?<><PagedTable label="Sessões do Ranqueado" rows={sessions} headings={<><th>Sessão</th><th>Resultados</th><th>Win rate</th>
       {hasElo&&<><th>Primeiro e último Elo observado</th><th>Pico observado</th></>}</>} renderRow={session=><tr key={session.first.id}>
       <td>{dateTime(session.first.played_at)}{session.last.id!==session.first.id&&<small>Até {dateTime(session.last.played_at)}</small>}</td>
-      <td>{session.summary.wins} V · {session.summary.losses} D · {session.summary.draws} E<small>{session.summary.games} partidas</small></td>
+      <td>{session.summary.wins} V · {session.summary.losses} D · {session.summary.draws} E
+        <small>{session.summary.games} {session.summary.games===1?'partida':'partidas'}
+          {session.summary.games>session.summary.decided+session.summary.draws&&' · inclui resultado em aberto'}</small></td>
       <td>{percent(session.summary.rate)}</td>{hasElo&&<><td>{session.firstScore===null?null:number(session.firstScore)}
         {session.observed>1&&session.lastScore!==null?` → ${number(session.lastScore)}`:''}{session.observed>0&&<small>{session.observed} leituras</small>}</td>
       <td>{session.peak===null?null:number(session.peak)}</td></>}
@@ -147,7 +150,7 @@ function SessionHistory({matches,readings}: {matches:Battle[];readings:Progress[
 }
 
 export function Progression({ local, filters, matches }: {
-  local: LocalData; filters: Filters; matches:Battle[];
+  local: LocalData; filters: Filters; matches:MatchSeries[];
 }) {
   const rows = progressSeries(local);
   const summary = rankProgress(rows);
@@ -159,7 +162,7 @@ export function Progression({ local, filters, matches }: {
   const [gain, setGain] = useState('');
   const [loss, setLoss] = useState('');
   const [winRate, setWinRate] = useState('');
-  const recent = [...matches].sort((a,b)=>Date.parse(b.played_at)-Date.parse(a.played_at)).slice(0,30);
+  const recent = matches.filter(match=>match.result==='victory'||match.result==='defeat').slice(0,30);
   const sample = stats(recent);
   const activity = observedPace(matches);
   const paceRounded=activity.perDay===null?null:Number(activity.perDay.toPrecision(2));
@@ -195,7 +198,9 @@ export function Progression({ local, filters, matches }: {
       {bestScore!==null&&<div className="card game-metric"><span className="game-metric-icon violet"><TrendingUp size={22}/></span><div><small>Pico de pontos observado</small>
         <strong>{number(bestScore)}</strong><span>{filters.season||current?.season||'Leituras no período'}</span></div></div>}
       <div className="card game-metric"><span className="game-metric-icon green"><Gauge size={22}/></span><div><small>Ranqueadas por dia</small>
-        <strong>{paceRounded===null?'—':number(paceRounded)}</strong><span>{activity.span?number(matches.length)+' ranqueadas em '+number(activity.span)+' dias':'Sem partidas no recorte'}</span></div></div>
+        <strong>{paceRounded===null?'—':number(paceRounded)}</strong><span>{activity.span?
+          `${number(matches.length)} ${matches.length===1?'ranqueada':'ranqueadas'} em ${number(activity.span)} ${activity.span===1?'dia':'dias'}`:
+          'Sem partidas no recorte'}</span></div></div>
       <div className="card game-metric"><span className="game-metric-icon orange"><CalendarClock size={22}/></span><div><small>Dias com partidas</small>
         <strong>{activity.span?number(activity.days):'—'}</strong><span>{activity.span?'No intervalo entre a primeira e a última':'Sem partidas no recorte'}</span></div></div>
     </div>
@@ -215,7 +220,7 @@ export function Progression({ local, filters, matches }: {
         {suggested && !target && <span>Próxima divisão de referência: {suggested.label}. O alvo em pontos é editável.</span>}
         {plannerPace!==null&&<button className="text-button" onClick={()=>setPace(String(plannerPace))}>Usar {number(plannerPace)} decisivas/dia do histórico</button>}
         {sample.rate !== null && <button className="text-button" onClick={() => setWinRate(String(Math.round(sample.rate! * 1000)/10))}>
-          Usar {percent(sample.rate)} do histórico ({number(sample.decided)} registros decisivos)</button>}
+          Usar {percent(sample.rate)} do histórico ({number(sample.decided)} {sample.decided===1?'partida decisiva':'partidas decisivas'})</button>}
       </div>
       <div className="planner-grid">
         {[[Target,'Pontos restantes',remaining],[Flag,'Partidas estimadas',games],[CalendarClock,'Dias no seu ritmo',days],[TrendingUp,'Partidas/dia no prazo',required]].map(([item,title,value]) => {

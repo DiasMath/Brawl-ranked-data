@@ -1,7 +1,8 @@
-import { localDay, normalize, stats } from './data';
+import { battleSeason, localDay, normalize, stats } from './data';
 import type { Battle } from './data';
 import type { Progress } from './browser-store';
 import { mapKey } from './external-comparison';
+import type { MatchSeries } from './match-series';
 
 export const replayTags = [
   'Protegi a vantagem', 'Coordenei com o time', 'Ganhei a lane', 'Perdi a lane',
@@ -49,28 +50,31 @@ export function reviewPair(rows: Battle[]) {
   return { victory, defeat };
 }
 
-export function rankedSessions(matches: Battle[], readings: Progress[]) {
-  const sessions: Battle[][] = [];
-  const ordered = matches.filter(match=>match.ranked&&Number.isFinite(Date.parse(match.played_at)))
-    .sort((a,b)=>Date.parse(a.played_at)-Date.parse(b.played_at));
+export function rankedSessions(matches: MatchSeries[], readings: Progress[]) {
+  const ordered = matches.filter(match=>match.latest.ranked).map(match=>{
+    const first = match.rounds[0], last = match.latest;
+    const season = match.rounds.map(battleSeason).findLast(value=>value!==null);
+    return { match, first, last, season, start:Date.parse(first.played_at), end:Date.parse(last.played_at) };
+  }).filter(row=>Number.isFinite(row.start)&&Number.isFinite(row.end)).sort((a,b)=>a.start-b.start);
+  const sessions: typeof ordered[] = [];
   for (const match of ordered) {
     const last = sessions.at(-1)?.at(-1);
-    if (!last || Date.parse(match.played_at)-Date.parse(last.played_at)>=SESSION_GAP ||
-        localDay(match.played_at)!==localDay(last.played_at) || normalize(match.season)!==normalize(last.season)) sessions.push([]);
+    if (!last || match.start-last.end>=SESSION_GAP || localDay(match.last.played_at)!==localDay(last.last.played_at) ||
+        normalize(match.season)!==normalize(last.season)) sessions.push([]);
     sessions.at(-1)!.push(match);
   }
   const scores = readings.filter(reading=>reading.score!==null&&Number.isFinite(Date.parse(reading.at))).sort((a,b)=>Date.parse(a.at)-Date.parse(b.at));
   let offset=0;
   return sessions.map(rows=>{
-    const first=rows[0], last=rows.at(-1)!;
-    const start=Date.parse(first.played_at), end=Date.parse(last.played_at);
+    const {first,start,season}=rows[0];
+    const {last,end}=rows.at(-1)!;
     const observed: Progress[] = [];
     while(offset<scores.length&&Date.parse(scores[offset].at)<start) offset++;
     while(offset<scores.length&&Date.parse(scores[offset].at)<=end){
       const score=scores[offset++];
-      if(normalize(first.season)===normalize(score.season)) observed.push(score);
+      if(normalize(season)===normalize(score.season)) observed.push(score);
     }
-    const summary=stats(rows);
+    const summary=stats(rows.map(row=>row.match));
     return { first,last,summary,observed:observed.length,
       firstScore:observed[0]?.score??null, lastScore:observed.at(-1)?.score??null,
       peak:observed.length?observed.reduce((max,row)=>Math.max(max,row.score!),0):null };
