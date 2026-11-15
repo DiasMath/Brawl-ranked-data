@@ -34,6 +34,7 @@ const rarityByColor = new Map<string,{name:string;order:number}>(rarities.map(([
 const sortedRoster = [...brawlers].sort((a,b)=>(rarityByColor.get(a.color)?.order??Infinity)-(rarityByColor.get(b.color)?.order??Infinity)||
   a.name.localeCompare(b.name,'pt-BR'));
 const banZone = (side:Zone) => side==='blueBan'||side==='redBan';
+const teamColor = (side:Zone) => side==='team'||side==='blueBan'?'Azul':'Vermelho';
 
 function ScoutingRows({ rows, onPick, empty, pairs=false, slots, unit='séries', limit=8 }: {
   rows: (ScoutingRow & { synergies?:ScoutingRow['details'] })[]; onPick?: (name:string)=>void;
@@ -57,7 +58,7 @@ function pickOrder(first:Side): Slot[] {
 }
 const classIcons={Tank:Shield,Assassin:Swords,Support:HeartPulse,Controller:SlidersHorizontal,'Damage Dealer':Flame,Marksman:Crosshair,Artillery:Bomb};
 const classNames: Record<string,string>={Controller:'Controladores', 'Damage Dealer':'Damage Dealers', Marksman:'Snipers', Artillery:'Lançadores'};
-const banOrder:Slot[] = [0,1,2].flatMap(index=>[{side:'blueBan',index},{side:'redBan',index}] as Slot[]);
+const banOrder:Slot[] = (['blueBan','redBan'] as const).flatMap(side=>[0,1,2].map(index=>({side,index})));
 
 export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSource='draftmeta',active=true }: {
   matches:MatchSeries[]; profile:Dataset['profile']; defaultMap?:string; defaultSeason?:string; defaultSource?:DraftSource; active?:boolean;
@@ -67,7 +68,7 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
   const [mapSearch,setMapSearch]=useState('');
   const [mapPage,setMapPage]=useState(0);
   const [archived,setArchived]=useState(false);
-  const [first,setFirst]=useState<Side>('team');
+  const [first,setFirst]=useState<Side|null>(null);
   const [draft,setDraft]=useState(fresh);
   const [slot,setSlot]=useState<Slot>({side:'blueBan',index:0});
   const [phase,setPhase]=useState<'ban'|'pick'>('ban');
@@ -136,7 +137,9 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
     .map(r=>({name:r.label,wins:r.wins,games:r.decided,details:[]}));
   const general=source==='public'?publicPicks(global.sample):accountPicks;
   const enemies=draft.enemy.filter(Boolean), allies=draft.team.filter(Boolean);
-  const suggestedPick=pickOrder(first).find(s=>s.side==='team'&&!draft.team[s.index]);
+  const firstSide=first??'team';
+  const order=pickOrder(firstSide);
+  const suggestedPick=order.find(s=>s.side==='team'&&!draft.team[s.index]);
   const suggestedBan=banOrder.find(s=>s.side==='blueBan'&&!draft.blueBan[s.index]);
   const targetPick=!hasBan&&slot.side==='team'&&!draft.team[slot.index]?slot:suggestedPick;
   const targetBan=slot.side==='blueBan'&&!draft.blueBan[slot.index]?slot:suggestedBan;
@@ -148,7 +151,6 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
       .map(r=>({name:r.label,wins:r.losses,games:r.decided,details:[]})))
     .filter(r=>r.games&&targetBan&&!blocked(r.name,targetBan))
     .sort((a,b)=>(b.wins/b.games-.5)*Math.sqrt(b.games)-(a.wins/a.games-.5)*Math.sqrt(a.games));
-  const order=pickOrder(first);
   const recordedPicks=allies.length+enemies.length;
   const inOrder=order.slice(0,recordedPicks).every(s=>draft[s.side][s.index]);
   const nextPick=order.find(s=>!draft[s.side][s.index]);
@@ -156,10 +158,11 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
   const model=useDraftSuggestions(active&&source==='draftmeta'&&advice==='picks'&&phase==='pick'&&
     external.sourceMap&&!external.resolvingMap&&inOrder&&nextPick?.side==='team'&&targetPick?.index===nextPick.index?{
       map:external.sourceMap,our_picks:allies,enemy_picks:enemies,
-      bans:[...new Set([...draft.blueBan,...draft.redBan].filter(Boolean))],first_pick:first==='team',
+      bans:[...new Set([...draft.blueBan,...draft.redBan].filter(Boolean))],first_pick:firstSide==='team',
     }:null);
   const nextBan=banOrder.find(s=>!draft[s.side][s.index]);
-  const next=phase==='ban'?nextBan??nextPick:nextPick;
+  const voiceTarget=nextBan??nextPick;
+  const next=phase==='ban'?voiceTarget:nextPick;
   const query=normalize(search);
   const available=sortedRoster.filter(b=>(slot.side!=='team'||!owned||eligible.has(normalize(b.name)))&&normalize(b.name).includes(query));
   const selectable=available.filter(b=>!blocked(b.name));
@@ -206,21 +209,21 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
     setHistory(h=>[...h,{draft,slot,phase}]);setDraft(modified);setSearch('');
     if(!name){setSlot(where);return;}
     const nextBan=banZone(where.side)?banOrder.find(s=>!modified[s.side][s.index]):undefined;
-    const following=nextBan??pickOrder(first).find(s=>!modified[s.side][s.index]);
+    const following=nextBan??order.find(s=>!modified[s.side][s.index]);
     if(following){
       setSlot(following);setPhase(banZone(following.side)?'ban':'pick');
       setAdvice(banZone(following.side)?'bans':'picks');
     }
   }
   function reset(){
-    setDraft(fresh());setSlot({side:'blueBan',index:0});setPhase('ban');setAdvice('bans');setHistory([]);setSearch('');
+    setFirst(null);setDraft(fresh());setSlot({side:'blueBan',index:0});setPhase('ban');setAdvice('bans');setHistory([]);setSearch('');
   }
   function renderSlots(zone:Zone){
     return <div className={`arena-slots ${banZone(zone)?'arena-bans':''}`}>{draft[zone].map((name,i)=>{
       const selected=zone===slot.side&&i===slot.index;
-      const ordinal=banZone(zone)?i+1:pickOrder(first).findIndex(s=>s.side===zone&&s.index===i)+1;
+      const ordinal=banZone(zone)?i+1:order.findIndex(s=>s.side===zone&&s.index===i)+1;
       return <div className={`arena-slot-wrap ${selected?'selected':''}`} key={i}>
-        <button className="arena-slot" aria-label={`${zone==='team'||zone==='blueBan'?'Azul':'Vermelho'} ${banZone(zone)?'ban':'pick'} ${i+1}${name?' '+name:''}`}
+        <button className="arena-slot" aria-label={`${teamColor(zone)} ${banZone(zone)?'ban':'pick'} ${i+1}${name?' '+name:''}`}
           aria-pressed={selected} onClick={()=>move({side:zone,index:i})}>
           {name?<><Portrait name={name}/><span>{name}</span></>:<><span className="slot-mark">{banZone(zone)?<Ban size={15}/>:'+'}</span><span>{banZone(zone)?'Ban':'Pick'} {ordinal}</span></>}
         </button>{name&&<button className="slot-clear" aria-label={`Remover ${name} de ${zone}`} onClick={()=>assign('',{side:zone,index:i})}><X size={12}/></button>}
@@ -262,8 +265,8 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
         {!!composition(draft.enemy).length&&<div className="team-roles">{composition(draft.enemy).join(' · ')}</div>}</div>
       <div className="draft-stage">
         <div><small>{complete?'DRAFT COMPLETO':phase==='ban'&&nextBan?'FASE DE BANS':'FASE DE PICKS'}</small>
-          <strong>{complete||!next?'6 / 6':next.side==='team'||next.side==='blueBan'?'Azul':'Vermelho'}</strong></div>
-        <div className="pick-timeline">{pickOrder(first).map((s,i)=><span key={i} className={`${s.side==='team'?'blue':'red'} ${draft[s.side][s.index]?'filled':''}`}>{i+1}</span>)}</div>
+          <strong>{complete||!next?'6 / 6':teamColor(next.side)}</strong></div>
+        <div className="pick-timeline">{order.map((s,i)=><span key={i} className={`${s.side==='team'?'blue':'red'} ${draft[s.side][s.index]?'filled':''}`}>{i+1}</span>)}</div>
         {complete?<button className="text-button" onClick={()=>setSummaryOpen(true)}>Ver análise</button>:
           phase==='ban'&&nextPick&&<button className="text-button" onClick={()=>move(nextPick)}>Ir para picks</button>}
       </div>
@@ -354,14 +357,18 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
       </div>
     </section>
     <section ref={roster} className="card draft-roster" aria-label="Brawlers por classe">
-      <header className="draft-panel-title"><div><h2>Brawlers</h2><p>{hasBan?'Ban':'Pick'} · {slot.side==='team'||slot.side==='blueBan'?'Azul':'Vermelho'} · posição {slot.index+1}</p></div>
+      <header className="draft-panel-title"><div><h2>Brawlers</h2><p>{hasBan?'Ban':'Pick'} · {teamColor(slot.side)} · posição {slot.index+1}</p></div>
         <div className="draft-roster-controls">
         <label className="draft-search"><Search size={15}/><input ref={input} aria-label="Buscar brawler" value={search}
           onChange={e=>setSearch(e.target.value)} placeholder="Buscar brawler"
           onKeyDown={e=>{if(e.key==='Enter'&&!e.nativeEvent.isComposing&&query&&selectable.length===1){e.preventDefault();assign(selectable[0].name);}}}/></label>
-        {active&&!mapOpen&&!complete&&compactView==='roster'&&<DraftVoice
-          key={JSON.stringify([slot.side,slot.index,draft[slot.side][slot.index]])} action={hasBan?'ban':'pick'}
-          roster={brawlers} isBlocked={blocked} onAssign={assign}/>}
+        {active&&!mapOpen&&!complete&&compactView==='roster'&&voiceTarget&&<DraftVoice
+          key={`${first}:${voiceTarget.side}:${voiceTarget.index}`}
+          action={banZone(voiceTarget.side)?'ban':'pick'} team={teamColor(voiceTarget.side)}
+          position={banZone(voiceTarget.side)?voiceTarget.index+1:order.indexOf(voiceTarget)+1}
+          firstPickSelected={first!==null} roster={brawlers}
+          onStart={()=>move(voiceTarget)} isBlocked={name=>blocked(name,voiceTarget)}
+          onAssign={name=>assign(name,voiceTarget)}/>}
         </div></header>
       <div className="draft-roster-guide"><span>{query?number(available.length)+(available.length===1?' encontrado':' encontrados'):'Arraste para ver as classes'}</span>
         <div className="draft-pagination"><button aria-label="Rolar brawlers para a esquerda" disabled={!scrollEdges.left} onClick={()=>stepRoster(-1)}><ChevronLeft size={16}/></button>

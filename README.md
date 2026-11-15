@@ -254,7 +254,7 @@ Na raiz do Windows, execute:
 Get-Content .\backend\.venv\draftmeta-coleta-development.log -Encoding UTF8 -Tail 20
 ```
 
-A tarefa roda a cada 60 minutos, com o Windows ligado e seu usuário conectado. O job atualiza a tier list geral e consulta todos os mapas do pool ranqueado publicado pelo DraftMeta, em **Mestres+**. O filtro de mapa é só para navegação. **Meta → DraftMeta** mostra a cobertura do patch, os mapas sem snapshot e os que ficaram com a cópia anterior. Um HTTP 429 interrompe a rodada e preserva os snapshots já salvos. O comando equivalente para um executor que já tenha `DATABASE_URL` configurado é `python -m app.jobs.collect_draftmeta`, a partir de `backend`.
+Com `-TestarAgora`, o coletor roda uma vez imediatamente e mantém o agendamento existente. A tarefa roda a cada 60 minutos por padrão, com o Windows ligado e seu usuário conectado. O job atualiza a tier list geral e consulta todos os mapas do pool ranqueado publicado pelo DraftMeta, em **Mestres+**. O filtro de mapa é só para navegação. **Meta → DraftMeta** mostra a cobertura do patch, os mapas sem snapshot e os que ficaram com a cópia anterior. Um HTTP 429 interrompe a rodada e preserva os snapshots já salvos. O comando equivalente para um executor que já tenha `DATABASE_URL` configurado é `python -m app.jobs.collect_draftmeta`, a partir de `backend`.
 
 ### Draft Lab e Meta do patch
 
@@ -262,7 +262,7 @@ O Draft Lab abre com **DraftMeta** como fonte e a tier list em **Mestres+**, na 
 
 Na aba **Picks**, com mapa definido e na vez da equipe azul, o FastAPI pede ao modelo do DraftMeta sugestões para a composição, os bans e a ordem do draft. A interface mostra a projeção após cada pick e após a resposta adversária indicada pelo modelo. A consulta usa todos os ranks do ranqueado solo e envia somente o cenário do draft. Picks ocupados ou banidos ficam fora, e o filtro de poder 11 também vale para as sugestões. Enquanto a projeção carrega ou está indisponível, a tela usa a tier list salva quando houver snapshot para o recorte.
 
-Em navegadores com reconhecimento de voz, selecione a posição, clique no microfone, diga o nome do brawler ou um comando como **banir Rico**, e confirme a escolha. O app usa o serviço de voz do navegador. Algumas implementações processam o áudio online.
+Para usar voz, selecione **Azul** ou **Vermelho** em **Primeira escolha**. O microfone usa a próxima posição livre na ordem do draft. Registre os três bans azuis, depois os três vermelhos e, por fim, os picks na sequência 1–2–2–1 a partir do lado escolhido. A cada turno, clique no microfone, diga o nome do brawler ou um comando como **banir Rico**, e confirme a escolha. O app usa o serviço de voz do navegador. Algumas implementações processam o áudio online.
 
 Com seis picks, **Análise do draft** abre no próprio painel. A estimativa final usa um modelo logístico treinado em séries decisivas do conjunto EliF77 de 04/11/2026 e validado em 05/11/2026, anterior ao balanceamento de 11/11. O modelo usa mapa e brawlers dos dois lados. Mapas fora da amostra ou picks com menos de 30 aparições no treino daquele mapa ficam sem projeção. Os confrontos mostram resultados de equipes na amostra disponível do mapa. Os equipamentos são sugestões táticas baseadas nos efeitos dos itens do BrawlAPI e no inventário quando publicado pelo perfil.
 

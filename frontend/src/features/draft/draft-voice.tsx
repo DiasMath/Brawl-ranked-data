@@ -58,9 +58,13 @@ function voiceOptions(results: VoiceResult['results'], action: Action, roster: r
   return { options: [...options], opposite };
 }
 
-export function DraftVoice({ action, roster, isBlocked, onAssign }: {
+export function DraftVoice({ action, team, position, firstPickSelected, roster, onStart, isBlocked, onAssign }: {
   action: Action;
+  team: 'Azul' | 'Vermelho';
+  position: number;
+  firstPickSelected: boolean;
   roster: readonly { name: string }[];
+  onStart: () => void;
   isBlocked: (name: string) => boolean;
   onAssign: (name: string) => void;
 }) {
@@ -89,8 +93,13 @@ export function DraftVoice({ action, roster, isBlocked, onAssign }: {
       close();
       return;
     }
+    if (!firstPickSelected) {
+      setMessage('Escolha Azul ou Vermelho em Primeira escolha.');
+      return;
+    }
     const Recognition = recognitionConstructor();
     if (!Recognition) return;
+    onStart();
     const recognition = new Recognition();
     recognition.lang = 'pt-BR';
     recognition.maxAlternatives = 3;
@@ -100,7 +109,7 @@ export function DraftVoice({ action, roster, isBlocked, onAssign }: {
       const { options, opposite } = voiceOptions(event.results, action, roster);
       setOptions(options);
       if (!options.length) {
-        setMessage(opposite ? `Selecione uma posição de ${action === 'ban' ? 'pick' : 'ban'}.` : 'Brawler não reconhecido. Tente dizer só o nome.');
+        setMessage(opposite ? `O próximo turno é de ${action}.` : 'Brawler não reconhecido. Tente dizer só o nome.');
       }
     };
     recognition.onerror = ({ error }) => {
@@ -130,14 +139,15 @@ export function DraftVoice({ action, roster, isBlocked, onAssign }: {
   }
 
   const label = action === 'ban' ? 'Ban' : 'Pick';
+  const turn = `${label} ${position} · ${team}`;
   return <div className="draft-voice">
     <button type="button" className="draft-voice-toggle" disabled={!supported} aria-pressed={listening}
-      aria-label={listening ? 'Parar de ouvir' : `${label} por voz`}
-      title={supported ? `${label} por voz · diga o nome do brawler` : 'Reconhecimento de voz indisponível neste navegador'}
+      aria-label={listening ? 'Parar de ouvir' : `${label} por voz · ${turn}`}
+      title={supported ? `${turn} · diga o nome do brawler` : 'Reconhecimento de voz indisponível neste navegador'}
       onClick={listen}>{listening ? <MicOff size={15}/> : <Mic size={15}/>}</button>
     {(listening || options.length > 0 || message) && <div className="draft-voice-popover">
       <div className="draft-voice-head">
-        <span role="status">{options.length ? `Confirmar ${label.toLowerCase()}` : message || 'Ouvindo… diga o nome do brawler.'}</span>
+        <span role="status">{options.length ? `Confirmar ${turn}` : message || `${turn} · ouvindo…`}</span>
         <button type="button" aria-label="Fechar comando por voz" onClick={close}><X size={14}/></button>
       </div>
       {options.map(name => <button type="button" key={name} disabled={isBlocked(name)}
