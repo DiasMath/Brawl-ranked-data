@@ -59,7 +59,7 @@ function MapSheet({map, history, elo, accountName, reviews, onOpen, onReview, on
   const [error,setError]=useState('');
   useEffect(()=>{
     const controller=new AbortController();
-    void collectionRequest<{snapshot:Snapshot|null}>(`/api/meta/external?${new URLSearchParams({map:map.name})}`,{signal:controller.signal})
+    void collectionRequest<{snapshot:Snapshot|null}>(`/api/meta/external?${new URLSearchParams({map:map.name,rank:'all'})}`,{signal:controller.signal})
       .then(result=>{if(!controller.signal.aborted)setSnapshot(result.snapshot);})
       .catch(()=>{if(!controller.signal.aborted)setError('A referência competitiva está indisponível.');})
       .finally(()=>{if(!controller.signal.aborted)setLoading(false);});
@@ -69,7 +69,7 @@ function MapSheet({map, history, elo, accountName, reviews, onOpen, onReview, on
     setUpdating(true);setError('');
     try{
       const result=await collectionRequest<{snapshot:Snapshot}>('/api/meta/external',{
-        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({map:map.name}),
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({map:map.name,rank:'all'}),
       });
       setSnapshot(result.snapshot);
     }catch(error){setError(error instanceof Error?error.message:'Não foi possível atualizar a referência.');}
@@ -105,7 +105,7 @@ function MapSheet({map, history, elo, accountName, reviews, onOpen, onReview, on
     </section>
     <RecentForm matches={seriesInScope(history,map.rows)} elo={elo} onMatch={match=>onOpen(match.id)}/>
     <section className="card coaching-card"><div className="card-head"><div><h2>Referência competitiva do mapa</h2>
-      <p>{snapshot?`DraftMeta · Patch ${snapshot.patch_date.split('-').reverse().join('/')} · ${snapshot.start} a ${snapshot.end}`:loading?'Carregando snapshot…':'Aguardando snapshot do DraftMeta.'}</p></div>
+      <p>{snapshot?`DraftMeta · Todos os ranks · Patch ${snapshot.patch_date.split('-').reverse().join('/')} · ${snapshot.start} a ${snapshot.end}`:loading?'Carregando snapshot…':'Aguardando snapshot do DraftMeta.'}</p></div>
       <button className="button small subtle" onClick={()=>void updateReference()} disabled={loading||updating}>{updating?'Atualizando…':'Atualizar referência'}</button></div>
       {error&&<p className="section-note" role="status">{error}</p>}
       {snapshot&&<p className="section-note">A comparação abaixo usa a janela do DraftMeta e o histórico da conta nesse mapa. Os cartões acima usam os filtros de Desempenho.</p>}

@@ -69,6 +69,11 @@ async function forward(request: NextRequest) {
       }
     }
     if (externalMeta && request.method === 'GET') {
+      const rank = request.nextUrl.searchParams.get('rank');
+      if (rank !== null) {
+        if (rank !== 'all' && rank !== 'masters') return Response.json({ detail: 'Rank inválido.' }, { status: 400, headers });
+        target.searchParams.set('rank', rank);
+      }
       const map = request.nextUrl.searchParams.get('map') ?? '';
       if (map.length > 100) return Response.json({ detail: 'Mapa inválido.' }, { status: 400, headers });
       if (map) target.searchParams.set('map', map);

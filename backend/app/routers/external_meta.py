@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
@@ -13,8 +13,12 @@ from ..services.supercell import CollectionError
 router = APIRouter()
 
 
+RankScope = Literal["masters", "all"]
+
+
 class ExternalMetaRequest(BaseModel):
     map: str = Field(default="", max_length=100)
+    rank: RankScope = "masters"
 
 
 BrawlerName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
@@ -50,24 +54,26 @@ def draft_suggestions(request: DraftSuggestionRequest):
 
 
 @router.get("/api/meta/external")
-def read_external_meta(map: str = Query(default="", max_length=100), patch: date | None = None):
+def read_external_meta(map: str = Query(default="", max_length=100), patch: date | None = None,
+                       rank: RankScope = "masters"):
     scope = map.strip()
     with database() as (_, cursor):
-        return {"snapshot": latest_snapshot(cursor, scope, patch), "patches": saved_patches(cursor, scope),
-                "coverage": coverage(cursor, patch), "saved_maps": saved_maps(cursor)}
+        return {"snapshot": latest_snapshot(cursor, scope, patch, rank=rank), "patches": saved_patches(cursor, scope, rank=rank),
+                "coverage": coverage(cursor, patch, rank=rank), "saved_maps": saved_maps(cursor, rank=rank)}
 
 
 @router.post("/api/meta/external")
 def refresh_external_meta(request: ExternalMetaRequest):
     scope = request.map.strip()
+    rank = request.rank
     with database() as (_, cursor):
         cursor.execute("SELECT pg_try_advisory_xact_lock(hashtextextended('brawl:external-meta', 0)) AS acquired")
         if not cursor.fetchone()["acquired"]:
             raise CollectionError(409, "Já existe uma atualização de estatísticas externas em andamento.")
-        snapshot = latest_snapshot(cursor, scope)
+        snapshot = latest_snapshot(cursor, scope, rank=rank)
         if snapshot and snapshot["fresh"]:
-            return {"snapshot": snapshot, "patches": saved_patches(cursor, scope), "cached": True}
-        payload = fetch_snapshot(scope or None)
+            return {"snapshot": snapshot, "patches": saved_patches(cursor, scope, rank=rank), "cached": True}
+        payload = fetch_snapshot(scope or None, rank=rank)
         if not save_current_snapshot(cursor, scope, payload, snapshot):
             raise CollectionError(502, "O DraftMeta retornou um patch anterior à última leitura salva.")
-        return {"snapshot": latest_snapshot(cursor, scope), "patches": saved_patches(cursor, scope), "cached": False}
+        return {"snapshot": latest_snapshot(cursor, scope, rank=rank), "patches": saved_patches(cursor, scope, rank=rank), "cached": False}

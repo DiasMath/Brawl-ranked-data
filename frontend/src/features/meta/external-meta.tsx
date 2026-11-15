@@ -7,7 +7,8 @@ import { accountInExternalScope } from '@/lib/external-comparison';
 import { AccountBans, AccountComparison } from './external-account';
 import { collectionRequest } from '@/lib/live';
 
-import type { DraftMetaResponse, DraftMetaSnapshot as Snapshot } from '@/lib/draftmeta';
+import { draftMetaRanks } from '@/lib/draftmeta';
+import type { DraftMetaRank, DraftMetaResponse, DraftMetaSnapshot as Snapshot } from '@/lib/draftmeta';
 
 const fallbackMaps = maps.filter(m => !m.disabled && pickableModes.some(mode => mode.id === m.mode)).map(m => m.name);
 const dateLabel = (day: string) => day.split('-').reverse().join('/');
@@ -22,6 +23,7 @@ function Changes({ data }: { data: NonNullable<Snapshot['movements']> }) {
   ] as const;
   return <section className="card external-meta-card">
     <div className="card-head"><div><h2>Mudanças após o patch</h2>
+      <p>Todos os ranks · Recorte publicado pelo DraftMeta</p>
       {data.current&&<p>{dateLabel(data.current.start)} a {dateLabel(data.current.end)} · {number(data.current.battles)} partidas</p>}
       <p>Contra {dateLabel(data.previous.start)} a {dateLabel(data.previous.end)} · {number(data.previous.battles)} partidas</p></div>
       <a href={data.source_url} target="_blank" rel="noreferrer">Metodologia e dados</a></div>
@@ -35,6 +37,7 @@ function Changes({ data }: { data: NonNullable<Snapshot['movements']> }) {
 
 export function ExternalMeta({matches,accountName}: {matches:Battle[]; accountName:string}) {
   const [map,setMap] = useState('');
+  const [rank,setRank] = useState<DraftMetaRank>('masters');
   const [patch,setPatch] = useState('');
   const [patches,setPatches] = useState<string[]>([]);
   const [coverage,setCoverage] = useState<DraftMetaResponse['coverage']>(null);
@@ -48,7 +51,7 @@ export function ExternalMeta({matches,accountName}: {matches:Battle[]; accountNa
     setLoading(true);
     setSnapshot(null);
     setMessage('');
-    const params=new URLSearchParams({map});
+    const params=new URLSearchParams({map,rank});
     if(patch) params.set('patch',patch);
     void collectionRequest<DraftMetaResponse>(`/api/meta/external?${params}`, {signal:controller.signal})
       .then(data=>{
@@ -61,13 +64,13 @@ export function ExternalMeta({matches,accountName}: {matches:Battle[]; accountNa
       .catch(error=>{if(!controller.signal.aborted) setMessage(error.message);})
       .finally(()=>{if(!controller.signal.aborted) setLoading(false);});
     return ()=>controller.abort();
-  },[map,patch]);
+  },[map,patch,rank]);
   async function refresh() {
     setRefreshing(true);
     setMessage('');
     try {
       const result=await collectionRequest<{snapshot:Snapshot;cached:boolean;patches:string[]}>('/api/meta/external', {
-        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({map}),
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({map,rank}),
       });
       setSnapshot(result.snapshot);
       setPatches(result.patches??[]);
@@ -76,7 +79,7 @@ export function ExternalMeta({matches,accountName}: {matches:Battle[]; accountNa
       setMessage(error instanceof Error?error.message:'Falha ao atualizar o DraftMeta.');
     } finally {setRefreshing(false);}
   }
-  const current = (snapshot?.map ?? '') === map && (!patch||snapshot?.patch_date===patch) ? snapshot : null;
+  const current = snapshot?.rank === rank && (snapshot.map ?? '') === map && (!patch||snapshot?.patch_date===patch) ? snapshot : null;
   const mapOptions=[...new Set([...(coverage?.maps.map(item=>item.name)??fallbackMaps),...savedMaps,...(map?[map]:[])])]
     .sort((a,b)=>a.localeCompare(b));
   const missing=coverage?.maps.filter(item=>!item.saved)??[];
@@ -86,11 +89,14 @@ export function ExternalMeta({matches,accountName}: {matches:Battle[]; accountNa
   return <div className="stack">
     <section className="card account-card external-meta-card">
       <div className="card-head"><div><h2><Trophy size={17}/> Meta competitiva · DraftMeta</h2>
-        <p>Ranqueado com draft · Todos os ranks · Tier list publicada pela fonte</p></div>
+        <p>Ranqueado · Tier list publicada pela fonte</p></div>
         <a href={current?.source_url ?? 'https://draftmeta.com/games/brawl-stars/tier-list'} target="_blank" rel="noreferrer">Ver no DraftMeta</a></div>
       <div className="form-grid tracked-account-form">
         <label>Mapa<select value={map} disabled={refreshing} onChange={event=>{setMap(event.target.value);setPatch('');setPatches([]);}}>
           <option value="">Todos os mapas</option>{mapOptions.map(name=><option key={name}>{name}</option>)}</select></label>
+        <label>Rank<select value={rank} disabled={refreshing} onChange={event=>{setRank(event.target.value as DraftMetaRank);setPatch('');setPatches([]);setCoverage(null);setSavedMaps([]);}}>
+          {Object.entries(draftMetaRanks).map(([key,label])=><option key={key} value={key}>{label}</option>)}
+        </select></label>
         <label>Patch<select value={patch} disabled={refreshing} onChange={event=>setPatch(event.target.value)}>
           <option value="">Último salvo</option>{patches.map(day=><option value={day} key={day}>{dateLabel(day)}</option>)}
         </select></label>
@@ -105,10 +111,10 @@ export function ExternalMeta({matches,accountName}: {matches:Battle[]; accountNa
       </p>}
       {map&&<MapImage map={findMap(map)} className="external-map-preview"/>}
       {message&&<p className="section-note" role="status">{message}</p>}
-      {current?<p className="section-note">Patch de {dateLabel(current.patch_date)} · {dateLabel(current.start)} a {dateLabel(current.end)} · {number(current.battles)} partidas · Consultado em {dateTime(current.fetched_at)}{!current.fresh?' · Última cópia salva':''}</p>:
+      {current?<p className="section-note">{current.end?`Patch de ${dateLabel(current.patch_date)} · ${dateLabel(current.start)} a ${dateLabel(current.end)}`:`Amostra desde ${dateLabel(current.start)}`} · {number(current.battles)} partidas · Consultado em {dateTime(current.fetched_at)}{!current.fresh?' · Última cópia salva':''}</p>:
         <p className="section-note">{loading?'Carregando cópia salva…':'Sem consulta salva para este recorte. Atualize para carregar os indicadores.'}</p>}
     </section>
-    {current&&<AccountComparison matches={accountMatches} accountName={accountName}
+    {current?.end&&<AccountComparison matches={accountMatches} accountName={accountName}
       tiers={current.tiers} pickRates={pickRates} sourceUrl={current.source_url}/>}
     {current&&<section className="card meta-tier-list">
       <div className="card-head"><div><h2>Tier list {current.map?`· ${current.map}`:''}</h2>
@@ -121,6 +127,6 @@ export function ExternalMeta({matches,accountName}: {matches:Battle[]; accountNa
       </div>)}
     </section>}
     {current?.movements&&<Changes data={current.movements}/>}
-    {current&&<AccountBans key={`${current.patch_date}:${current.map??'all'}`} matches={accountMatches} selectedMap={current.map}/>}
+    {current?.end&&<AccountBans key={`${current.patch_date}:${current.map??'all'}`} matches={accountMatches} selectedMap={current.map}/>}
   </div>;
 }

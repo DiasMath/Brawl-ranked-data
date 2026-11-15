@@ -1,13 +1,14 @@
 import { draftStats, groupStats, normalize } from './data';
 import type { Battle } from './data';
 
-type Scope = { start: string; end: string; fetched_at: string; map: string | null };
+type Scope = { start: string; end: string | null; fetched_at: string; map: string | null };
 
 export function mapKey(value: string | null) {
   return normalize(value).replace(/[’‘]/g,"'");
 }
 
 export function accountInExternalScope(matches: Battle[], scope: Scope) {
+  if (!scope.end) return [];
   const start = Date.parse(`${scope.start}T00:00:00Z`);
   const end = Date.parse(`${scope.end}T00:00:00Z`) + 86_400_000;
   const fetched = Date.parse(scope.fetched_at);

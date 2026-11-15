@@ -2,7 +2,7 @@ import { useId, useState } from 'react';
 import { Ban, Check, ChevronDown, Trophy } from 'lucide-react';
 import { brawlers, Portrait } from '@/components/game';
 import { normalize, number, percent } from '@/lib/data';
-import { draftMetaPicks } from '@/lib/draftmeta';
+import { draftMetaPicks, draftMetaRanks } from '@/lib/draftmeta';
 import type { useDraftMeta } from './use-draftmeta';
 
 export function DraftTierList({ meta, compact = false, banned, picked, onPick, disabled }: {
@@ -13,20 +13,20 @@ export function DraftTierList({ meta, compact = false, banned, picked, onPick, d
   const [open,setOpen]=useState(true);
   const snapshot = meta.snapshot ?? meta.general;
   const ranked = draftMetaPicks(snapshot);
-  const known = new Map(ranked.map(row=>[normalize(row.name),row]));
-  const roster = new Set(brawlers.map(brawler=>normalize(brawler.name)));
-  const rows = brawlers.map(brawler=>({brawler, stats:known.get(normalize(brawler.name))}));
-  const missing = ranked.filter(row=>!roster.has(normalize(row.name)));
-  const entries = [...rows, ...missing.map(row=>({brawler:{name:row.name,id:undefined},stats:row}))];
+  const classified = new Set(ranked.map(row=>normalize(row.name)));
+  const roster = new Map(brawlers.map(brawler=>[normalize(brawler.name),brawler]));
+  const entries = [
+    ...ranked.map(row=>({brawler:roster.get(normalize(row.name))??{name:row.name,id:undefined},stats:row})),
+    ...brawlers.filter(brawler=>!classified.has(normalize(brawler.name))).map(brawler=>({brawler,stats:null})),
+  ];
   const body = <>
     <p className="tier-scope">{snapshot ? <>
-      {snapshot.map ?? 'Todos os mapas'} · Patch {snapshot.patch_date.split('-').reverse().join('/')}
+      {draftMetaRanks[snapshot.rank]} · {snapshot.map ?? 'Todos os mapas'} · {snapshot.end?'Patch '+snapshot.patch_date.split('-').reverse().join('/'):'Amostra desde '+snapshot.start.split('-').reverse().join('/')}
       {meta.sourceMap && !meta.snapshot && (meta.loading?' · Consultando o mapa':' · Classificação geral')}
       {' · '}<a href={snapshot.source_url} target="_blank" rel="noreferrer">DraftMeta</a>
-    </> : meta.loading?'Carregando a classificação…': 'Sem classificação salva para o recorte.'}</p>
+    </> : meta.loading?'Carregando a classificação…': 'Sem classificação Mestres+ salva para o recorte.'}</p>
     {['S','A','B','C','D',null].map(tier=>{
-      const members=entries.filter(entry=>(entry.stats?.tier??null)===tier)
-        .sort((a,b)=>(b.stats?.winRate??0)-(a.stats?.winRate??0));
+      const members=entries.filter(entry=>(entry.stats?.tier??null)===tier);
       if(!members.length)return null;
       return <div className="tier-row" key={tier??'unrated'}>
         <strong className={`tier-letter tier-${tier??'unrated'}`} title={tier?`Tier ${tier}`:'Sem classificação'}>{tier??'—'}</strong>

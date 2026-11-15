@@ -15,6 +15,7 @@ import type { MatchSeries } from '@/lib/match-series';
 import { useDraftMeta, useDraftSuggestions } from './use-draftmeta';
 import { DraftSummary } from './draft-summary';
 import { DraftTierList } from './draft-tier-list';
+import { DraftVoice } from './draft-voice';
 import { useDraftRosterScroll } from './use-draft-roster-scroll';
 
 type Side = 'team'|'enemy';
@@ -328,7 +329,7 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
               </button>)}
           </div>
           {!modelRows.length&&external.snapshot&&advice!=='counters'&&<p className="draft-evidence"><a href={external.snapshot.source_url} target="_blank" rel="noreferrer">DraftMeta</a>
-            {' · Patch '+external.snapshot.patch_date.split('-').reverse().join('/')+' · '+dateTime(external.snapshot.fetched_at)}
+            {' · Mestres+ · '+(external.snapshot.end?'Patch '+external.snapshot.patch_date.split('-').reverse().join('/'):'Amostra desde '+external.snapshot.start.split('-').reverse().join('/'))+' · '+dateTime(external.snapshot.fetched_at)}
             {!external.snapshot.fresh&&' · Cópia salva'}
             {advice==='bans'?' · Sugestões por força no recorte':' · Win rate observado'}</p>}
           {model.loading&&<p className="draft-evidence" role="status">Calculando projeção do draft…</p>}
@@ -354,9 +355,14 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
     </section>
     <section ref={roster} className="card draft-roster" aria-label="Brawlers por classe">
       <header className="draft-panel-title"><div><h2>Brawlers</h2><p>{hasBan?'Ban':'Pick'} · {slot.side==='team'||slot.side==='blueBan'?'Azul':'Vermelho'} · posição {slot.index+1}</p></div>
+        <div className="draft-roster-controls">
         <label className="draft-search"><Search size={15}/><input ref={input} aria-label="Buscar brawler" value={search}
           onChange={e=>setSearch(e.target.value)} placeholder="Buscar brawler"
-          onKeyDown={e=>{if(e.key==='Enter'&&!e.nativeEvent.isComposing&&query&&selectable.length===1){e.preventDefault();assign(selectable[0].name);}}}/></label></header>
+          onKeyDown={e=>{if(e.key==='Enter'&&!e.nativeEvent.isComposing&&query&&selectable.length===1){e.preventDefault();assign(selectable[0].name);}}}/></label>
+        {active&&!mapOpen&&!complete&&compactView==='roster'&&<DraftVoice
+          key={JSON.stringify([slot.side,slot.index,draft[slot.side][slot.index]])} action={hasBan?'ban':'pick'}
+          roster={brawlers} isBlocked={blocked} onAssign={assign}/>}
+        </div></header>
       <div className="draft-roster-guide"><span>{query?number(available.length)+(available.length===1?' encontrado':' encontrados'):'Arraste para ver as classes'}</span>
         <div className="draft-pagination"><button aria-label="Rolar brawlers para a esquerda" disabled={!scrollEdges.left} onClick={()=>stepRoster(-1)}><ChevronLeft size={16}/></button>
           <button aria-label="Rolar brawlers para a direita" disabled={!scrollEdges.right} onClick={()=>stepRoster(1)}><ChevronRight size={16}/></button></div></div>

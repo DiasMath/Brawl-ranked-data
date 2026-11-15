@@ -629,7 +629,16 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
 .draft-suggestion b { flex:none; font-size:11px; color:var(--green); }
 .draft-suggestions .section-note { padding:3px; font-size:11px; }
 .draft-roster { display:flex; flex-direction:column; gap:8px; padding:9px; }
-.draft-roster .draft-search { width:min(53%,215px); }
+.draft-roster-controls { display:flex; align-items:center; gap:6px; width:min(55%,250px); }
+.draft-roster .draft-search { flex:1; min-width:0; }
+.draft-voice { position:relative; }
+.draft-voice button { display:flex; align-items:center; justify-content:center; gap:6px; color:var(--text); }
+.draft-voice-toggle { width:31px; height:31px; padding:0; border:1px solid #48385f; border-radius:6px; background:#2b203e; }
+.draft-voice-toggle[aria-pressed="true"] { background:#5c2749; border-color:#e76d99; }
+.draft-voice-popover { position:absolute; z-index:5; top:calc(100% + 6px); right:0; width:min(230px, calc(100vw - 48px)); display:grid; gap:5px; padding:8px; border:1px solid #5a4776; border-radius:8px; background:#221932; color:var(--text); font-size:12px; box-shadow:0 8px 22px #130d20a0; }
+.draft-voice-head { display:flex; align-items:flex-start; justify-content:space-between; gap:5px; }
+.draft-voice-head button { padding:0; border:0; background:none; }
+.draft-voice-popover > button { justify-content:flex-start; padding:5px 7px; border:1px solid #48385f; border-radius:5px; background:#2b203e; }
 .draft-roster .draft-search input { min-height:31px; }
 .draft-roster-guide { display:flex; align-items:center; justify-content:space-between; gap:8px; color:var(--muted); font-size:11px; }
 .draft-roster-rail {

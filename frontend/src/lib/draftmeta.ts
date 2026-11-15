@@ -1,7 +1,11 @@
 export type DraftMetaBrawler = { name: string; win_rate: number; games: number };
 type Movement = { name: string; win_change: number; pick_change: number; games: number };
 type Window = { start: string; end: string; battles: number };
-export type DraftMetaSnapshot = Window & {
+export const draftMetaRanks = { masters: 'Mestres+', all: 'Todos os ranks' } as const;
+export type DraftMetaRank = keyof typeof draftMetaRanks;
+
+export type DraftMetaSnapshot = Omit<Window,'end'> & {
+  rank: DraftMetaRank; end: string | null;
   provider: string; patch_date: string; map: string | null; source_url: string; fetched_at: string; fresh: boolean;
   tiers: { tier: string; brawlers: DraftMetaBrawler[] }[];
   map_picks: { name: string; pick_rate: number }[];

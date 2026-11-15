@@ -86,7 +86,7 @@ def collect_pool(cursor, connection):
             sleep(1.25)
             snapshot = None
             try:
-                snapshot = read_tier(client, changes, name)
+                snapshot = read_tier(client, changes, name, include_map_info=True)
             except httpx.HTTPStatusError as error:
                 LOG.warning("%s: HTTP %s.", name, error.response.status_code)
                 if error.response.status_code == 429:

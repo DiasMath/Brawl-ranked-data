@@ -11,8 +11,8 @@ export function useDraftMeta(map: string, enabled: boolean) {
     if(!enabled)return;
     const controller=new AbortController();
     setIndex(null);setIndexFailed(false);setRead(null);
-    void collectionRequest<DraftMetaResponse>('/api/meta/external',{signal:controller.signal})
-      .then(value=>{if(!controller.signal.aborted)setIndex(value);})
+    void collectionRequest<DraftMetaResponse>('/api/meta/external?rank=masters',{signal:controller.signal})
+      .then(value=>{if(!controller.signal.aborted)setIndex({...value,snapshot:value.snapshot?.rank==='masters'?value.snapshot:null});})
       .catch(()=>{if(!controller.signal.aborted)setIndexFailed(true);});
     return ()=>controller.abort();
   },[enabled]);
@@ -23,12 +23,12 @@ export function useDraftMeta(map: string, enabled: boolean) {
   useEffect(()=>{
     if(!enabled||!sourceMap||!patch)return;
     const controller=new AbortController();
-    const params=new URLSearchParams({map:sourceMap,patch});
+    const params=new URLSearchParams({map:sourceMap,patch,rank:'masters'});
     void collectionRequest<DraftMetaResponse>(`/api/meta/external?${params}`,{signal:controller.signal})
       .then(value=>{
         if(controller.signal.aborted)return;
         const snapshot=value.snapshot;
-        setRead({key,snapshot:snapshot?.patch_date===patch&&snapshot.map===sourceMap?snapshot:null,failed:false});
+        setRead({key,snapshot:snapshot?.rank==='masters'&&snapshot.patch_date===patch&&snapshot.map===sourceMap?snapshot:null,failed:false});
       })
       .catch(()=>{if(!controller.signal.aborted)setRead({key,snapshot:null,failed:true});});
     return ()=>controller.abort();

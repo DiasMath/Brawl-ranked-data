@@ -1,5 +1,7 @@
+from calendar import month_abbr
 from contextlib import contextmanager
 from datetime import date
+import re
 from urllib.parse import urlparse
 
 import httpx
@@ -84,13 +86,39 @@ def patch_window(window):
     return {"start": start.isoformat(), "end": end.isoformat(), "battles": positive_count(window["battles"])}
 
 
-def format_snapshot(tier_list, changes, map_name=None, map_info=None):
+def short_date(day):
+    value = date.fromisoformat(day)
+    return f"{value.day} {month_abbr[value.month]}"
+
+
+def tier_window(tier_list, rank, map_name, patch_date, current):
+    label = "Masters+" if rank == "masters" else "All ranks"
+    population = tier_list["population"]
+    expected = f"{label}, drafted Ranked, since the {patch_date} update"
+    if population == expected:
+        return current["start"], current["end"]
+    if not map_name:
+        window = f'{short_date(patch_date)} update · {short_date(current["start"])} – {short_date(current["end"])}'
+        if tier_list.get("window") == window and population == f"{label}, drafted Ranked, {window}":
+            return current["start"], current["end"]
+    if map_name and rank == "masters":
+        since = re.fullmatch(r"Masters-level Ranked games, since (\d{1,2}) ([A-Z][a-z]{2})", population)
+        if since:
+            day, month = since.groups()
+            reference = date.fromisoformat(current["end"])
+            month = list(month_abbr).index(month)
+            year = reference.year - int((month, int(day)) > (reference.month, reference.day))
+            return date(year, month, int(day)).isoformat(), None
+    raise ValueError("Janela ou rank diferentes dos solicitados")
+
+
+def format_snapshot(tier_list, changes, map_name=None, map_info=None, *, rank="masters"):
     current = patch_window(changes["window"]["current"])
     previous = patch_window(changes["window"]["previous"])
     patch_date = date.fromisoformat(changes["updatesWithData"][0]["id"]).isoformat()
-    expected = f"All ranks, drafted Ranked, since the {patch_date} update"
-    if tier_list["population"] != expected or previous["end"] >= patch_date or current["start"] < patch_date:
+    if previous["end"] >= patch_date or current["start"] < patch_date:
         raise ValueError("Janelas incompatíveis entre as consultas")
+    start, end = tier_window(tier_list, rank, map_name, patch_date, current)
     battles = positive_count(tier_list["battles"])
     expected_scope = tier_list["scope"].startswith(f"{map_name} (") if map_name else tier_list["scope"] == "all modes"
     if not expected_scope:
@@ -111,7 +139,8 @@ def format_snapshot(tier_list, changes, map_name=None, map_info=None):
     picks = []
     if map_info and map_info["map"] == map_name:
         ranked = {row["name"]: row for tier in tiers for row in tier["brawlers"]}
-        for row in map_info.get("bestAllRanks", []):
+        pick_key = "bestMastersPlus" if rank == "masters" else "bestAllRanks"
+        for row in map_info.get(pick_key, []):
             parsed = brawler_row(row)
             presence = rate(row["pickRate"])
             if parsed == ranked.get(parsed["name"]) and abs(100 * parsed["games"] / battles - presence) <= 0.06:
@@ -128,8 +157,8 @@ def format_snapshot(tier_list, changes, map_name=None, map_info=None):
             movements[target] = [{"name": row["brawler"], "win_change": rate(row["winChange"], -100),
                                   "pick_change": rate(row["appearanceChange"], -100),
                                   "games": positive_count(row["games"])} for row in changes[key]]
-    return {"provider": "DraftMeta", "patch_date": patch_date, "map": map_name, "source_url": source_link(tier_list["link"]),
-            "start": current["start"], "end": current["end"], "battles": battles, "tiers": tiers,
+    return {"provider": "DraftMeta", "rank": rank, "patch_date": patch_date, "map": map_name,
+            "source_url": source_link(tier_list["link"]), "start": start, "end": end, "battles": battles, "tiers": tiers,
             "map_picks": picks, "presence": presence, "movements": movements}
 
 
@@ -150,15 +179,15 @@ def draftmeta_session():
         raise CollectionError(502, "O DraftMeta ainda não publicou amostras compatíveis para este recorte.") from error
 
 
-def read_tier(client, changes, map_name=None, *, include_map_info=False):
-    arguments = {"rank": "all", "per_tier": 30}
+def read_tier(client, changes, map_name=None, *, rank="masters", include_map_info=False):
+    arguments = {"rank": rank, "per_tier": 30}
     if map_name:
         arguments["map"] = map_name
     tier = client.call("tier_list", **arguments)
-    snapshot = format_snapshot(tier, changes, map_name)
+    snapshot = format_snapshot(tier, changes, map_name, rank=rank)
     if map_name and include_map_info and snapshot["presence"] is None:
         map_info = client.call("map_info", map=map_name, limit=15)
-        snapshot = format_snapshot(tier, changes, map_name, map_info)
+        snapshot = format_snapshot(tier, changes, map_name, map_info, rank=rank)
     return snapshot
 
 
@@ -170,10 +199,10 @@ def ranked_pool(client):
     return names
 
 
-def fetch_snapshot(map_name=None):
+def fetch_snapshot(map_name=None, *, rank="masters"):
     with draftmeta_session() as client:
         changes = client.call("meta_changes", update="latest")
-        return read_tier(client, changes, map_name, include_map_info=True)
+        return read_tier(client, changes, map_name, rank=rank, include_map_info=True)
 
 
 def fetch_draft_suggestions(map_name, our_picks, enemy_picks, bans, first_pick):

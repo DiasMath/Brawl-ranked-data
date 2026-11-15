@@ -232,17 +232,17 @@ Se a fila estiver em pausa ou uma rodada estiver em andamento, aguarde a libera�
 
 ### Indicadores do DraftMeta
 
-Em **Meta → DraftMeta**, selecione **Todos os mapas** ou um mapa e use **Atualizar do DraftMeta**. O FastAPI consulta a interface MCP pública, valida o recorte de todos os ranks contra o último patch e salva um snapshot por mapa e patch no PostgreSQL. Durante uma hora, a atualização reaproveita a cópia existente. A tela informa quando a cópia foi consultada. Se uma atualização falhar, a última cópia permanece disponível.
+Em **Meta → DraftMeta**, selecione **Todos os mapas** ou um mapa e use **Atualizar este recorte**. A tier list abre em **Mestres+**, com a opção **Todos os ranks**. O FastAPI consulta a interface MCP pública e salva um snapshot por mapa, rank e patch no PostgreSQL. Para mapas em Mestres+, a fonte informa a data inicial da amostra. O patch identifica a rodada de coleta. Durante uma hora, a atualização reaproveita a cópia existente. A tela informa quando a cópia foi consultada. Se uma atualização falhar, a última cópia permanece disponível.
 
 A primeira versão usa tier list, win rate, amostra por brawler e variações de win rate e presença após o patch. Presença é a proporção de partidas com o brawler. O painel usa as contagens consolidadas quando elas somam exatamente seis escolhas por partida. Quando a lista é parcial, usa as taxas publicadas em `map_info` que conferem com a tier list. O MCP ainda não oferece ban rate observado. O histórico pessoal continua vindo da Supercell. A aba **Coleta própria e histórico** permanece disponível para consulta e para o Draft Lab atual.
 
-A comparação usa a conta selecionada, o mapa e a janela do snapshot. As datas publicadas são interpretadas em UTC e as partidas posteriores à consulta ficam fora do recorte. Mostra as amostras dos dois lados e a diferença em pontos percentuais a partir de 10 partidas decisivas da conta. O seletor de patch permite abrir snapshots já salvos.
+A comparação usa a conta selecionada, o mapa e a janela do snapshot quando a fonte informa as duas datas. As datas publicadas são interpretadas em UTC e as partidas posteriores à consulta ficam fora do recorte. Mostra as amostras dos dois lados e a diferença em pontos percentuais a partir de 10 partidas decisivas da conta. O seletor de patch permite abrir snapshots já salvos.
 
 **Bans observados nas minhas partidas** aparece quando a Supercell publica listas de bans para o recorte. Uma lista explicitamente vazia entra no denominador.
 
 Os detalhes identificam campos da Supercell e estimativas. Quando falta a temporada e há uma única janela cadastrada que abrange a partida, o painel mostra **Estimativa pela data** e o link do calendário. Rank e pontos do perfil ficam na progressão. A barra superior mostra o horário da última coleta bem-sucedida e sinaliza atraso após três intervalos configurados.
 
-A migração `002_external_meta.sql` roda junto das demais na inicialização do backend. O teste manual da integração usa as configurações existentes, com saída HTTPS para `draftmeta.com`. Atualizações recorrentes em volume devem seguir os limites e condições da fonte. [Integração DraftMeta](https://draftmeta.com/ai) · [Termos do DraftMeta](https://draftmeta.com/terms)
+As migrações rodam na inicialização do backend. A migração de rank preserva o histórico anterior em **Todos os ranks**. O teste manual da integração usa as configurações existentes, com saída HTTPS para `draftmeta.com`. Atualizações recorrentes em volume devem seguir os limites e condições da fonte. [Integração DraftMeta](https://draftmeta.com/ai) · [Termos do DraftMeta](https://draftmeta.com/terms)
 
 ### Atualização completa do DraftMeta
 
@@ -254,13 +254,15 @@ Na raiz do Windows, execute:
 Get-Content .\backend\.venv\draftmeta-coleta-development.log -Encoding UTF8 -Tail 20
 ```
 
-A tarefa roda a cada 60 minutos, com o Windows ligado e seu usuário conectado. O job atualiza a tier list geral e consulta todos os mapas do pool ranqueado publicado pelo DraftMeta, com todos os ranks. O filtro de mapa é só para navegação. **Meta → DraftMeta** mostra a cobertura do patch, os mapas sem snapshot e os que ficaram com a cópia anterior. Um HTTP 429 interrompe a rodada e preserva os snapshots já salvos. O comando equivalente para um executor que já tenha `DATABASE_URL` configurado é `python -m app.jobs.collect_draftmeta`, a partir de `backend`.
+A tarefa roda a cada 60 minutos, com o Windows ligado e seu usuário conectado. O job atualiza a tier list geral e consulta todos os mapas do pool ranqueado publicado pelo DraftMeta, em **Mestres+**. O filtro de mapa é só para navegação. **Meta → DraftMeta** mostra a cobertura do patch, os mapas sem snapshot e os que ficaram com a cópia anterior. Um HTTP 429 interrompe a rodada e preserva os snapshots já salvos. O comando equivalente para um executor que já tenha `DATABASE_URL` configurado é `python -m app.jobs.collect_draftmeta`, a partir de `backend`.
 
 ### Draft Lab e Meta do patch
 
-O Draft Lab abre com **DraftMeta** como fonte. A visão geral usa o último snapshot geral salvo para identificar o patch. Ao escolher um mapa, a tela consulta a cópia desse mapa no mesmo patch. As sugestões da tier list mostram win rate observado, presença quando disponível, partidas e data da leitura. Se o mapa ainda estiver sem snapshot nesse patch, a tela indica a lacuna.
+O Draft Lab abre com **DraftMeta** como fonte e a tier list em **Mestres+**, na ordem publicada pelo DraftMeta. A visão geral usa o último snapshot geral salvo para identificar o patch. Ao escolher um mapa, a tela consulta a cópia desse mapa no mesmo patch. As sugestões da tier list mostram win rate observado, presença quando disponível, partidas e data da leitura. Se o mapa ainda estiver sem snapshot nesse patch, a tela indica a lacuna.
 
 Na aba **Picks**, com mapa definido e na vez da equipe azul, o FastAPI pede ao modelo do DraftMeta sugestões para a composição, os bans e a ordem do draft. A interface mostra a projeção após cada pick e após a resposta adversária indicada pelo modelo. A consulta usa todos os ranks do ranqueado solo e envia somente o cenário do draft. Picks ocupados ou banidos ficam fora, e o filtro de poder 11 também vale para as sugestões. Enquanto a projeção carrega ou está indisponível, a tela usa a tier list salva quando houver snapshot para o recorte.
+
+Em navegadores com reconhecimento de voz, selecione a posição, clique no microfone, diga o nome do brawler ou um comando como **banir Rico**, e confirme a escolha. O app usa o serviço de voz do navegador. Algumas implementações processam o áudio online.
 
 Com seis picks, **Análise do draft** abre no próprio painel. A estimativa final usa um modelo logístico treinado em séries decisivas do conjunto EliF77 de 04/11/2026 e validado em 05/11/2026, anterior ao balanceamento de 11/11. O modelo usa mapa e brawlers dos dois lados. Mapas fora da amostra ou picks com menos de 30 aparições no treino daquele mapa ficam sem projeção. Os confrontos mostram resultados de equipes na amostra disponível do mapa. Os equipamentos são sugestões táticas baseadas nos efeitos dos itens do BrawlAPI e no inventário quando publicado pelo perfil.
 
