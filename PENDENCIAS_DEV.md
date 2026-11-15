@@ -16,6 +16,7 @@ Lista de trabalho do Brawl Ranked Data, em ordem de execução no ambiente local
 | 10 | Acompanhar um treino por mapa e brawler | Concluída no código e validada em teste | Permitir preencher o plano pela ficha do brawler e comparar o resultado do treino com partidas anteriores do mesmo recorte. |
 | 11 | Preservar o histórico de treinos | Concluída no código e validada em teste | Arquivar o plano anterior ao trocar o ajuste, mapa ou brawler. Exibir período, estado, amostras e variação nas taxas e incluir os planos arquivados na exportação. |
 | 12 | Mostrar a cobertura do histórico coletado | Concluída no código e validada em teste | Mostrar quantas ranqueadas têm duração total, craque, K/D oficial e lista de bans. Abrir uma partida recente com cada campo disponível para conferência. |
+| 13 | Filtrar as execuções da coleta | Concluída no código e validada em teste | Aplicar filtros por status e origem antes da paginação no PostgreSQL e exibir a duração das execuções com horário de término. |
 
 ## Critérios para os dados
 
@@ -104,3 +105,9 @@ Editar o estado do mesmo ajuste e recorte preserva o plano. Os testes conferiram
 Em **Contas e dados → Cobertura do histórico**, a base são as partidas ranqueadas já coletadas da conta, com uma contagem por série. A duração total exige tempo em todas as rodadas. O craque exige identificação em pelo menos uma rodada. K/D usa os dados oficiais disponíveis para o total da partida. Bans exigem uma lista oficial consistente entre as rodadas que o informaram. Uma lista oficial vazia entra na cobertura.
 
 O atalho **Ver partida** abre o detalhe mais recente com aquele campo, na rodada que contém a evidência quando ela é específica. Os testes conferiram a ausência de dados, duração parcial, K/D anotado, lista vazia, listas conflitantes e os atalhos. A comparação com a tela do jogo continua pendente na etapa 4.
+
+## Validação da etapa 13
+
+Em **Contas e dados → Histórico de atualizações**, combine os filtros de status e origem para encontrar execuções da conta. A consulta filtra antes de retornar cada página de 15 registros. A coluna **Duração** usa os horários de início e término. Execuções sem origem registrada aparecem na visão geral com o campo vazio.
+
+Os testes conferiram filtros combinados, troca de página com inserção de um novo log, isolamento por conta, validação dos parâmetros e comportamento da tela quando o FastAPI ainda está em uma versão anterior.

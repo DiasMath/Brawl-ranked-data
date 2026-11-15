@@ -94,6 +94,16 @@ async function forward(request: NextRequest) {
         if (!/^(?:[1-9]\d?|100)$/.test(limit)) return Response.json({ detail: 'Limite inválido.' }, { status: 400, headers });
         target.searchParams.set('limit', limit);
       }
+      const status = request.nextUrl.searchParams.get('status');
+      const origin = request.nextUrl.searchParams.get('origin');
+      if (status !== null) {
+        if (!['success','error','running'].includes(status)) return Response.json({ detail: 'Status inválido.' }, { status: 400, headers });
+        target.searchParams.set('status', status);
+      }
+      if (origin !== null) {
+        if (!['manual','scheduled'].includes(origin)) return Response.json({ detail: 'Origem inválida.' }, { status: 400, headers });
+        target.searchParams.set('origin', origin);
+      }
     }
     const upstream = await fetch(target, {
       method: request.method,

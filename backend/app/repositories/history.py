@@ -13,18 +13,25 @@ def latest_run(cursor, player, successful=False, *, scheduled=False):
     return cursor.fetchone()
 
 
-def update_page(cursor, player, before=None, limit=15):
-    bound = " AND id<%s" if before is not None else ""
-    params = (player, before, limit + 1) if before is not None else (player, limit + 1)
+def update_page(cursor, player, before=None, limit=15, *, status=None, origin=None):
+    conditions = ["player_tag=%s"]
+    params = [player]
+    for condition, value in (("id<%s", before), ("status=%s", status), ("origin=%s", origin)):
+        if value is not None:
+            conditions.append(condition)
+            params.append(value)
+    params.append(limit + 1)
+    where = " AND ".join(conditions)
     cursor.execute(
-        "SELECT id, started_at, finished_at, status, received, added, message FROM update_log "
-        f"WHERE player_tag=%s{bound} ORDER BY id DESC LIMIT %s", params,
+        "SELECT id, started_at, finished_at, status, origin, received, added, message FROM update_log "
+        f"WHERE {where} ORDER BY id DESC LIMIT %s", params,
     )
     records = cursor.fetchall()
     rows = records[:limit]
     for row in rows:
         row["started_at"], row["finished_at"] = iso(row["started_at"]), iso(row["finished_at"])
-    return {"rows": rows, "next_cursor": rows[-1]["id"] if len(records) > limit else None}
+    return {"rows": rows, "next_cursor": rows[-1]["id"] if len(records) > limit else None,
+            "filters": {"status": status, "origin": origin}}
 
 
 def retry_until(cursor):

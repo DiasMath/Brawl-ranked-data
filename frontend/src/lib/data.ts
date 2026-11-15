@@ -23,6 +23,7 @@ export type OwnedBrawler = {
 };
 export type Update = {
   id: number; started_at: string; finished_at: string | null; status: 'success' | 'error' | 'running';
+  origin?: 'manual' | 'scheduled' | null;
   received: number | null; added: number | null; message: string | null;
 };
 export type Meta = {

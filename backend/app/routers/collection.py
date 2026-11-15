@@ -1,4 +1,5 @@
 import json
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -65,9 +66,11 @@ def collection_history(after: int = 0, tag: str | None = None):
 
 @router.get("/api/collection/updates")
 def collection_updates(tag: str | None = None, before: int | None = Query(None, gt=0, le=999_999_999_999_999),
-                       limit: int = Query(15, ge=1, le=100)):
+                       limit: int = Query(15, ge=1, le=100),
+                       status: Literal["success", "error", "running"] | None = None,
+                       origin: Literal["manual", "scheduled"] | None = None):
     with database() as (_, cursor):
-        return update_page(cursor, require_player(cursor, tag), before, limit)
+        return update_page(cursor, require_player(cursor, tag), before, limit, status=status, origin=origin)
 
 
 @router.get("/api/dataset")
