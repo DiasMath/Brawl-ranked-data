@@ -4,11 +4,10 @@ import { Card } from '@/components/dashboard-ui';
 import { PagedTable } from '@/components/data-table';
 import { ModeIcon, Portrait } from '@/components/game';
 import { brawlerMapPerformance, brawlerMatchups, brawlerPerformance } from '@/lib/coaching';
-import { modeName, normalize, number, percent } from '@/lib/data';
+import { modeName, normalize, number, orderByMatchCount, orderByWinRate, percent } from '@/lib/data';
 import { mapKey } from '@/lib/external-comparison';
 import type { MatchSeries } from '@/lib/match-series';
 import { seriesSeason } from '@/lib/match-series';
-import { ordered } from '@/lib/scouting';
 
 const options=(values:(string|null|undefined)[], key:(value:string)=>string=normalize)=>[...new Map(values.flatMap(value=>value?[[key(value),value] as const]:[]))]
   .sort((a,b)=>a[1].localeCompare(b[1],'pt-BR',{numeric:true}));
@@ -40,10 +39,10 @@ export function BrawlerEvolution({ matches, initialSeason, initialBrawler, mapFi
   const scoped=useMemo(()=>activeMap?modeRows.filter(match=>ownMap(match)===activeMap):modeRows,[modeRows,activeMap]);
   const result=useMemo(()=>brawlerPerformance(scoped),[scoped]);
   const rows=sort==='pick'?result.rows.slice().sort((a,b)=>b.pickRate-a.pickRate||a.label.localeCompare(b.label,'pt-BR')):
-    ordered(result.rows.map(row=>({...row,wins:row.summary.wins,games:row.summary.decided})));
+    orderByWinRate(result.rows.map(row=>({...row,wins:row.summary.wins,games:row.summary.decided})));
   const selected=rows.find(row=>row.key===brawler)??rows[0];
   const selectedKey=selected?.key;
-  const byMap=useMemo(()=>selectedKey?ordered(brawlerMapPerformance(scoped,selectedKey)):[],[scoped,selectedKey]);
+  const byMap=useMemo(()=>selectedKey?orderByWinRate(brawlerMapPerformance(scoped,selectedKey)):[],[scoped,selectedKey]);
   const matchups=useMemo(()=>selectedKey?brawlerMatchups(scoped,selectedKey,side):null,[scoped,selectedKey,side]);
   const allies=side==='ally';
   const counterpart=allies?'Aliado':'Adversário';
@@ -68,7 +67,7 @@ export function BrawlerEvolution({ matches, initialSeason, initialBrawler, mapFi
         {!mapFilter&&maps.map(([key,label])=><option key={key} value={key}>{label}</option>)}
       </select></label>
       <label>Ordenar brawlers<select value={sort} onChange={event=>setSort(event.target.value==='win'?'win':'pick')}>
-        <option value="pick">Mais escolhidos</option><option value="win">Win rate e amostra</option>
+        <option value="pick">Mais escolhidos</option><option value="win">Maior win rate</option>
       </select></label>
     </div>
     <p className="section-note">
@@ -100,7 +99,7 @@ export function BrawlerEvolution({ matches, initialSeason, initialBrawler, mapFi
       </div>
       <div className="card-head"><div>
         <h3>{selected.label} por mapa</h3>
-        <p>{seasonLabel||'Todo o histórico'} · Ordenado por win rate e amostra</p>
+        <p>{seasonLabel||'Todo o histórico'} · Maior win rate, com desempate pela amostra</p>
       </div></div>
       {byMap.length?<PagedTable label={`${selected.label} por mapa`} rows={byMap}
         pageKey={JSON.stringify([selectedKey,season,activeMode,activeMap])}
@@ -122,18 +121,19 @@ export function BrawlerEvolution({ matches, initialSeason, initialBrawler, mapFi
           <p>{number(matchups.covered)} de {number(matchups.total)} {matchups.total===1?'partida':'partidas'} com {counterpart.toLowerCase()} identificado</p>
         </div>{matchups.rows.length>1&&<label>{allies?'Ordenar aliados':'Ordenar confrontos'}<select value={hardFirst?'hard':'favorable'}
           onChange={event=>setMatchupOrder({...matchupOrder,[side]:event.target.value==='hard'})}>
-          <option value="hard">{allies?'Menor aproveitamento':'Mais difíceis'}</option>
-          <option value="favorable">{allies?'Melhor aproveitamento':'Mais favoráveis'}</option>
+          <option value="hard">Partidas, depois derrotas</option>
+          <option value="favorable">Partidas, depois vitórias</option>
         </select></label>}</div>
         <div className="view-tabs brawler-matchup-tabs" role="group" aria-label="Lado da composição">
           <button type="button" aria-pressed={!allies} onClick={()=>setSide('opponent')}>Adversários</button>
           <button type="button" aria-pressed={allies} onClick={()=>setSide('ally')}>Aliados</button>
         </div>
-        {matchups.rows.length?<><PagedTable label={`${counterpart}s de ${selected.label}`} rows={ordered(matchups.rows,hardFirst)}
+        {matchups.rows.length?<><PagedTable label={`${counterpart}s de ${selected.label}`} rows={orderByMatchCount(matchups.rows,hardFirst?'losses':'wins')}
           pageKey={JSON.stringify([selectedKey,season,activeMode,activeMap,side,hardFirst])}
-          headings={<><th>{counterpart}</th><th>Win rate pessoal</th><th>Últimas partidas</th></>}
+          headings={<><th>{counterpart}</th><th aria-sort="descending">Partidas</th><th>Win rate pessoal</th><th>Últimas partidas</th></>}
           renderRow={row=><tr key={row.key}>
             <td><span className="image-label"><Portrait name={row.name}/>{row.name}</span></td>
+            <td>{number(row.games)}</td>
             <td><strong>{percent(row.rate)}</strong><small>{number(row.wins)} V · {number(row.losses)} D</small></td>
             <td><div className="actions">
               {row.defeat&&<button type="button" className="button small subtle" aria-label={`Ver derrota ${relation} ${row.name}`}

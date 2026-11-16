@@ -2,14 +2,14 @@ import { PagedTable } from '@/components/data-table';
 import { useContext, useState } from 'react';
 import { Activity, ArrowRight, ArrowUpRight, CalendarDays, Crosshair, MapPinned, Radio, RefreshCw, Swords, Trophy } from 'lucide-react';
 import type { Battle, Filters } from '@/lib/data';
-import { dateTime, groupStats, localDay, modeName, normalize, number, percent, stats } from '@/lib/data';
+import { dateTime, groupStats, localDay, modeName, normalize, number, orderByMatchCount, orderByWinRate, percent, stats } from '@/lib/data';
 import { AccountIcon, findMap, MapImage, ModeIcon, Portrait, RankArt, TrophyArt } from '@/components/game';
 import type { Account, LocalData, Progress } from '@/lib/browser-store';
 import { profileProgress, progressSeries, progressionWindow, RankGoal, rankProgress, TrendChart } from '@/features/analytics/progression';
 import { RecentForm } from './recent-form';
 import { OverviewMapReview } from './ranked-analysis';
 import { ProfileDetails } from '@/features/analytics/profile-details';
-import { byId, ordered, publicPicks, usePublicStats } from '@/lib/scouting';
+import { byId, publicPicks, usePublicStats } from '@/lib/scouting';
 import type { PublicStats, ScoutingRow } from '@/lib/scouting';
 import { inMetaPeriod, LiveMeta } from '@/lib/live';
 import type { MatchElo, MatchSeries } from '@/lib/match-series';
@@ -17,33 +17,37 @@ import { useDataTooltip } from '@/components/data-tooltip';
 
 type RankRow = ScoutingRow & { mode?: string | null };
 
-function RankRows({ rows, kind, short = false, publicSetCount, publicUnit='séries' }: {
-  rows: RankRow[]; kind: 'brawler'|'map'|'mode'; short?: boolean; publicSetCount?: number; publicUnit?: string;
+function RankRows({ rows, kind, short = false, publicSetCount, publicUnit='séries', byVolume=false }: {
+  rows: RankRow[]; kind: 'brawler'|'map'|'mode'; short?: boolean; publicSetCount?: number; publicUnit?: string; byVolume?:boolean;
 }) {
   if (!rows.length) return <div className="list-empty"><Swords size={19} /> Aguardando amostra suficiente para este recorte.</div>;
-  return <div className="rank-rows">{rows.slice(0,short ? 4 : 16).map((row,i) => <div className="rank-row" key={row.name}>
+  const shown=rows.slice(0,short ? 4 : 16);
+  const maximum=Math.max(1,...shown.map(row=>row.games));
+  return <div className="rank-rows">{shown.map((row,i) => <div className="rank-row" key={row.name}>
     <span className="row-number">{String(i+1).padStart(2,'0')}</span>
     {kind === 'map' ? <MapImage map={findMap(row.name,null,row.mode)} /> : kind === 'mode' ? <ModeIcon mode={row.name}/> : <Portrait name={row.name}/>}
     <div><strong>{kind === 'mode' ? modeName(row.name) : row.name}</strong>
-      <small>{number(row.games)} {publicSetCount ? publicUnit : 'registros decisivos'}{publicSetCount ? ` · ${percent((row.pickCount??row.games)/(publicSetCount*6))} dos picks` : ''}</small></div>
-    <span className="rate-track"><i style={{width:`${row.games?row.wins/row.games*100:0}%`}}/></span><strong className="row-rate">{percent(row.games?row.wins/row.games:null)}</strong>
+      <small>{number(row.games)} {publicSetCount ? publicUnit : 'registros decisivos'}{publicSetCount ? ` · ${percent((row.pickCount??row.games)/(publicSetCount*6))} dos picks` : ''}
+        {byVolume&&` · ${number(row.wins)} V · ${number(row.games-row.wins)} D`}</small></div>
+    <span className="rate-track" aria-hidden="true"><i style={{width:`${(byVolume?row.games/maximum:row.games?row.wins/row.games:0)*100}%`}}/></span><strong className="row-rate">{percent(row.games?row.wins/row.games:null)}</strong>
   </div>)}</div>;
 }
 
-function Ranking({ title, rows, kind, short, publicSetCount }: { title: string; rows: RankRow[]; kind: 'brawler'|'map'|'mode'; short?: boolean; publicSetCount?: number }) {
-  return <section className="card"><div className="card-head"><div><h2>{kind==='brawler'?<Crosshair size={17}/>:<MapPinned size={17}/>} {title}</h2></div></div>
-    <RankRows rows={rows} kind={kind} short={short} publicSetCount={publicSetCount}/></section>;
+function Ranking({ title, rows, kind, short, worst=false }: { title:string; rows:RankRow[]; kind:'brawler'|'map'; short?:boolean; worst?:boolean }) {
+  return <section className="card"><div className="card-head"><div><h2>{kind==='brawler'?<Crosshair size={17}/>:<MapPinned size={17}/>} {title}</h2>
+    <p>Barras por partidas decisivas · Desempate por {worst?'derrotas':'vitórias'}</p></div></div>
+    <RankRows rows={rows} kind={kind} short={short} byVolume/></section>;
 }
 
-function accountGroups(rows: Battle[], get: (battle: Battle) => string|null, minimum: number): RankRow[] {
+function accountGroups(rows: Battle[], get: (battle: Battle) => string|null, minimum: number) {
   return groupStats(rows,b => [get(b)]).filter(r=>r.decided>=minimum).map(r=>({
-    name:r.label,wins:r.wins,games:r.decided,details:[],mode:rows.find(b=>get(b)===r.label)?.mode,
+    name:r.label,wins:r.wins,losses:r.losses,games:r.decided,details:[],mode:rows.find(b=>get(b)===r.label)?.mode,
   }));
 }
 
 export function PublicSpotlight({ onDraft, onMeta }: { onDraft:()=>void; onMeta:()=>void }) {
   const meta=usePublicStats(null,null);
-  const top=ordered(publicPicks(meta.sample)).slice(0,4);
+  const top=orderByWinRate(publicPicks(meta.sample).filter(row=>row.games>0)).slice(0,4);
   return <section className="card public-spotlight">
     <div className="card-head"><div><h2><Radio size={17}/> Radar da meta</h2>
       <p>{meta.context ? `${number(meta.context.sets)} ${meta.index?.unit??'séries'} na amostra` : 'Amostra pública de Ranqueado'}</p></div>
@@ -124,8 +128,8 @@ export function Overview({ local, account, matches, elo, historyCount, filters, 
   const scoreRows=filteredProgress.filter(row=>row.score!==null&&(!current?.season||normalize(row.season)===normalize(current.season)||filters.season));
   const showElo=scoreRows.length>0||Boolean(filters.season);
   const results = matches.map(match=>({...match.latest,result:match.result}));
-  const topMaps = ordered(accountGroups(results,b=>b.map_name,3));
-  const topBrawlers = ordered(accountGroups(results,b=>b.player_brawler,3));
+  const topMaps = orderByMatchCount(accountGroups(results,b=>b.map_name,3));
+  const topBrawlers = orderByMatchCount(accountGroups(results,b=>b.player_brawler,3));
   return <div className="stack overview-content">
     <div className="overview-summary">
       <section className="command-hero overview-hero" aria-label="Rank atual">
@@ -169,8 +173,8 @@ export function Overview({ local, account, matches, elo, historyCount, filters, 
 
 export function Performance({ rows }: { rows: Battle[] }) {
   const brawlers = accountGroups(rows,b=>b.player_brawler,3);
-  return <div className="two-col equal"><Ranking rows={ordered(brawlers)} kind="brawler" title="Melhores brawlers"/>
-    <Ranking rows={ordered(brawlers,true)} kind="brawler" title="Piores brawlers"/></div>;
+  return <div className="two-col equal"><Ranking rows={orderByMatchCount(brawlers)} kind="brawler" title="Melhores brawlers"/>
+    <Ranking rows={orderByMatchCount(brawlers,'losses')} kind="brawler" title="Piores brawlers" worst/></div>;
 }
 
 function TableComparison({ publicSample, setCount, own, brawler, unit }: {
@@ -188,11 +192,11 @@ function TableComparison({ publicSample, setCount, own, brawler, unit }: {
   const selected=rows.filter(r=>!brawler||normalize(r.name)===normalize(brawler));
   const accounts=new Map(accountGroups(own,b=>b.player_brawler,1).map(row=>[normalize(row.name),row]));
   const metric=order==='ban'&&!banKnown?'win':order;
-  const display=metric==='win'?ordered(selected):selected.sort((a,b)=>metric==='pick'?
+  const display=metric==='win'?orderByWinRate(selected):selected.sort((a,b)=>metric==='pick'?
     (b.pickCount??0)-(a.pickCount??0) : (banByName.get(normalize(b.name))??0)-(banByName.get(normalize(a.name))??0));
   return <>
     <div className="meta-table-options"><span>Ordenar por</span><select className="standalone" aria-label="Ordenar a meta" value={metric} onChange={e=>setOrder(e.target.value as typeof order)}>
-      <option value="win">Melhores picks · win rate e amostra</option><option value="pick">Pick rate</option>{banKnown>0&&<option value="ban">Ban rate</option>}</select>
+      <option value="win">Maior win rate</option><option value="pick">Pick rate</option>{banKnown>0&&<option value="ban">Ban rate</option>}</select>
       {banKnown>0&&<span>{number(banKnown)} de {number(setCount)} registros com bans explícitos</span>}</div>
     {display.length?<PagedTable label="Estatísticas por brawler" rows={display} pageKey={JSON.stringify([metric,brawler])} headings={<><th>Brawler</th><th>Win rate</th><th>Amostra · {unit}</th><th>Pick rate</th>{banKnown>0&&<th>Ban rate</th>}
       <th>Win rate · conta</th><th>Decisivas · conta</th></>} renderRow={r=>{

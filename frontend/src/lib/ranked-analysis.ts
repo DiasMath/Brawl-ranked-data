@@ -1,4 +1,4 @@
-import { normalize, stats } from './data';
+import { normalize, orderByMatchCount, stats } from './data';
 import { mapKey } from './external-comparison';
 import { completedRankedSeries, seriesDuration, seriesPlayers, seriesRank, seriesSeason, sumRecorded } from './match-series';
 import type { MatchSeries } from './match-series';
@@ -43,22 +43,26 @@ export function mapForReview(maps: ReturnType<typeof rankedMaps>) {
 }
 
 export function opponentsInDefeats(matches: MatchSeries[]) {
-  const groups = new Map<string,{ name:string; matches:MatchSeries[] }>();
+  const groups = new Map<string,{ name:string; games:number; wins:number; losses:number; matches:MatchSeries[] }>();
   for (const match of matches) {
     const seen = new Set<string>();
-    if (match.result!=='defeat') continue;
     for (const player of match.latest.players) {
       const name = player.brawler;
       if (player.side!=='opponent' || !name) continue;
       const id = normalize(name);
       if (seen.has(id)) continue;
       seen.add(id);
-      const group = groups.get(id) ?? {name,matches:[]};
-      group.matches.push(match);
+      const group = groups.get(id) ?? {name,games:0,wins:0,losses:0,matches:[]};
+      group.games++;
+      if (match.result==='victory') group.wins++;
+      if (match.result==='defeat') {
+        group.losses++;
+        group.matches.push(match);
+      }
       groups.set(id,group);
     }
   }
-  return [...groups.values()].sort((a,b)=>b.matches.length-a.matches.length || a.name.localeCompare(b.name,'pt-BR'));
+  return orderByMatchCount([...groups.values()].filter(group=>group.losses>0),'losses');
 }
 
 // Call with a single map, mode and brawler cohort so the ranking only breaks ties inside that scope.

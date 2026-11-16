@@ -32,7 +32,7 @@ export function AccountComparison({ matches, accountName, tiers, pickRates, sour
     const delta=own && own.rate!==null && own.decided>=MIN_DELTA_GAMES && benchmark ? own.rate*100-benchmark.win_rate : null;
     return [{name,own,benchmark,delta}];
   }).sort((a,b)=>{
-    const volume=(b.own?.decided??0)-(a.own?.decided??0);
+    const volume=(b.own?.games??0)-(a.own?.games??0);
     const order=sort==='delta'?(b.delta??-101)-(a.delta??-101):
       sort==='win'?(b.benchmark?.win_rate??-1)-(a.benchmark?.win_rate??-1):volume;
     return order||volume||a.name.localeCompare(b.name,'pt-BR');

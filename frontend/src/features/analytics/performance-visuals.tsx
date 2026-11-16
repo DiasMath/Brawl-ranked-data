@@ -3,7 +3,7 @@ import { Activity, BarChart3, CalendarDays, Grid2X2, MapPinned, Swords, Target, 
 import { Card } from '@/components/dashboard-ui';
 import { PagedTable, TablePager } from '@/components/data-table';
 import { findMap, MapImage, Portrait } from '@/components/game';
-import { localDay, modeName, normalize, number, percent, stats } from '@/lib/data';
+import { localDay, modeName, normalize, number, orderByMatchCount, orderByWinRate, percent, stats } from '@/lib/data';
 import type { MatchSeries } from '@/lib/match-series';
 import { picksOnMap, rankedMaps } from '@/lib/ranked-analysis';
 import { EvidenceTable } from './ranked-analysis';
@@ -32,11 +32,10 @@ export function ModeWinRateChart({matches}: {matches:MatchSeries[]}) {
       group.matches.push(match);
       groups.set(key,group);
     }
-    return [...groups].map(([key,group])=>({key,label:group.label,...stats(group.matches)}))
-      .sort((a,b)=>b.games-a.games||a.label.localeCompare(b.label,'pt-BR'));
+    return orderByWinRate([...groups].map(([key,group])=>({key,label:group.label,...stats(group.matches)})));
   },[matches]);
   return <Card title="Win rate por modo" icon={Target} className="ranked-analysis"
-    sub={modes.length>6?'Seis modos com mais séries no recorte.':'Aproveitamento nas séries concluídas.'}>
+    sub={modes.length>6?'Seis modos com maior win rate.':'Maior win rate, com desempate pelo número de séries.'}>
     {modes.length?<div className="analysis-bars">{modes.slice(0,6).map(mode=><div key={mode.key} className="analysis-bar-row">
       <div><strong>{mode.label}</strong><span>{percent(mode.rate)} · {number(mode.games)} {mode.games===1?'série':'séries'}</span></div>
       <span className="analysis-track" aria-hidden="true"><i style={{width:`${(mode.rate??0)*100}%`}}/></span>
@@ -95,7 +94,7 @@ export function EvolutionTrends({ matches,onOpen }: { matches:MatchSeries[]; onO
 }
 
 export function MapResultsChart({matches,onReview}: {matches:MatchSeries[];onReview:(map:string)=>void}) {
-  const maps=useMemo(()=>rankedMaps(matches).slice(0,6).map(map=>({...map,...stats(map.matches)})),[matches]);
+  const maps=useMemo(()=>orderByMatchCount(rankedMaps(matches).map(map=>({...map,...stats(map.matches)}))).slice(0,6),[matches]);
   const maximum=maps[0]?.games??1;
   return <Card title="Vitórias e derrotas por mapa" icon={BarChart3} className="ranked-analysis"
     sub={maps.length===6?'Seis mapas com mais séries no recorte.':'Séries concluídas no recorte.'}>

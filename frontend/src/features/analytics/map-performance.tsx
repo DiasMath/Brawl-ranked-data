@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Flag, History, MapPinned, Swords, Target } from 'lucide-react';
 import { PagedTable } from '@/components/data-table';
 import { findMap, MapImage, ModeIcon, Portrait } from '@/components/game';
-import { dateTime, groupStats, modeName, normalize, number, percent, resultName } from '@/lib/data';
+import { dateTime, groupStats, modeName, normalize, number, orderByMatchCount, percent, resultName } from '@/lib/data';
 import type { Battle } from '@/lib/data';
 import type { ArchivedTrainingPlan, ReplayReview, TrainingPlan, TrainingScope } from '@/lib/coaching';
 import { MAP_MIN_GAMES, mapPerformance, reviewPair, trainingProgress } from '@/lib/coaching';
@@ -18,15 +18,18 @@ import type { DraftMetaSnapshot as Snapshot } from '@/lib/draftmeta';
 
 type MapPerformance = ReturnType<typeof mapPerformance>[number];
 
-function MapRanking({ title, rows, active, onChoose }: {
-  title:string; rows:MapPerformance[]; active:string; onChoose:(map:string)=>void;
+function MapRanking({ title, rows, active, onChoose, worst=false }: {
+  title:string; rows:MapPerformance[]; active:string; onChoose:(map:string)=>void; worst?:boolean;
 }) {
-  return <section className="card coaching-card"><div className="card-head"><div><h2><MapPinned size={17}/> {title}</h2></div></div>
-    {rows.length?<div className="rank-rows">{rows.slice(0,5).map(row=><button className="rank-row coaching-map-row"
+  const shown=rows.slice(0,5);
+  const maximum=Math.max(1,...shown.map(row=>row.summary.decided));
+  return <section className="card coaching-card"><div className="card-head"><div><h2><MapPinned size={17}/> {title}</h2>
+    <p>Barras por partidas decisivas · Desempate por {worst?'derrotas':'vitórias'}</p></div></div>
+    {shown.length?<div className="rank-rows">{shown.map(row=><button className="rank-row coaching-map-row"
       key={row.key} aria-pressed={active===row.key} onClick={()=>onChoose(row.key)}>
       <MapImage map={findMap(row.name,null,row.mode)}/><div><strong>{row.name}</strong>
-        <small>{number(row.summary.decided)} decisivas{row.recent.decided?` · Últimas ${row.recent.decided} ${percent(row.recent.rate)}`:''}</small></div>
-      <span className="rate-track" aria-hidden="true"><i style={{width:`${(row.summary.rate??0)*100}%`}}/></span>
+        <small>{number(row.summary.decided)} decisivas · {number(row.summary.wins)} V · {number(row.summary.losses)} D</small></div>
+      <span className="rate-track" aria-hidden="true"><i style={{width:`${row.summary.decided/maximum*100}%`}}/></span>
       <strong className="row-rate">{percent(row.summary.rate)}</strong>
     </button>)}</div>:<p className="section-note">Aguardando mapas com pelo menos {MAP_MIN_GAMES} partidas decisivas.</p>}
   </section>;
@@ -75,9 +78,9 @@ function MapSheet({map, history, elo, accountName, reviews, onOpen, onReview, on
     }catch(error){setError(error instanceof Error?error.message:'Não foi possível atualizar a referência.');}
     finally{setUpdating(false);}
   }
-  const picks=ordered(groupStats(map.rows, row=>[row.player_brawler]).filter(row=>row.decided>0)
+  const picks=orderByMatchCount(groupStats(map.rows, row=>[row.player_brawler]).filter(row=>row.decided>0)
     .map(row=>({...row,name:row.label,games:row.decided})));
-  const options=picks.filter(row=>row.decided>=3&&row.wins>row.losses).slice(0,2);
+  const options=ordered(picks.filter(row=>row.decided>=3&&row.wins>row.losses)).slice(0,2);
   const {victory,defeat}=reviewPair(map.rows);
   const tags=new Map<string,number>();
   for(const match of map.rows){
@@ -230,14 +233,14 @@ export function MapTraining({rows,history,elo,accountName,reviews,plan,archivedP
   const [map,setMap]=useState('');
   const active=maps.find(row=>row.key===(selectedMap?mapKey(selectedMap):map));
   const eligible=maps.filter(row=>row.summary.decided>=MAP_MIN_GAMES)
-    .map(row=>({...row,wins:row.summary.wins,games:row.summary.decided}));
-  const best=ordered(eligible), worst=ordered(eligible,true);
-  const strong=best.find(row=>row.summary.wins>row.summary.losses);
-  const weak=worst.find(row=>row.summary.losses>row.summary.wins);
+    .map(row=>({...row,wins:row.summary.wins,losses:row.summary.losses,games:row.summary.decided}));
+  const best=orderByMatchCount(eligible), worst=orderByMatchCount(eligible,'losses');
+  const strong=ordered(eligible).find(row=>row.summary.wins>row.summary.losses);
+  const weak=ordered(eligible,true).find(row=>row.summary.losses>row.summary.wins);
   return <>
     {!selectedMap&&<div className="two-col equal">
       <MapRanking title="Melhores mapas" rows={best} active={map} onChoose={setMap}/>
-      <MapRanking title="Piores mapas" rows={worst} active={map} onChoose={setMap}/>
+      <MapRanking title="Piores mapas" rows={worst} active={map} onChoose={setMap} worst/>
     </div>}
     <section className="card coaching-card"><div className="card-head"><div><h2><Target size={17}/> Ficha do mapa</h2>
       <p>Explore qualquer mapa jogado, mesmo com uma amostra pequena.</p></div></div>

@@ -41,7 +41,7 @@ Os testes conferiram as médias com amostras de tamanhos diferentes, a mudança 
 
 A ficha de brawlers tem recorte próprio de período. Por padrão, usa todo o histórico coletado e permite selecionar uma temporada. O pick rate pessoal divide as escolhas do brawler pelas partidas da conta com pick identificado no mesmo recorte. O win rate divide as vitórias pelas partidas decisivas, contando cada série agrupada uma vez. A forma recente usa janelas separadas de até 10 decisivas.
 
-Só as partidas com temporada identificada entram no recorte daquela temporada. A tabela mostra vitórias, derrotas e a base do pick rate. A ordenação por win rate e amostra usa o limite inferior de Wilson já disponível no painel. Os testes conferiram o histórico completo, a cobertura, a série 2–1, as janelas e os filtros de temporada, modo e mapa.
+Só as partidas com temporada identificada entram no recorte daquela temporada. A tabela mostra vitórias, derrotas e a base do pick rate. A opção de win rate ordena pela taxa exibida, da maior para a menor, e desempata pela amostra. Os testes conferiram o histórico completo, a cobertura, a série 2–1, as janelas e os filtros de temporada, modo e mapa.
 
 Para escolher picks, use a temporada e compare opções no mesmo mapa e modo. Abra o Draft Lab para considerar aliados, adversários e bans da composição. Para treinar, procure quedas de forma em recortes comparáveis e use a ficha do mapa para revisar uma vitória e uma derrota. Os números da conta descrevem os seus resultados e a frequência das suas escolhas. A referência competitiva segue o patch, o mapa e a amostra da fonte.
 
@@ -80,13 +80,13 @@ O botão da tabela abre o **Draft Lab** no mapa da linha, com a mesma temporada 
 
 ## Validação da etapa 8
 
-A tabela **Confrontos** em **Desempenho → Evolução por brawler** mostra o resultado da equipe quando enfrentou cada adversário no recorte. O mesmo adversário conta uma vez por série, mesmo quando aparece em mais de uma rodada. A cobertura informa quantas séries registraram ao menos um adversário. O win rate usa os resultados decisivos e a ordenação leva em conta o tamanho da amostra.
+A tabela **Confrontos** em **Desempenho → Draft → Evolução por brawler** mostra o resultado da equipe quando enfrentou cada adversário no recorte. O mesmo adversário conta uma vez por série, mesmo quando aparece em mais de uma rodada. A cobertura informa quantas séries registraram ao menos um adversário. O win rate usa os resultados decisivos. A ordenação começa pelo número de partidas e desempata pelas derrotas ou vitórias, conforme a opção selecionada.
 
 Os testes confirmaram a deduplicação, o tratamento de séries em aberto e sem composição, o filtro de temporada, a ordenação e a abertura de uma vitória por 2–1 diretamente no histórico.
 
 ## Validação da etapa 9
 
-Em **Desempenho → Evolução por brawler**, alterne entre **Adversários** e **Aliados**. A aba de aliados mostra o win rate da equipe quando o brawler esteve no mesmo time, com vitórias, derrotas e cobertura. Ela abre ordenada por melhor aproveitamento, levando em conta o tamanho da amostra. Cada aba mantém sua própria ordenação.
+Em **Desempenho → Draft → Evolução por brawler**, alterne entre **Adversários** e **Aliados**. A aba de aliados mostra o win rate da equipe quando o brawler esteve no mesmo time, com vitórias, derrotas e cobertura. Ela abre ordenada pelo número de partidas, com desempate pelo número de vitórias. Cada aba mantém sua própria ordenação.
 
 O teste verificou que aliados, adversários e o próprio pick entram nos grupos corretos. Também conferiu a deduplicação por série, a amostra com temporada selecionada, a troca de abas e a abertura da partida pelo aliado.
 

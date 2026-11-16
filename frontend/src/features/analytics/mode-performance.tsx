@@ -3,12 +3,11 @@ import { useMemo, useState } from 'react';
 import { BarChart3, Clock3, RotateCcw } from 'lucide-react';
 import { Card, Empty } from '@/components/dashboard-ui';
 import { findMap, MapImage, ModeIcon, Portrait } from '@/components/game';
-import { durationLabel, groupStats, modeName, normalize, number, percent, stats } from '@/lib/data';
+import { durationLabel, groupStats, modeName, normalize, number, orderByMatchCount, percent, stats } from '@/lib/data';
 import type { Battle } from '@/lib/data';
 import { draftMetaMapKey } from '@/lib/draftmeta';
 import { seriesBattle, seriesPerformance } from '@/lib/match-series';
 import type { MatchSeries } from '@/lib/match-series';
-import { ordered } from '@/lib/scouting';
 
 const modeKey=(battle: Battle)=>normalize(battle.mode);
 const mapKey=(battle: Battle)=>JSON.stringify([modeKey(battle),draftMetaMapKey(battle.map_name??'')]);
@@ -23,14 +22,10 @@ function breakdown(rows: Battle[], key: (battle:Battle)=>string) {
     if(group)group.push(row);
     else groups.set(id,[row]);
   }
-  return [...groups].map(([id,battles])=>({id,battle:battles[0],...stats(battles)}))
-    .sort((a,b)=>b.games-a.games);
+  return orderByMatchCount([...groups].map(([id,battles])=>({id,battle:battles[0],...stats(battles)})));
 }
 
 type BrawlerStats=ReturnType<typeof groupStats>[number];
-function sortBrawlers(rows: BrawlerStats[], worst=false) {
-  return ordered(rows.map(row=>({...row,games:row.decided,total:row.games})),worst);
-}
 
 function RecordLine({ row }: { row: ReturnType<typeof stats> }) {
   const unknown=row.games-row.decided-row.draws;
@@ -45,9 +40,10 @@ function WinRate({ row }: { row: ReturnType<typeof stats> }) {
 
 function BrawlerTable({ title, rows, worst=false }: { title:string; rows:BrawlerStats[]; worst?:boolean }) {
   return <div className="mode-brawler-table"><h3>{title}</h3>
-    {rows.length?<PagedTable label={title} rows={sortBrawlers(rows,worst)} headings={<><th>Brawler</th><th>Win rate</th><th>Partidas</th></>} renderRow={row=><tr key={row.label}><td><span className="image-label">
-        <Portrait name={row.label}/>{row.label}</span></td><td><WinRate row={{...row,games:row.total}}/></td>
-        <td>{number(row.total)}</td></tr>}/>:<p className="muted">Sem brawlers identificados neste recorte.</p>}
+    {rows.length?<PagedTable label={title} rows={orderByMatchCount(rows,worst?'losses':'wins')} headings={<><th>Brawler</th><th>Win rate</th>
+      <th aria-sort="descending">Partidas</th><th>{worst?'Derrotas':'Vitórias'}</th></>} renderRow={row=><tr key={row.label}><td><span className="image-label">
+        <Portrait name={row.label}/>{row.label}</span></td><td><WinRate row={row}/></td><td>{number(row.games)}</td>
+        <td>{number(worst?row.losses:row.wins)}</td></tr>}/>:<p className="muted">Sem brawlers identificados neste recorte.</p>}
   </div>;
 }
 
@@ -95,8 +91,8 @@ export function ModePerformance({ matches }: { matches:MatchSeries[] }) {
   const mapBattle=maps.find(row=>row.id===activeMap)?.battle;
   const currentMode=modes.find(row=>row.id===activeMode)?.battle.mode;
   const current=mapBattle?.map_name??(currentMode?modeName(currentMode):'Todos os modos');
-  const best=sortBrawlers(picks).find(row=>row.decided>=3&&row.wins>row.losses);
-  const hardest=sortBrawlers(enemyRows,true).find(row=>row.decided>=3&&row.losses>row.wins);
+  const best=orderByMatchCount(picks).find(row=>row.decided>=3&&row.wins>row.losses);
+  const hardest=orderByMatchCount(enemyRows,'losses').find(row=>row.decided>=3&&row.losses>row.wins);
   return <Card title="Desempenho por modo e mapa" icon={BarChart3}
     sub="Histórico ranqueado da conta · Win rate = vitórias ÷ (vitórias + derrotas)" className="mode-performance">
     {rows.length?<>
@@ -136,7 +132,7 @@ export function ModePerformance({ matches }: { matches:MatchSeries[] }) {
         <BrawlerTable key={JSON.stringify(['picks',activeMode,activeMap])} title="Com quem você ganha" rows={picks}/>
         <BrawlerTable key={JSON.stringify(['opponents',activeMode,activeMap,activePick])} title={activePick?`Contra quem ${activePick} tem mais dificuldade`:'Contra quem você perde'} rows={enemyRows} worst/>
       </div>
-      <p className="section-note">Os confrontos mostram o resultado da sua equipe quando o adversário estava do outro lado. Os destaques exigem pelo menos três partidas decisivas e levam em conta o tamanho da amostra.</p>
+      <p className="section-note">As tabelas começam pelo maior número de partidas. O desempate usa o número de vitórias ou derrotas, conforme a tabela. Os destaques exigem pelo menos três partidas decisivas.</p>
     </>:<Empty icon={BarChart3} title="Sem partidas ranqueadas no recorte"/>}
   </Card>;
 }

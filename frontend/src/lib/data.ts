@@ -105,6 +105,14 @@ export function stats(battles: Pick<Battle, 'result'>[]) {
   return { wins, losses, draws, decided, games: battles.length, rate: decided ? wins / decided : null };
 }
 
+export function orderByMatchCount<T extends { games:number; wins:number; losses:number }>(rows:readonly T[], result:'wins'|'losses'='wins') {
+  return rows.slice().sort((a,b)=>b.games-a.games||b[result]-a[result]);
+}
+
+export function orderByWinRate<T extends { games:number; wins:number }>(rows:readonly T[]) {
+  return rows.slice().sort((a,b)=>(b.games?b.wins/b.games:-1)-(a.games?a.wins/a.games:-1)||b.games-a.games);
+}
+
 export function groupStats(battles: Battle[], labels: (battle: Battle) => (string | null)[]) {
   const groups = new Map<string, { label: string; rows: Battle[] }>();
   for (const battle of battles) {

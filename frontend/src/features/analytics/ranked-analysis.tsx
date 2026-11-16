@@ -198,7 +198,7 @@ function ReviewDetails({ map,onAnalyze,onOpen }: { map:ReviewMap; onAnalyze:()=>
       </button>):<span>Sem picks identificados.</span>}</div>
       <div><h3>Adversários nas derrotas</h3>{opponents.length?opponents.map(opponent=><button className="text-button image-label" key={normalize(opponent.name)}
         aria-pressed={selection===`opponent:${opponent.name}`} onClick={()=>show(`opponent:${opponent.name}`)}>
-        <Portrait name={opponent.name}/><span>{opponent.name}<small>{number(opponent.matches.length)} de {number(map.losses)} derrotas</small></span>
+        <Portrait name={opponent.name}/><span>{opponent.name}<small>{number(opponent.games)} séries · {number(opponent.losses)} de {number(map.losses)} derrotas</small></span>
       </button>):<span>Sem adversários identificados nas derrotas.</span>}</div>
     </div>
     <p className="section-note"><button className="text-button" aria-pressed={selection==='losses'}

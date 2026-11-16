@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, Bomb, Check, ChevronDown, ChevronLeft, ChevronRight, Crosshair, Flame, HeartPulse, Map as MapIcon, Search, Shield, SlidersHorizontal, Swords, Target, Undo2, X } from 'lucide-react';
 import type { Battle, Dataset, Filters } from '@/lib/data';
-import { dateTime, groupStats, modeName, normalize, number, percent } from '@/lib/data';
+import { dateTime, groupStats, modeName, normalize, number, orderByMatchCount, percent } from '@/lib/data';
 import { byModeId, brawlers, findMap, MapImage, maps, ModeIcon, pickableModes, Portrait, roleName } from '@/components/game';
 import { accountCounters, draftPicks, ordered, publicCounters, publicPicks, usePublicStats } from '@/lib/scouting';
 import type { ScoutingRow } from '@/lib/scouting';
@@ -448,7 +448,8 @@ export function CounterFinder({ matches, mode, map, filters, imported }: {
   const sources=[...new Map(matching.map(r=>[cohortKey(r),r])).entries()];
   const active=sources.find(([key])=>key===cohort)??sources[0];
   const rows = source==='public' ? publicCounters(meta.sample,target?[target]:[]) : source==='account' ? accountCounters(matches,target?[target]:[]):
-    ordered(matching.filter(r=>cohortKey(r)===active?.[0]).map(r=>({name:r.brawler,wins:r.wins,games:r.games,details:[{name:r.opponent,wins:r.wins,games:r.games}]})));
+    matching.filter(r=>cohortKey(r)===active?.[0]).map(r=>({name:r.brawler,wins:r.wins,games:r.games,details:[{name:r.opponent,wins:r.wins,games:r.games}]}));
+  const results=rows.map(row=>({...row,losses:row.games-row.wins}));
   return <section className="card"><div className="card-head"><div><h2><Crosshair size={17}/>Encontrar counters</h2><p>Compare resultados observados contra um brawler específico.</p></div></div>
     <div className="counter-controls"><label>Brawler adversário<select value={target} onChange={e=>setTarget(e.target.value)}><option value="">Selecione um brawler</option>
       {brawlers.map(b=><option key={b.id}>{b.name}</option>)}</select></label>
@@ -459,8 +460,8 @@ export function CounterFinder({ matches, mode, map, filters, imported }: {
     {strong.length > 0 && <div className="quick-targets"><span>Brawlers fortes na amostra</span>{strong.map(b =>
       <button key={b.name} className="button small subtle" onClick={()=>{setTarget(b.name);setSource('public');}}><Portrait name={b.name}/>{b.name}</button>)}</div>}
     {rows.length ? <div className="counter-sides">
-      <div><h3>Melhores respostas</h3><ScoutingRows rows={ordered(rows)} pairs limit={5} empty="Sem observações."/></div>
-      <div><h3>Confrontos mais difíceis</h3><ScoutingRows rows={ordered(rows,true)} pairs limit={5} empty="Sem observações."/></div>
+      <div><h3>Melhores respostas</h3><ScoutingRows rows={orderByMatchCount(results)} pairs limit={5} empty="Sem observações."/></div>
+      <div><h3>Confrontos mais difíceis</h3><ScoutingRows rows={orderByMatchCount(results,'losses')} pairs limit={5} empty="Sem observações."/></div>
     </div>:<ScoutingRows rows={rows} pairs empty={target?'Sem observações suficientes neste recorte.':'Escolha um alvo ou selecione um dos brawlers destacados.'}/>}
     {source==='public'&&meta.index&&<div className="scout-foot"><a href={meta.index.url} target="_blank" rel="noreferrer">{meta.index.source}</a> · {meta.index.start} a {meta.index.end} · {meta.index.unit??'séries'} decisivos</div>}
     {source==='account'&&<div className="scout-foot">Histórico pessoal · {map||'Todos os mapas'} · {number(matches.length)} partidas no recorte</div>}

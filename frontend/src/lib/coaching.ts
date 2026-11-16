@@ -92,8 +92,8 @@ export function brawlerMatchups(matches: MatchSeries[], brawler: string, side:'a
     if(seen.size)covered++;
   }
   const rows=[...groups].map(([key,{name,battles}])=>{
-    const {wins,losses,decided,rate}=stats(battles);
-    return {key,name,wins,losses,games:decided,rate,
+    const {wins,losses,games,rate}=stats(battles);
+    return {key,name,wins,losses,games,rate,
       victory:battles.find(battle=>battle.result==='victory'),
       defeat:battles.find(battle=>battle.result==='defeat')};
   });

@@ -4,35 +4,35 @@ import { PublicMeta } from '@/features/analytics/analytics';
 import { MetaPeriods } from '@/features/collection/collector-panel';
 import { findMap, MapImage, ModeIcon, Portrait, roleName } from '@/components/game';
 import { LiveMeta } from '@/lib/live';
-import { byId, ordered, publicPicks, usePublicStats, wilson } from '@/lib/scouting';
+import { byId, ordered, publicPicks, usePublicStats } from '@/lib/scouting';
 import type { PublicStats } from '@/lib/scouting';
 import type { Battle, Filters } from '@/lib/data';
 import { dateTime, modeName, normalize, number, percent } from '@/lib/data';
 
 type Metric='win'|'pick'|'ban';
 const MIN_TIER_GAMES=30;
-type ChartRow={name:string; value:number; detail:string};
+type ChartRow={name:string; value:number; detail:string; sample?:number};
 
 function metaLeaders(sample:PublicStats, volume:number, metric:Metric):ChartRow[] {
   const picks=publicPicks(sample);
   if(metric==='ban'){
     if(!sample.banKnown)return [];
-    return [...(sample.bans??[])].sort((a,b)=>b[1]-a[1]).flatMap(([id,n])=>{
+    return (sample.bans??[]).flatMap(([id,n])=>{
       const b=byId.get(id);
       return b?[{name:b.name,value:n/sample.banKnown!,detail:`${number(n)} bans · ${number(sample.banKnown!)} registros com lista`}]:[];
     });
   }
-  if(metric==='pick')return picks.sort((a,b)=>(b.pickCount??0)-(a.pickCount??0)).map(r=>({
+  if(metric==='pick')return picks.map(r=>({
     name:r.name,value:volume?(r.pickCount??0)/(volume*6):0,detail:`${number(r.pickCount??0)} escolhas`,
   }));
-  return ordered(picks.filter(r=>r.games>0)).map(r=>({name:r.name,value:r.wins/r.games,detail:`${number(r.games)} resultados decisivos`}));
+  return picks.filter(r=>r.games>0).map(r=>({name:r.name,value:r.wins/r.games,sample:r.games,detail:`${number(r.games)} resultados decisivos`}));
 }
 
 export function VisualRanking({title,rows,limit=5,metric='win',empty,portraits=true,sub}:{
   title:string;rows:ChartRow[];limit?:number;metric?:Metric;empty?:string;portraits?:boolean;sub?:string;
 }) {
   const Icon=metric==='ban'?Ban:metric==='pick'?Crosshair:Trophy;
-  const shown=rows.slice(0,limit);
+  const shown=rows.slice().sort((a,b)=>b.value-a.value||(b.sample??0)-(a.sample??0)||a.name.localeCompare(b.name,'pt-BR')).slice(0,limit);
   const scale=metric==='win'?1:Math.max(0.01,...shown.map(r=>r.value));
   return <section className="card visual-ranking">
     <div className="card-head"><div><h2><Icon size={17}/>{title}</h2>{sub&&<p>{sub}</p>}</div></div>
@@ -59,11 +59,11 @@ export function MetaRankings({map='',filters}: {map?:string;filters?:Filters}) {
     const role=brawler?roleName(brawler.role):'Outras';
     classes.set(role,(classes.get(role)??0)+(pickCount??decisive));
   }
-  const classRows=[...classes].sort((a,b)=>b[1]-a[1]).map(([name,pickCount])=>({
+  const classRows=[...classes].map(([name,pickCount])=>({
     name,value:volume?pickCount/(volume*6):0,detail:`${number(pickCount)} escolhas`,
   }));
   const allies=(sample?.allies??[]).filter(([a,b,,n])=>a<b&&n>=MIN_TIER_GAMES)
-    .sort((a,b)=>wilson(b[2],b[3])-wilson(a[2],a[3])).slice(0,5);
+    .sort((a,b)=>b[2]/b[3]-a[2]/a[3]||b[3]-a[3]).slice(0,5);
   return <><div className="visual-grid">
     <VisualRanking title="Melhores picks" rows={base.filter(matchesFilter)}/>
     <VisualRanking title="Mais escolhidos" rows={picks.filter(matchesFilter)} metric="pick"/>
@@ -157,7 +157,7 @@ export function MetaDashboard({filters,matches,onMap}:{
         metric={topMetric} limit={10} rows={sample?metaLeaders(sample,volume,topMetric).filter(r=>!filters.player_brawler||normalize(r.name)===normalize(filters.player_brawler)):[]}/>
     </div>}
     {(window?.minimum_elo!=null||period==='competitive')&&<p className="section-note">Partidas observadas em históricos de jogadores com Elo de pelo menos {number(window?.minimum_elo??report?.tracking?.minimum_elo??8250)} no perfil consultado.</p>}
-    {tab!=='map'&&meta.index&&<p className="section-note">Melhores picks consideram taxa de vitória e tamanho da amostra. Pick rate usa os espaços de escolha.
+    {tab!=='map'&&meta.index&&<p className="section-note">O ranking de win rate desempata pelo tamanho da amostra. Pick rate usa os espaços de escolha.
       {' '}<a href={meta.index.url} target="_blank" rel="noreferrer">{meta.index.source}</a></p>}
   </div>;
 }
