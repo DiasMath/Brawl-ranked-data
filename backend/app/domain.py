@@ -57,12 +57,13 @@ def bans(value):
     if not isinstance(value, list):
         return None
     names = [string(entry) or string(obj(obj(entry).get("brawler")).get("name"))
-             or string(obj(entry).get("brawlerName")) for entry in value]
+             or string(obj(entry).get("brawlerName")) or string(obj(entry).get("name")) for entry in value]
     return names if all(names) else None
 
 
 def battle_bans(battle):
-    return bans(obj(battle.get("draft")).get("bans", battle.get("bans")))
+    draft_bans = bans(obj(battle.get("draft")).get("bans"))
+    return draft_bans if draft_bans is not None else bans(battle.get("bans"))
 
 
 def battle_kd(battle, account):
@@ -178,7 +179,7 @@ def parse_battle(item, account):
     event_id = integer(event.get("id"))
     key = sha256(encoded([account, iso(played)]).encode()).hexdigest()
     result = string(battle.get("result"))
-    ban_list = battle_bans(battle) if ranked else None
+    ban_list = battle_bans(battle)
     rank, score, season = ranked_reading(battle) if ranked else (None, None, None)
     return {
         "id": key, "player_tag": account, "played_at": played, "event_id": event_id,

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, Clock3, List, Star, Swords, X } from 'lucide-react';
+import { Ban, ChevronDown, ChevronRight, Clock3, List, Star, Swords, X } from 'lucide-react';
 import { Empty, Pill } from '@/components/dashboard-ui';
 import { PagedTable } from '@/components/data-table';
 import { findMap, MapImage, ModeIcon, ModeLabel, Portrait, RankArt } from '@/components/game';
@@ -7,7 +7,7 @@ import { dateTime, durationLabel, modeName, number, resultName, safeLink } from 
 import { ReplayAnnotation } from '@/features/analytics/replay-annotation';
 import type { ReplayReview } from '@/lib/coaching';
 import type { Battle } from '@/lib/data';
-import { matchKd, seriesBans, seriesDuration, seriesRank } from '@/lib/match-series';
+import { hasOfficialBans, matchKd, seriesBans, seriesDuration, seriesRank } from '@/lib/match-series';
 import type { MatchElo, MatchSeries } from '@/lib/match-series';
 
 function resultTone(result: Battle['result']) {
@@ -35,12 +35,31 @@ export function MatchList({ matches, elo, onOpen, compact = false }: {
       <td><span className="image-label"><Portrait name={b.player_brawler}/>{b.player_brawler ?? '—'}</span></td><td>
         <Pill kind={resultTone(result)}>{rounds.length>1&&!result?'Resultado em aberto':resultName(result)}</Pill>
         {rounds.length>1&&<small title="Agrupamento inferido a partir do histórico">{wins}–{losses} · {rounds.length} rodadas</small>}
+        {b.ranked&&rounds.length===1&&<small>Registro isolado · série não confirmada</small>}
         {duration!=null&&<small>{durationLabel(duration)}</small>}</td>
       {showKd&&<td>{kd?`${number(kd.kills)} / ${number(kd.deaths)}`:null}</td>}
       {showRank&&<td>{rankLabel&&<span className="image-label inline-rank">
         <RankArt rank={rankLabel}/><span>{rankLabel}{!rank&&<small>Estimativa · Perfil</small>}</span></span>}</td>}<td><button className="icon-button" aria-label={`Detalhar partida de ${dateTime(b.played_at)}`}
         onClick={() => onOpen(b)}><ChevronRight size={16} /></button></td></tr>;
     }}/>;
+}
+
+function MatchBans({ match, series }: { match: Battle; series?: MatchSeries }) {
+  const rounds = series?.rounds ?? [match];
+  const consistent = series ? seriesBans(series) : undefined;
+  const rows = consistent ? [consistent] : rounds.filter(hasOfficialBans);
+  if (!rows.length) return null;
+
+  return <section className="match-bans" aria-label="Bans da partida">
+    <h3><Ban size={15}/> Bans da partida</h3>
+    <p className="muted">Histórico da Supercell</p>
+    {rows.map(row => <div key={row.id} className="match-ban-list">
+      {rounds.length > 1 && <small>Lista recebida na rodada {rounds.indexOf(row) + 1}</small>}
+      {row.bans.length ? <ul>{row.bans.map((name, i) => <li key={i} className="image-label">
+        <Portrait name={name}/><span>{name}</span>
+      </li>)}</ul> : <p>Sem bans</p>}
+    </div>)}
+  </section>;
 }
 
 export function MatchDetail({ match, series, elo, onRound, raw, review, onClose, onReview }: {
@@ -60,7 +79,6 @@ export function MatchDetail({ match, series, elo, onRound, raw, review, onClose,
   const duration=series?seriesDuration(series):match.duration_seconds;
   const totalKd=grouped?matchKd(grouped):null;
   const rank=series?seriesRank(series,match):(!match.rank_source?match:undefined);
-  const bans=series?seriesBans(series,match):(!match.bans_source?match:undefined);
   const score=match.score_source?null:match.rank_score;
   const kd=match.kd&&!match.kd.reference?match.kd:null;
   const calendar=(!match.season||match.season_source)?match.season_by_date:null;
@@ -71,7 +89,6 @@ export function MatchDetail({ match, series, elo, onRound, raw, review, onClose,
     { label:'Pontos de rank', value:score ?? elo?.after, note:score!=null?'Histórico da Supercell':'Estimativa após a partida · Perfil' },
     { label:'Temporada', value:(!match.season_source&&match.season)||calendar?.label, note:calendar?
       <>Estimativa pela data{seasonLink&&<> · <a href={seasonLink} target="_blank" rel="noreferrer">Calendário</a></>}</>:'Histórico da Supercell' },
-    { label:'Bans', value:bans?.bans==null?null:bans.bans.join(', ')||'Sem bans', note:bans===match?'Histórico da Supercell':'Outra rodada da série' },
   ].filter(field=>field.value!=null);
   return <dialog ref={dialog} className="drawer" onCancel={onClose} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
     <div className="drawer-content"><div className="drawer-head"><div><span className="eyebrow">Histórico de partidas</span>
@@ -108,6 +125,7 @@ export function MatchDetail({ match, series, elo, onRound, raw, review, onClose,
         {typeof value==='number'?number(value):value}<small>{note}</small></dd></div>)}
       {star&&<div><dt>{grouped?'Craque da rodada':'Craque da partida'}</dt><dd className="image-label"><Star size={15}/>{star}</dd></div>}
     </dl>}
+    <MatchBans match={match} series={grouped??undefined}/>
     {groups.length ? groups.map(group => {
       const members = match.players.filter(p => p.team_index === group);
       const hasSelf = members.some(p => p.side === 'self');

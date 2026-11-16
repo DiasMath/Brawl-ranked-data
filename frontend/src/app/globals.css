@@ -1057,3 +1057,10 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
 .season-comparison-table td:first-child .image-label + .image-label { margin-top:4px; }
 .season-rate { display:grid; align-content:start; gap:2px; }
 @media (max-width:680px) { .season-comparison-summary { grid-template-columns:1fr; } }
+
+.match-bans { display:grid; gap:5px; padding:10px; border:1px solid var(--border); border-radius:8px; }
+.match-bans h3 { display:flex; align-items:center; gap:6px; margin:0; }
+.match-bans p, .match-ban-list ul { margin:0; }
+.match-ban-list small { color:var(--muted); }
+.match-ban-list ul { display:flex; flex-wrap:wrap; gap:6px; padding:6px 0 0; list-style:none; }
+.match-ban-list li { padding:3px 6px; border:1px solid var(--border); border-radius:6px; }

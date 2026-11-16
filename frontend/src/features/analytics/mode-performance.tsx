@@ -6,7 +6,7 @@ import { findMap, MapImage, ModeIcon, Portrait } from '@/components/game';
 import { durationLabel, groupStats, modeName, normalize, number, percent, stats } from '@/lib/data';
 import type { Battle } from '@/lib/data';
 import { draftMetaMapKey } from '@/lib/draftmeta';
-import { seriesPerformance } from '@/lib/match-series';
+import { seriesBattle, seriesPerformance } from '@/lib/match-series';
 import type { MatchSeries } from '@/lib/match-series';
 import { ordered } from '@/lib/scouting';
 
@@ -76,7 +76,7 @@ export function ModePerformance({ matches }: { matches:MatchSeries[] }) {
   const [mode,setMode]=useState('');
   const [map,setMap]=useState('');
   const [pick,setPick]=useState('');
-  const rows=useMemo(()=>matches.map(match=>({...match.latest,result:match.result})),[matches]);
+  const rows=useMemo(()=>matches.map(seriesBattle),[matches]);
   const modes=useMemo(()=>breakdown(rows.filter(b=>b.mode),modeKey),[rows]);
   const activeMode=modes.some(row=>row.id===mode)?mode:'';
   const modeRows=useMemo(()=>activeMode?rows.filter(b=>modeKey(b)===activeMode):rows,[rows,activeMode]);
@@ -114,9 +114,9 @@ export function ModePerformance({ matches }: { matches:MatchSeries[] }) {
         {mapBattle&&<MapImage map={findMap(mapBattle.map_name,mapBattle.event_id,mapBattle.mode)}/>}
         <div><h3>{current}</h3><strong>{percent(total.rate)}</strong> <span>em {number(total.games)} {total.games===1?'partida':'partidas'}</span><RecordLine row={total}/></div>
         {best&&<div><small>Melhor pick próprio</small><span className="image-label"><Portrait name={best.label}/>
-          <strong>{best.label}</strong></span><small>{percent(best.rate)} · {number(best.decided)} decisivas</small></div>}
+          <strong>{best.label}</strong></span><small>{percent(best.rate)} · {number(best.decided)} partidas decisivas</small></div>}
         {hardest&&<div><small>Adversário mais difícil{activePick&&` com ${activePick}`}</small><span className="image-label"><Portrait name={hardest.label}/>
-          <strong>{hardest.label}</strong></span><small>{percent(hardest.rate)} · {number(hardest.decided)} decisivas</small></div>}
+          <strong>{hardest.label}</strong></span><small>{percent(hardest.rate)} · {number(hardest.decided)} partidas decisivas</small></div>}
       </div>
       {(series.victories.average!==null||series.defeats.average!==null||series.comebackRate!==null)&&<SeriesPerformance sample={series}/>}
       <div className="mode-tables">

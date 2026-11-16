@@ -238,7 +238,7 @@ A primeira versão usa tier list, win rate, amostra por brawler e variações de
 
 A comparação usa a conta selecionada, o mapa e a janela do snapshot quando a fonte informa as duas datas. As datas publicadas são interpretadas em UTC e as partidas posteriores à consulta ficam fora do recorte. Mostra as amostras dos dois lados e a diferença em pontos percentuais a partir de 10 partidas decisivas da conta. O seletor de patch permite abrir snapshots já salvos.
 
-**Bans observados nas minhas partidas** aparece quando a Supercell publica listas de bans para o recorte. Uma lista explicitamente vazia entra no denominador.
+**Bans observados nas minhas partidas** aparece quando a Supercell publica listas de bans para o recorte. Uma lista explicitamente vazia entra no denominador. Em **Partidas**, a seção **Bans da partida** mostra as listas oficiais recebidas e indica a rodada de origem quando houver uma série.
 
 Os detalhes identificam campos da Supercell e estimativas. Quando falta a temporada e há uma única janela cadastrada que abrange a partida, o painel mostra **Estimativa pela data** e o link do calendário. Rank e pontos do perfil ficam na progressão. A barra superior mostra o horário da última coleta bem-sucedida e sinaliza atraso após três intervalos configurados.
 
@@ -272,7 +272,7 @@ Para reproduzir a estimativa, instale `duckdb`, `numpy` e `scipy` no ambiente de
 
 ### Revisão por mapa e sessões
 
-Em **Desempenho**, abra um mapa para ver suas últimas 10 partidas decisivas e as 10 anteriores, os brawlers usados e a comparação com o snapshot do DraftMeta. Os rankings dos mapas exigem 10 partidas decisivas. Para revisar, abra as fichas de vitória e derrota ou o detalhe de qualquer ranqueada. As observações vêm do replay assistido no jogo e ficam salvas por conta neste navegador. O plano da próxima sessão registra um ajuste e acompanha os resultados das partidas coletadas entre o início e a conclusão. A exportação do histórico inclui essas anotações.
+Em **Desempenho**, as análises ranqueadas incluem as séries agrupadas com duas vitórias ou duas derrotas. Registros isolados e séries sem resultado final ficam disponíveis em **Partidas**. Em **Desempenho**, abra um mapa para ver suas últimas 10 partidas decisivas e as 10 anteriores, os brawlers usados e a comparação com o snapshot do DraftMeta. Os rankings dos mapas exigem 10 partidas decisivas. Para revisar, abra as fichas de vitória e derrota ou o detalhe de qualquer ranqueada. As observações vêm do replay assistido no jogo e ficam salvas por conta neste navegador. O plano da próxima sessão registra um ajuste e acompanha os resultados das partidas coletadas entre o início e a conclusão. A exportação do histórico inclui essas anotações.
 
 Em **Desempenho → Comparar temporadas**, compare a última temporada iniciada com a anterior. O recorte padrão limita ambos os lados ao mesmo tempo desde o início registrado no calendário. Quando faltar o início da temporada anterior, selecione o mesmo número de séries registradas ou o histórico disponível completo. A comparação mostra win rate em pontos percentuais, volume, viradas e recortes por brawler, modo e mapa. O denominador do pick rate inclui as escolhas identificadas no mesmo contexto. Quando faltarem partidas decisivas em um dos lados, a diferença de win rate fica indisponível.
 

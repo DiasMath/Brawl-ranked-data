@@ -61,7 +61,7 @@ def collection_history(after: int = 0, tag: str | None = None):
         run_id = latest["id"] if latest else 0
         snapshot = dataset(cursor, player, after_run=after if 0 < after <= run_id else 0,
                            include_archive=True, include_updates=False)
-        return {"run_id": run_id, "snapshot": snapshot}
+        return {"run_id": run_id, "snapshot": snapshot, "season_windows": True}
 
 
 @router.get("/api/collection/updates")

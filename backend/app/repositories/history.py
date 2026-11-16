@@ -72,14 +72,15 @@ def dataset(cursor, player, after_run=0, include_archive=False, include_updates=
                CASE WHEN b.rank_score IS NULL AND e.rank_score IS NOT NULL THEN 'evidência' END AS score_source,
                CASE WHEN b.season IS NULL AND e.season IS NOT NULL THEN 'evidência' END AS season_source,
                CASE WHEN b.bans IS NULL AND e.bans IS NOT NULL THEN 'evidência' END AS bans_source,
-               o.first_seen_at, o.delay_observed, b.raw, calendar.season_by_date, e.performance
+               o.first_seen_at, o.delay_observed, b.raw, calendar.season_by_date, calendar.season_window, e.performance
         FROM battles b LEFT JOIN battle_evidence e ON e.battle_id=b.id
         LEFT JOIN battle_collection o ON o.battle_id=b.id
         LEFT JOIN LATERAL (
             SELECT CASE WHEN COUNT(*)=1 THEN json_build_object('label', MIN(label), 'source_url', MIN(source_url)) END
-                AS season_by_date
+                AS season_by_date,
+                CASE WHEN COUNT(*)=1 THEN MIN(id) END AS season_window
             FROM ranked_seasons WHERE b.ranked AND b.played_at >= starts_at AND b.played_at < ends_at
-        ) calendar ON b.ranked AND b.season IS NULL AND e.season IS NULL
+        ) calendar ON b.ranked
         WHERE b.player_tag=%s{changed} ORDER BY b.played_at DESC
     """, params)
     matches = cursor.fetchall()
@@ -106,10 +107,14 @@ def dataset(cursor, player, after_run=0, include_archive=False, include_updates=
         if match["ranked"]:
             rank, score, season = ranked_reading(battle)
             for field, prefix, value in (("rank_label", "rank", rank), ("rank_score", "score", score),
-                                         ("season", "season", season), ("bans", "bans", battle_bans(battle))):
+                                         ("season", "season", season)):
                 if value is not None and (match[field] is None or match[f"{prefix}_source"]):
                     match[field] = value
                     match[f"{prefix}_source"] = match[f"{prefix}_reference"] = None
+        official_bans = battle_bans(battle)
+        if official_bans is not None:
+            match["bans"] = official_bans
+            match["bans_source"] = match["bans_reference"] = None
         if match["season"] is not None:
             match["season_by_date"] = None
         match["players"] = []

@@ -9,7 +9,7 @@ import type { ReplayReview, TrainingPlan } from '@/lib/coaching';
 import { updateTrainingPlan } from '@/lib/coaching';
 import type { Section } from './navigation';
 
-const historyVersion=6;
+const historyVersion=7;
 
 export function useDashboard() {
   const [section,setSection]=useState<Section>('overview');
@@ -91,14 +91,15 @@ export function useDashboard() {
     const previous=await loadLocal(tag);
     const after=previous.serverHistoryVersion===historyVersion?previous.serverRunId??0:0;
     const params=new URLSearchParams({tag,after:String(after)});
-    const history=await collectionRequest<{run_id:number;snapshot:unknown}>(
+    const history=await collectionRequest<{run_id:number;snapshot:unknown;season_windows?:boolean}>(
       '/api/collection/history?'+params,{signal},
     );
     if(signal?.aborted)return;
     const latest=await loadLocal(tag);
     const merged=fromSnapshot(history.snapshot,latest);
     if(signal?.aborted)return;
-    const next={...merged,serverRunId:history.run_id,serverHistoryVersion:historyVersion};
+    const next={...merged,serverRunId:history.run_id,
+      serverHistoryVersion:history.season_windows?historyVersion:undefined};
     await saveLocal(next);
     if(!signal?.aborted)setLocal(next);
   }

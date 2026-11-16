@@ -34,7 +34,7 @@ import { SampleCollection } from '@/features/meta/sample-collection';
 import publicIndex from '@public/scouting/index.json';
 import { columnFilters, navigation, subtitles } from './navigation';
 import { useDashboard } from './use-dashboard';
-import { filteredSeries, matchEloChanges, matchSeries, seriesBattle } from '@/lib/match-series';
+import { completedRankedSeries, filteredSeries, matchEloChanges, matchSeries, seriesBattle } from '@/lib/match-series';
 
 export default function Dashboard() {
   const {section, filters, setFilters, book, local, period, setPeriod, server, serverError,
@@ -96,10 +96,13 @@ export default function Dashboard() {
   const elo=useMemo(()=>matchEloChanges(series,local.progress),[series,local.progress]);
   const historySeries=section==='matches'?filteredSeries(series,data.matches,filters,rankedOnly,elo):[];
   const rankedSeries=section==='overview'||section==='performance'?filteredSeries(series,data.matches,filters,true,elo):[];
-  const performanceRows=section==='performance'?rankedSeries.map(seriesBattle):[];
-  const comparisonIds=useMemo(()=>new Set(section==='performance'?filteredSeries(rankedHistory,data.matches,{
+  const performanceHistory=useMemo(()=>rankedHistory.filter(completedRankedSeries),[rankedHistory]);
+  const performanceSeries=section==='performance'?rankedSeries.filter(completedRankedSeries):[];
+  const performanceRows=performanceSeries.map(seriesBattle);
+  const incompletePerformance=section==='performance'?rankedSeries.length-performanceSeries.length:0;
+  const comparisonIds=useMemo(()=>new Set(section==='performance'?filteredSeries(performanceHistory,data.matches,{
     ...emptyFilters,map_name:filters.map_name,mode:filters.mode,rank_label:filters.rank_label,
-  },true,elo).map(match=>match.id):[]),[section,rankedHistory,data.matches,filters.map_name,filters.mode,filters.rank_label,elo]);
+  },true,elo).map(match=>match.id):[]),[section,performanceHistory,data.matches,filters.map_name,filters.mode,filters.rank_label,elo]);
   const selectedSeries=match&&series.find(item=>item.rounds.some(round=>round.id===match.id));
   const metaMatches=(section==='draft'||section==='meta')?filteredSeries(rankedHistory,data.matches,metaFilters,true,elo):[];
   const metaAccount=metaMatches.map(seriesBattle);
@@ -192,16 +195,19 @@ export default function Dashboard() {
           action={<label className="switch-label"><input type="checkbox" checked={rankedOnly} onChange={e=>setRankedOnly(e.target.checked)}/> Só ranqueadas</label>}>
           <MatchList key={JSON.stringify([filters,rankedOnly])} matches={historySeries} elo={elo} onOpen={b=>setSelected(b.id)}/></Card>}
         {section==='performance'&&<div className="stack" key={`performance:${book.active}`}>
-          <SeasonComparison matches={rankedHistory} calendar={data.ranked_seasons??[]} exportedAt={data.exported_at}
+          {incompletePerformance>0&&<p className="section-note">
+            {number(incompletePerformance)} {incompletePerformance===1?'registro ficou':'registros ficaram'} fora do Desempenho neste recorte por falta de confirmação do resultado da série. Consulte em Partidas.
+          </p>}
+          <SeasonComparison matches={performanceHistory} calendar={data.ranked_seasons??[]} exportedAt={data.exported_at}
             allowed={comparisonIds} brawler={filters.player_brawler}/>
-          <ModePerformance matches={rankedSeries}/>
+          <ModePerformance matches={performanceSeries}/>
           <BrawlerEvolution key={JSON.stringify([filters.season,filters.player_brawler,filters.map_name,filters.rank_label])}
-            matches={filteredSeries(series,data.matches,{
+            matches={filteredSeries(performanceHistory,data.matches,{
               ...emptyFilters,map_name:filters.map_name,mode:filters.mode,rank_label:filters.rank_label,
             },true,elo)} initialSeason={filters.season} initialBrawler={filters.player_brawler} mapFilter={filters.map_name}
             onDraft={openDraft} onMatch={setSelected}
             onTrain={(map,brawler)=>setTrainingTarget({tag:book.active,map,brawler})}/>
-          <MapTraining rows={performanceRows} history={rankedHistory} elo={elo} accountName={active.name}
+          <MapTraining rows={performanceRows} history={performanceHistory} elo={elo} accountName={active.name}
             selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training} archivedPlans={local.trainingHistory}
             seed={trainingTarget?.tag===book.active?trainingTarget:undefined}
             onOpen={setSelected} onReview={(id,value)=>saveCoaching({review:{id,value}})}

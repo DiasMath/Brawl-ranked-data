@@ -57,6 +57,23 @@ function makeSeries(rounds: Battle[], wins: number, losses: number): MatchSeries
   return {id:rounds[0].id, latest, rounds, result, wins, losses};
 }
 
+function sameRankedSeason(first: Battle, second: Battle) {
+  const confirmed = (battle: Battle) => normalize(battle.season_source ? null : battle.season);
+  const firstSeason = confirmed(first), secondSeason = confirmed(second);
+  if (firstSeason && secondSeason && firstSeason !== secondSeason) return false;
+
+  // Older snapshots only include the calendar label on rows without an official season.
+  if (first.season_window === undefined || second.season_window === undefined) {
+    return normalize(battleSeason(first)) === normalize(battleSeason(second));
+  }
+  return first.season_window === second.season_window;
+}
+
+export function completedRankedSeries(match: MatchSeries) {
+  return match.latest.ranked && match.rounds.length > 1 &&
+    ((match.result === 'victory' && match.wins === 2) || (match.result === 'defeat' && match.losses === 2));
+}
+
 export function matchSeries(battles: Battle[]): MatchSeries[] {
   const sorted = [...battles].sort((a,b)=>Date.parse(a.played_at)-Date.parse(b.played_at));
   const series: MatchSeries[] = [];
@@ -69,7 +86,7 @@ export function matchSeries(battles: Battle[]): MatchSeries[] {
     const limit = Math.min(360,Math.max(240,(previous?.duration_seconds??0)+60,(battle.duration_seconds??0)+60));
     if (previous && (previous.api_type!==battle.api_type || normalize(previous.mode)!==normalize(battle.mode)
         || !sameMap(previous,battle) || !sameLineup(signature,key)
-        || normalize(battleSeason(previous))!==normalize(battleSeason(battle))
+        || !sameRankedSeason(previous,battle)
         || !(gap > 0 && gap <= limit) || wins === 2 || losses === 2)) {
       series.push(makeSeries(rounds,wins,losses));
       rounds = [];
@@ -174,12 +191,15 @@ export function seriesRank(match: MatchSeries, round=match.latest) {
     ? known[0] : undefined;
 }
 
+export const hasOfficialBans = (round: Battle): round is Battle & { bans: string[] } =>
+  Array.isArray(round.bans) && !round.bans_source;
+
 export function seriesBans(match: MatchSeries, round?: Battle) {
-  if (round&&Array.isArray(round.bans)&&!round.bans_source) return round;
-  const known=match.rounds.filter(item=>Array.isArray(item.bans)&&!item.bans_source);
+  if (round && hasOfficialBans(round)) return round;
+  const known = match.rounds.filter(hasOfficialBans);
   const first=known[0];
   if(!first)return undefined;
-  const signature=(item: Battle)=>JSON.stringify([...new Set(item.bans!.map(normalize))].sort());
+  const signature=(item: typeof first)=>JSON.stringify([...new Set(item.bans.map(normalize))].sort());
   const expected=signature(first);
   return known.every(item=>signature(item)===expected)?first:undefined;
 }

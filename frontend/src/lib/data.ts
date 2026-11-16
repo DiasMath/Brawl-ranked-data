@@ -9,6 +9,7 @@ export type Battle = {
   ranked: boolean; result: 'victory' | 'defeat' | 'draw' | null; duration_seconds: number | null;
   player_brawler: string | null; rank_label: string | null; rank_score: number | null; season: string | null;
   season_by_date?: { label: string; source_url: string } | null;
+  season_window?: string | null;
   kd?: BattleKd | null;
   elo_evidence?: BattleElo | null;
   bans: string[] | null; players: Participant[];
@@ -179,6 +180,7 @@ export function parseSnapshot(value: unknown): Dataset {
             && isCount(b.elo_evidence.before) && isCount(b.elo_evidence.after) && typeof b.elo_evidence.reference === 'string'))
           && isCount(b.duration_seconds) && [b.map_name, b.mode, b.api_type, b.player_brawler,
               b.rank_label, b.season, b.rank_reference, b.score_reference, b.season_reference, b.bans_reference, b.rank_source, b.score_source, b.season_source, b.bans_source].every(isText)
+          && (b.season_window === undefined || isText(b.season_window))
           && (b.season_by_date == null || (typeof b.season_by_date.label === 'string'
             && typeof b.season_by_date.source_url === 'string' && Boolean(safeLink(b.season_by_date.source_url))))
           && (b.bans === null || (Array.isArray(b.bans) && b.bans.every(v => typeof v === 'string')))
