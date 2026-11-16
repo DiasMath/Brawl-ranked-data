@@ -7,8 +7,8 @@
     "start": "next start",
     "dev": "next dev",
     "typecheck": "tsc --noEmit",
-    "prebuild": "node scripts/prepare-assets.mjs",
-    "predev": "node scripts/prepare-dev.mjs && node scripts/prepare-assets.mjs"
+    "prebuild": "node scripts/prepare-assets.mjs && node scripts/prepare-voice.mjs",
+    "predev": "node scripts/prepare-dev.mjs && node scripts/prepare-assets.mjs && node scripts/prepare-voice.mjs"
   },
   "dependencies": {
     "gsap": "^3.15.1",

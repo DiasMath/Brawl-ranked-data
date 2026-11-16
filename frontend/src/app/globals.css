@@ -639,10 +639,7 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
 .draft-voice-head { display:flex; align-items:flex-start; justify-content:space-between; gap:5px; }
 .draft-voice-head button { padding:0; border:0; background:none; }
 .draft-voice-popover > button { justify-content:flex-start; padding:5px 7px; border:1px solid #48385f; border-radius:5px; background:#2b203e; }
-.draft-voice-error { color:var(--muted); }
-.draft-voice-fallback { display:flex; gap:5px; }
-.draft-voice-fallback input { min-width:0; flex:1; }
-.draft-voice-fallback button { width:31px; flex:none; padding:0; border:1px solid #48385f; border-radius:5px; background:#2b203e; }
+.draft-voice-spinner { animation:spin .8s linear infinite; }
 .draft-roster .draft-search input { min-height:31px; }
 .draft-roster-guide { display:flex; align-items:center; justify-content:space-between; gap:8px; color:var(--muted); font-size:11px; }
 .draft-roster-rail {

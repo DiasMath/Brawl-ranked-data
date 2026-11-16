@@ -16,6 +16,7 @@ import { useDraftMeta, useDraftSuggestions } from './use-draftmeta';
 import { DraftSummary } from './draft-summary';
 import { DraftTierList } from './draft-tier-list';
 import { DraftVoice } from './draft-voice';
+import { DraftSpeech } from './draft-speech';
 import { useDraftRosterScroll } from './use-draft-roster-scroll';
 
 type Side = 'team'|'enemy';
@@ -25,6 +26,7 @@ type DraftState = Record<Zone,string[]>;
 type Advice = 'picks'|'bans'|'counters';
 type DraftSource = 'draftmeta'|'public'|'account';
 const fresh = ():DraftState => ({team:['','',''],enemy:['','',''],blueBan:['','',''],redBan:['','','']});
+const voiceRoster = brawlers.map(brawler=>brawler.name);
 const rosterNames = new Map(brawlers.map(brawler=>[normalize(brawler.name),brawler.name]));
 const rarities = [
   ['#b9eaff','Comum'],['#68fd58','Raro'],['#5ab3ff','Super-raro'],['#d850ff','Épico'],
@@ -84,6 +86,8 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
   const input=useRef<HTMLInputElement>(null);
   const roster=useRef<HTMLElement>(null);
   const rail=useRef<HTMLDivElement>(null);
+  const speech=useRef<DraftSpeech|null>(null);
+  useEffect(()=>()=>speech.current?.dispose(),[]);
   const {period,setPeriod,report}=useContext(LiveMeta);
   useEffect(()=>{
     const element=rail.current;
@@ -367,6 +371,10 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
           action={banZone(voiceTarget.side)?'ban':'pick'} team={teamColor(voiceTarget.side)}
           position={banZone(voiceTarget.side)?voiceTarget.index+1:order.indexOf(voiceTarget)+1}
           firstPickSelected={first!==null} roster={brawlers}
+          getSpeech={()=>{
+            if(!speech.current||speech.current.disposed)speech.current=new DraftSpeech(voiceRoster);
+            return speech.current;
+          }}
           onStart={()=>move(voiceTarget)} isBlocked={name=>blocked(name,voiceTarget)}
           onAssign={name=>assign(name,voiceTarget)}/>}
         </div></header>

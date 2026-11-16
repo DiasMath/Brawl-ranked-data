@@ -1,77 +1,65 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Mic, MicOff, Search, X } from 'lucide-react';
+import { Check, Loader2, Mic, Square, X } from 'lucide-react';
+import { recordDraftSpeech } from './draft-speech';
+import type { DraftSpeech } from './draft-speech';
 
-type VoiceResult = {
-  results: ArrayLike<ArrayLike<{ transcript: string }>>;
-};
-type Recognition = {
-  lang: string;
-  maxAlternatives: number;
-  onresult: ((event: VoiceResult) => void) | null;
-  onerror: ((event: { error: string }) => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  abort: () => void;
-};
-type RecognitionConstructor = new () => Recognition;
-type SpeechWindow = Window & {
-  SpeechRecognition?: RecognitionConstructor;
-  webkitSpeechRecognition?: RecognitionConstructor;
-};
 type Action = 'ban' | 'pick';
+type Status = 'loading' | 'permission' | 'recording' | 'processing';
 
-function recognitionConstructor() {
-  const browser = window as SpeechWindow;
-  return browser.SpeechRecognition ?? browser.webkitSpeechRecognition;
-}
-
-const recognitionErrors: Record<string, string> = {
-  network: 'Falha na conexão com o serviço de voz do navegador.',
-  'audio-capture': 'O navegador não captou áudio. Confira o microfone e a entrada de som.',
+const errors: Partial<Record<string, string>> = {
   'not-allowed': 'Permita o microfone nas configurações deste site.',
-  'service-not-allowed': 'O navegador bloqueou o serviço de reconhecimento de voz.',
-  'language-not-supported': 'O reconhecimento em português do Brasil está indisponível no navegador.',
-  'language-unavailable': 'O reconhecimento em português do Brasil está indisponível no navegador.',
+  'audio-capture': 'Não foi possível captar áudio. Confira a entrada de som.',
   'no-speech': 'Nenhuma fala detectada. Tente novamente.',
-  unsupported: 'Este navegador não oferece reconhecimento de voz.',
-  'start-failed': 'O navegador não conseguiu iniciar o reconhecimento de voz.',
+  'model-load-failed': 'O BRD não conseguiu carregar o modelo de voz. Tente novamente.',
+  'transcription-failed': 'O BRD não conseguiu interpretar o áudio. Tente novamente.',
 };
 
-function cancelRecognition(recognition: Recognition) {
-  recognition.onend = recognition.onerror = recognition.onresult = null;
-  recognition.abort();
-}
+const statusMessages = {
+  loading: 'Preparando o reconhecimento. O primeiro carregamento baixa cerca de 100 MB.',
+  permission: 'Aguardando acesso ao microfone.',
+  processing: 'Reconhecendo a fala…',
+};
+
+const aliases = new Map([
+  ['hico', 'rico'], ['shaly', 'shelly'], ['shely', 'shelly'],
+  ['xeli', 'shelly'], ['cheli', 'shelly'], ['collet', 'colette'],
+  ['colete', 'colette'], ['paiper', 'piper'],
+]);
 
 function words(value: string) {
-  return value.toLowerCase().normalize('NFD').replace(/\p{M}/gu,'').replace(/[^a-z0-9]+/g,' ').trim();
+  return value.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
 function nameKey(value: string) {
-  const key = words(value).replace(/ /g,'');
+  const key = words(value).replace(/ /g, '');
   if (/^(8|oito)bits?$/.test(key)) return '8bit';
   if (key === 'erte' || key === 'errete') return 'rt';
-  return key;
+  return aliases.get(key) ?? key;
 }
 
-function voiceOptions(transcripts: string[], action: Action, roster: readonly { name: string }[]) {
-  const options = new Set<string>();
-  let opposite = false;
-  for (const transcript of transcripts) {
-    const utterance = words(transcript);
-    const command = /^(ban|banir|bani|bana|banimento|pick|pickar|picar|escolher|escolha|selecionar|selecione) (?:[oa] )?(.+)$/.exec(utterance);
-    if (command && (command[1].startsWith('ban') ? 'ban' : 'pick') !== action) {
-      opposite = true;
-      continue;
-    }
-    const key = nameKey(command?.[2] ?? utterance);
-    for (const brawler of roster) {
-      if (nameKey(brawler.name) === key) options.add(brawler.name);
-    }
+function recognizeBrawler(transcript: string, action: Action, roster: readonly { name: string }[]) {
+  const utterance = words(transcript);
+  const command = /^(ban|banir|bani|bana|banimento|pick|pickar|picar|escolher|escolha|escolhe|esco|selecionar|selecione) (?:(?:o|a|um|uma) )?(.+)$/.exec(utterance);
+  if (command && (command[1].startsWith('ban') ? 'ban' : 'pick') !== action) {
+    return { options: [], opposite: true };
   }
-  return { options: [...options], opposite };
+  const value = (command?.[2] ?? utterance).replace(/^brawler /, '');
+  const keys = [nameKey(value)];
+  // Whisper can split "escolher" across two words and attach its ending to the name.
+  if (command?.[1] === 'esco') keys.push(nameKey(value.replace(/^her(?=[a-z])/, '')));
+  const exact = roster.filter(brawler => keys.includes(nameKey(brawler.name)));
+  if (exact.length) return { options: exact.map(brawler => brawler.name), opposite: false };
+
+  // The verb can be misheard even when the last word is a recognizable brawler.
+  const mentions = roster.filter(brawler => {
+    const name = words(brawler.name);
+    return name.length > 2 && ` ${value} `.includes(` ${name} `);
+  });
+  const candidate = mentions.length === 1 && value.endsWith(` ${words(mentions[0].name)}`) ? mentions[0] : null;
+  return { options: candidate ? [candidate.name] : [], opposite: false };
 }
 
-export function DraftVoice({ action, team, position, firstPickSelected, roster, onStart, isBlocked, onAssign }: {
+export function DraftVoice({ action, team, position, firstPickSelected, roster, onStart, isBlocked, onAssign, getSpeech }: {
   action: Action;
   team: 'Azul' | 'Vermelho';
   position: number;
@@ -80,38 +68,30 @@ export function DraftVoice({ action, team, position, firstPickSelected, roster, 
   onStart: () => void;
   isBlocked: (name: string) => boolean;
   onAssign: (name: string) => void;
+  getSpeech: () => DraftSpeech;
 }) {
-  const active = useRef<Recognition | null>(null);
-  const [listening, setListening] = useState(false);
+  const active = useRef<AbortController | null>(null);
+  const stopRecording = useRef<(() => void) | null>(null);
+  const [status, setStatus] = useState<Status>();
   const [options, setOptions] = useState<string[]>([]);
   const [message, setMessage] = useState('');
-  const [failure, setFailure] = useState('');
-  const [typed, setTyped] = useState('');
 
-  useEffect(() => () => {
-    if (active.current) cancelRecognition(active.current);
-    active.current = null;
-  }, []);
+  useEffect(() => () => active.current?.abort(), []);
 
   function close() {
-    if (active.current) cancelRecognition(active.current);
+    active.current?.abort();
     active.current = null;
-    setListening(false);
+    stopRecording.current = null;
+    setStatus(undefined);
     setMessage('');
     setOptions([]);
-    setFailure('');
-    setTyped('');
   }
 
-  function preview(transcripts: string[]) {
-    const { options, opposite } = voiceOptions(transcripts, action, roster);
-    setOptions(options);
-    setMessage(options.length ? '' : opposite
-      ? `O próximo turno é de ${action}.`
-      : 'Brawler não reconhecido. Tente só o nome.');
-  }
-
-  function listen() {
+  async function listen() {
+    if (status === 'recording') {
+      stopRecording.current?.();
+      return;
+    }
     if (active.current) {
       close();
       return;
@@ -120,77 +100,81 @@ export function DraftVoice({ action, team, position, firstPickSelected, roster, 
       setMessage('Escolha Azul ou Vermelho em Primeira escolha.');
       return;
     }
-    close();
-    onStart();
-    const Recognition = recognitionConstructor();
-    if (!Recognition) {
-      setFailure('unsupported');
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined' ||
+        typeof AudioContext === 'undefined' || typeof OfflineAudioContext === 'undefined' || typeof Worker === 'undefined') {
+      setMessage('Para usar o microfone, abra o BRD em HTTPS ou localhost em um navegador compatível.');
       return;
     }
+
+    close();
+    onStart();
+    const controller = new AbortController();
+    const { signal } = controller;
+    active.current = controller;
+    let stream: MediaStream | undefined;
+    let context: AudioContext | undefined;
+    const release = () => {
+      stream?.getTracks().forEach(track => track.stop());
+      stream = undefined;
+      if (context && context.state !== 'closed') void context.close().catch(() => {});
+    };
+    signal.addEventListener('abort', release, { once: true });
+    let phase: Status = 'loading';
     try {
-      const recognition = new Recognition();
-      recognition.lang = 'pt-BR';
-      recognition.maxAlternatives = 3;
-      let received = false;
-      recognition.onresult = event => {
-        if (active.current !== recognition) return;
-        received = true;
-        preview(Array.from(event.results[0] ?? [], row => row.transcript));
-      };
-      recognition.onerror = ({ error }) => {
-        if (active.current !== recognition) return;
-        active.current = null;
-        if (error !== 'aborted') {
-          setOptions([]);
-          setMessage('');
-          setFailure(error);
-        }
-        setListening(false);
-      };
-      recognition.onend = () => {
-        if (active.current !== recognition) return;
-        active.current = null;
-        setListening(false);
-        if (!received) setFailure('no-speech');
-      };
-      active.current = recognition;
-      setListening(true);
-      recognition.start();
+      setStatus(phase);
+      context = new AudioContext();
+      const speech = getSpeech();
+      await Promise.all([speech.request(), context.resume()]);
+      if (signal.aborted) return;
+
+      setStatus(phase = 'permission');
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, noiseSuppression: true, echoCancellation: true } });
+      if (signal.aborted) return;
+      setStatus(phase = 'recording');
+      const audio = await recordDraftSpeech(stream, context, signal, stop => { stopRecording.current = stop; });
+      if (signal.aborted) return;
+      release();
+
+      setStatus(phase = 'processing');
+      const transcript = (await speech.request(audio)).trim();
+      if (signal.aborted) return;
+      const { options, opposite } = recognizeBrawler(transcript, action, roster);
+      setOptions(options);
+      if (!options.length) setMessage(opposite ? `O próximo turno é de ${action}.`
+        : transcript ? `Ouvi “${transcript}”. Tente dizer o comando com o nome do brawler.` : errors['no-speech']!);
     } catch (error) {
-      active.current = null;
-      setListening(false);
-      const denied = error instanceof DOMException && ['SecurityError', 'NotAllowedError'].includes(error.name);
-      setFailure(denied ? 'not-allowed' : 'start-failed');
+      if (signal.aborted) return;
+      const code = error instanceof Error ? error.message : '';
+      const denied = error instanceof DOMException && ['NotAllowedError', 'SecurityError'].includes(error.name);
+      const fallback = phase === 'loading' ? 'model-load-failed' : phase === 'processing' ? 'transcription-failed' : 'audio-capture';
+      setMessage(errors[denied ? 'not-allowed' : code] ?? errors[fallback]!);
+    } finally {
+      signal.removeEventListener('abort', release);
+      release();
+      if (active.current === controller) {
+        active.current = null;
+        stopRecording.current = null;
+        setStatus(undefined);
+      }
     }
   }
 
   const label = action === 'ban' ? 'Ban' : 'Pick';
   const turn = `${label} ${position} · ${team}`;
+  const hint = status === 'recording'
+    ? (action === 'ban' ? 'Ouvindo… diga “banir Rico”, por exemplo.' : 'Ouvindo… diga “escolher Nita”, por exemplo.')
+    : status ? statusMessages[status] : '';
   return <div className="draft-voice">
-    <button type="button" className="draft-voice-toggle" aria-pressed={listening}
-      aria-label={listening ? 'Parar de ouvir' : `${label} por voz · ${turn}`}
-      title={`${turn} · diga o nome do brawler`}
-      onClick={listen}>{listening ? <MicOff size={15}/> : <Mic size={15}/>}</button>
-    {(listening || options.length > 0 || message || failure) && <div className="draft-voice-popover">
+    <button type="button" className="draft-voice-toggle" aria-pressed={status === 'recording'}
+      aria-label={status === 'recording' ? 'Concluir gravação' : status ? 'Cancelar reconhecimento' : `${label} por voz · ${turn}`}
+      title={`${turn} · diga o comando e o nome do brawler`}
+      onClick={() => void listen()}>{status === 'recording' ? <Square size={13}/> :
+        status ? <Loader2 className="draft-voice-spinner" size={15}/> : <Mic size={15}/>}</button>
+    {(status || options.length > 0 || message) && <div className="draft-voice-popover">
       <div className="draft-voice-head">
-        <span role="status">{options.length ? `Confirmar ${turn}` : message
-          || (failure && (recognitionErrors[failure] ?? 'O navegador reportou uma falha de reconhecimento.'))
-          || `${turn} · ouvindo…`}</span>
+        <span role="status">{options.length ? `Confirmar ${turn}` : message || `${turn} · ${hint}`}</span>
         <button type="button" aria-label="Fechar comando por voz" onClick={close}><X size={14}/></button>
       </div>
-      {failure && <>
-        <small className="draft-voice-error"><code>{failure}</code> · {turn}</small>
-        <form className="draft-voice-fallback" onSubmit={event => {
-          event.preventDefault();
-          if (typed.trim()) preview([typed]);
-        }}>
-          <input autoFocus aria-label="Ditado ou nome do brawler" value={typed}
-            placeholder="Nome do brawler"
-            onChange={event => { setTyped(event.target.value); setMessage(''); setOptions([]); }}/>
-          <button type="submit" aria-label="Buscar nome para este turno" disabled={!typed.trim()}><Search size={14}/></button>
-        </form>
-        <small>Digite ou use <kbd>Win</kbd> + <kbd>H</kbd> no Windows e pressione <kbd>Enter</kbd>.</small>
-      </>}
       {options.map(name => <button type="button" key={name} disabled={isBlocked(name)}
         onClick={() => { if (!isBlocked(name)) { close(); onAssign(name); } }}>
         <Check size={14}/> {name}{isBlocked(name) ? ' · indisponível' : ''}
