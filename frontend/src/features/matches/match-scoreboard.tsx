@@ -3,7 +3,7 @@ import { Empty, Pill } from '@/components/dashboard-ui';
 import { Portrait } from '@/components/game';
 import { normalize, number, percent } from '@/lib/data';
 import type { Battle, Participant, ParticipantStats } from '@/lib/data';
-import { completedRankedSeries, hasOfficialBans, seriesBans } from '@/lib/match-series';
+import { completedRankedSeries, hasOfficialBans, roundPlayerStats, seriesBans, seriesPlayers, sumRecorded } from '@/lib/match-series';
 import type { MatchSeries } from '@/lib/match-series';
 
 function teamsOf(players: Participant[]) {
@@ -40,10 +40,27 @@ function RoundBans({ source, index }: { source: Battle; index?: number }) {
   </div>;
 }
 
-export function MatchBans({ match, series }: { match: Battle; series?: MatchSeries }) {
+function distinctBanRounds(rounds: Battle[]) {
+  const seen = new Set<string>();
+  return rounds.filter(round=>{
+    const players = round.players.flatMap(player=>player.banned_brawler
+      ? [JSON.stringify([player.player_tag,player.team_index,normalize(player.banned_brawler.name)])] : []);
+    const names = hasOfficialBans(round) ? [...new Set(round.bans.map(normalize))].sort() : null;
+    const key = JSON.stringify([players.sort(),names]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export function MatchBans({ match, series, summary }: { match: Battle; series?: MatchSeries; summary?: boolean }) {
   const hasBans = (row: Battle) => hasOfficialBans(row) || row.players.some(player => player.banned_brawler);
   const consistent = series && seriesBans(series);
-  const rows = hasBans(match) ? [match] : consistent ? [consistent] : series?.rounds.filter(hasBans) ?? [];
+  const observed = series?.rounds.filter(hasBans) ?? [];
+  const official = consistent && observed.filter(hasOfficialBans).reduce((best,round)=>
+    round.players.filter(player=>player.banned_brawler).length > best.players.filter(player=>player.banned_brawler).length ? round : best,
+  consistent);
+  const rows = !summary && hasBans(match) ? [match] : official ? [official] : distinctBanRounds(observed);
   if (!rows.length) return null;
 
   return <section className="match-bans" aria-label="Bans da partida">
@@ -76,36 +93,22 @@ function availableMetrics(rows: (ParticipantStats | undefined)[]) {
 }
 
 function totalOf(rows: (ParticipantStats | undefined)[], value: Metric['value']) {
-  const values = rows.map(value);
-  return values.length && values.every(n => n !== undefined) ? values.reduce((sum, n) => sum + n, 0) : undefined;
+  return sumRecorded(rows.map(value));
 }
 
 const displayCount = (value: number | undefined) => value === undefined ? '—' : number(value);
 
-export function SeriesImpact({ series }: { series: MatchSeries }) {
-  if (!completedRankedSeries(series)) return null;
-  const rows = series.rounds.map(round => round.players.find(player => player.side === 'self')?.stats);
-  const totals = availableMetrics(rows).filter(metric => metric.additive).flatMap(metric => {
-    const total = totalOf(rows, metric.value);
-    return total === undefined ? [] : [{ ...metric, total }];
-  });
-  if (!totals.length) return null;
-
-  return <section className="match-impact" aria-label="Seus totais na série">
-    <h3>Seus totais na série</h3>
-    <dl className="detail-grid">{totals.map(metric => <div key={metric.id}>
-      <dt>{metric.label}</dt><dd>{number(metric.total)}</dd>
-    </div>)}</dl>
-  </section>;
-}
-
-export function MatchScoreboard({ match, isRound }: { match: Battle; isRound: boolean }) {
-  const teams = teamsOf(match.players);
+export function MatchScoreboard({ match, series, isRound }: { match: Battle; series?: MatchSeries; isRound: boolean }) {
+  const players = series ? seriesPlayers(series) : match.players.map(player=>({...player,stats:roundPlayerStats(match,player)}));
+  const teams = teamsOf(players);
   if (!teams.length) return <Empty icon={Swords} title="Composição indisponível"/>;
-  const stats = match.players.map(player => player.stats);
-  const metrics = availableMetrics(stats);
+  const stats = series ? series.rounds.flatMap(round=>round.players.map(player=>roundPlayerStats(round,player))) : players.map(player=>player.stats);
+  const metrics = availableMetrics(stats).filter(metric=>!series || metric.additive);
   const hasKd = stats.some(row => row?.kills !== undefined || row?.deaths !== undefined);
   const hasStats = hasKd || metrics.length > 0;
+  const title = series ? completedRankedSeries(series) ? 'Placar da série' : 'Placar das rodadas registradas'
+    : isRound ? 'Placar da rodada' : 'Placar da partida';
+  const starTag = series ? undefined : match.star_player?.tag;
   const ownTeam = teams.find(team => team.own)?.members ?? [];
   const player = ownTeam.find(member => member.side === 'self');
   const safeDamage = metrics.find(metric => metric.id === 'objective:safeDamage');
@@ -113,9 +116,9 @@ export function MatchScoreboard({ match, isRound }: { match: Battle; isRound: bo
   const teamSafeDamage = safeDamage && ownTeam.length === 3 ? totalOf(ownTeam.map(p => p.stats), safeDamage.value) : undefined;
   const share = ownSafeDamage !== undefined && teamSafeDamage ? ownSafeDamage / teamSafeDamage : null;
 
-  return <section className="match-scoreboard" aria-label={isRound ? 'Placar da rodada' : 'Placar da partida'}>
-    <div><h3>{hasStats ? (isRound ? 'Placar da rodada' : 'Placar da partida') : 'Composição das equipes'}</h3>
-      {hasStats && <p className="muted">Histórico da Supercell · — indica campo sem dado</p>}
+  return <section className="match-scoreboard" aria-label={title}>
+    <div><h3>{hasStats ? title : 'Composição das equipes'}</h3>
+      {hasStats && <p className="muted">{series ? `Soma de ${series.rounds.length} rodadas · — indica métrica incompleta` : 'Histórico da Supercell · — indica campo sem dado'}</p>}
     </div>
     {share !== null && <p className="match-objective-note"><strong>{percent(share)}</strong> do dano ao cofre da sua equipe
       <small> {displayCount(ownSafeDamage)} de {displayCount(teamSafeDamage)}</small></p>}
@@ -136,7 +139,7 @@ export function MatchScoreboard({ match, isRound }: { match: Battle; isRound: bo
               <strong title={member.player_tag ?? undefined}>{member.player_name ?? member.player_tag ?? 'Jogador'}</strong>
               <small>{[member.brawler, member.power != null && `Poder ${member.power}`].filter(Boolean).join(' · ') || '—'}</small></span>
               {member.side === 'self' && <Pill kind="accent">Você</Pill>}
-              {member.player_tag && member.player_tag === match.star_player?.tag && <Star size={13} className="match-star" aria-label="Craque"/>}
+              {member.player_tag && member.player_tag === starTag && <Star size={13} className="match-star" aria-label="Craque"/>}
             </span></td>
             {hasKd && <td>{displayCount(member.stats?.kills)} / {displayCount(member.stats?.deaths)}</td>}
             {metrics.map(metric => <td key={metric.id}>{displayCount(metric.value(member.stats))}</td>)}

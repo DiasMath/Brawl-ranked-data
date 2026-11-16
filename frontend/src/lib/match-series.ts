@@ -1,6 +1,6 @@
-import { battleSeason, filtered, localDay, normalize } from './data';
+import { battleSeason, filtered, localDay, normalize, participantMetrics } from './data';
 import { draftMetaMapKey } from './draftmeta';
-import type { Battle, BattleElo, Filters } from './data';
+import type { Battle, BattleElo, Filters, Participant, ParticipantStats } from './data';
 import type { Progress } from './browser-store';
 
 export type MatchSeries = {
@@ -154,11 +154,44 @@ export function filteredSeries(series: MatchSeries[], battles: Battle[], filters
   });
 }
 
+export function roundPlayerStats(round: Battle, player?: Participant): ParticipantStats | undefined {
+  const kd = (!player || player.side === 'self') && round.kd && !round.kd.reference ? round.kd : null;
+  return kd ? { kills:kd.kills, deaths:kd.deaths, ...player?.stats } : player?.stats;
+}
+
+export function roundKd(round: Battle) {
+  const stats = roundPlayerStats(round, round.players.find(player=>player.side==='self'));
+  return stats?.kills !== undefined && stats.deaths !== undefined ? { kills:stats.kills, deaths:stats.deaths } : null;
+}
+
+export function sumRecorded(values: (number | undefined)[]) {
+  return values.length && values.every(value=>value!==undefined) ? values.reduce((sum,value)=>sum+value,0) : undefined;
+}
+
 export function matchKd(match: MatchSeries) {
-  if ((match.rounds.length > 1 && !match.result) || match.rounds.some(round=>!round.kd||round.kd.reference)) return null;
-  return match.rounds.reduce((total,round)=>({
-    kills:total.kills+(round.kd?.kills??0), deaths:total.deaths+(round.kd?.deaths??0),
-  }),{kills:0,deaths:0});
+  if (match.rounds.length > 1 && !match.result) return null;
+  const rows = match.rounds.map(roundKd);
+  const kills = sumRecorded(rows.map(row=>row?.kills));
+  const deaths = sumRecorded(rows.map(row=>row?.deaths));
+  return kills === undefined || deaths === undefined ? null : { kills,deaths };
+}
+
+export function seriesPlayers(match: MatchSeries) {
+  const lineups = match.rounds.map(round=>new Map(round.players.map(player=>[
+    normalize(player.player_tag),roundPlayerStats(round,player),
+  ])));
+  return match.latest.players.map(player=>{
+    const tag = normalize(player.player_tag);
+    const rows = tag ? lineups.map(lineup=>lineup.get(tag)) : [];
+    const stats: ParticipantStats = {};
+    for (const metric of participantMetrics) {
+      const total = sumRecorded(rows.map(row=>row?.[metric]));
+      if (total !== undefined) stats[metric] = total;
+    }
+    const safeDamage = sumRecorded(rows.map(row=>row?.objective?.type==='safeDamage' ? row.objective.value : undefined));
+    if (safeDamage !== undefined) stats.objective = { type:'safeDamage',value:safeDamage };
+    return {...player,stats};
+  });
 }
 
 export type MatchElo = Pick<BattleElo,'before'|'after'> & { rank?:string };

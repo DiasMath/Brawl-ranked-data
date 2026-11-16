@@ -1119,7 +1119,7 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
 .match-drawer { width:min(750px,100%); }
 .match-drawer .drawer-content { grid-template-columns:minmax(0,1fr); }
 .match-drawer .detail-status { flex-wrap:wrap; }
-.match-impact,.match-scoreboard { display:grid; gap:8px; min-width:0; }
+.match-scoreboard { display:grid; gap:8px; min-width:0; }
 .match-scoreboard .team { display:grid; gap:4px; min-width:0; }
 .match-scoreboard-scroll { border:1px solid var(--border); border-radius:8px; }
 .match-scoreboard-scroll table { min-width:0; font-variant-numeric:tabular-nums; }
@@ -1138,6 +1138,5 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
 .match-objective-note small { margin-inline-start:4px; }
 @media (max-width:540px) {
   .match-drawer .drawer-content { padding:14px; }
-  .match-impact .detail-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .match-scoreboard-scroll table:has(th:nth-child(3)) { min-width:460px; }
 }
