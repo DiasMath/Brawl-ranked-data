@@ -32,6 +32,9 @@ export type Meta = {
   brawler: string; wins: number; games: number; pick_count: number | null; pick_total: number | null;
   ban_count: number | null; ban_total: number | null;
 };
+export type RankedSeason = {
+  id: string; label: string; starts_at: string; ends_at: string; source_url: string; date_only: boolean;
+};
 export type Dataset = {
   schema: 1; exported_at: string; player_tag: string; profile: {
     name: string; fetched_at: string; trophies: number | null; icon_id?: number | null;
@@ -40,7 +43,7 @@ export type Dataset = {
     solo_victories?: number|null; duo_victories?: number|null; club?: {tag:string|null; name:string|null}|null;
     owned_brawlers?: OwnedBrawler[];
   } | null;
-  matches: Battle[]; updates: Update[]; meta: Meta[];
+  matches: Battle[]; updates: Update[]; meta: Meta[]; ranked_seasons?: RankedSeason[];
 };
 export type Filters = { start: string; end: string; map_name: string; mode: string; player_brawler: string; rank_label: string; season: string };
 export const emptyFilters: Filters = { start: '', end: '', map_name: '', mode: '', player_brawler: '', rank_label: '', season: '' };
@@ -162,6 +165,10 @@ export function parseSnapshot(value: unknown): Dataset {
   const d = value as Dataset | null;
   if (!d || d.schema !== 1 || !isDate(d.exported_at) || !/^#[0289PYLQGRJCUV]{3,16}$/.test(d.player_tag)
       || !Array.isArray(d.matches) || !Array.isArray(d.updates) || !Array.isArray(d.meta)
+      || (d.ranked_seasons !== undefined && (!Array.isArray(d.ranked_seasons)
+        || !d.ranked_seasons.every(season => season && typeof season.id === 'string' && typeof season.label === 'string'
+          && isDate(season.starts_at) && isDate(season.ends_at) && Date.parse(season.starts_at) < Date.parse(season.ends_at)
+          && typeof season.date_only === 'boolean' && typeof season.source_url === 'string' && Boolean(safeLink(season.source_url)))))
       || (d.profile !== null && (!d.profile || typeof d.profile.name !== 'string' ||
           !isDate(d.profile.fetched_at) || !isCount(d.profile.trophies)))
       || !d.matches.every(b => b && typeof b.id === 'string' && isDate(b.played_at) && typeof b.ranked === 'boolean'

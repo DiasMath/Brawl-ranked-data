@@ -127,6 +127,9 @@ def dataset(cursor, player, after_run=0, include_archive=False, include_updates=
                    "brawler, wins, games, pick_count, pick_total, ban_count, ban_total "
                    "FROM meta_observations WHERE player_tag=%s ORDER BY period_end DESC, id DESC", (player,))
     meta = cursor.fetchall()
+    cursor.execute("SELECT id, label, starts_at, ends_at, source_url, date_only FROM ranked_seasons ORDER BY starts_at")
+    ranked_seasons = [{**row, "starts_at": iso(row["starts_at"]), "ends_at": iso(row["ends_at"])}
+                      for row in cursor.fetchall()]
     raw_profile = json.loads(profile["raw"]) if profile else {}
     profile_rank, profile_score, profile_season = ranked_reading(raw_profile)
     brawlers = raw_profile.get("brawlers")
@@ -154,7 +157,7 @@ def dataset(cursor, player, after_run=0, include_archive=False, include_updates=
                     "duo_victories": integer(raw_profile.get("duoVictories")),
                     "club": {"tag": string(club.get("tag")), "name": string(club.get("name"))} if club else None,
                     "owned_brawlers": owned} if profile else None,
-        "matches": matches, "updates": updates, "meta": meta,
+        "matches": matches, "updates": updates, "meta": meta, "ranked_seasons": ranked_seasons,
     }
     if include_archive:
         cursor.execute("SELECT run_id, observed_at, trophies, rank_score, rank_label, season FROM profile_readings "

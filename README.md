@@ -274,6 +274,8 @@ Para reproduzir a estimativa, instale `duckdb`, `numpy` e `scipy` no ambiente de
 
 Em **Desempenho**, abra um mapa para ver suas últimas 10 partidas decisivas e as 10 anteriores, os brawlers usados e a comparação com o snapshot do DraftMeta. Os rankings dos mapas exigem 10 partidas decisivas. Para revisar, abra as fichas de vitória e derrota ou o detalhe de qualquer ranqueada. As observações vêm do replay assistido no jogo e ficam salvas por conta neste navegador. O plano da próxima sessão registra um ajuste e acompanha os resultados das partidas coletadas entre o início e a conclusão. A exportação do histórico inclui essas anotações.
 
+Em **Desempenho → Comparar temporadas**, compare a última temporada iniciada com a anterior. O recorte padrão limita ambos os lados ao mesmo tempo desde o início registrado no calendário. Quando faltar o início da temporada anterior, selecione o mesmo número de séries registradas ou o histórico disponível completo. A comparação mostra win rate em pontos percentuais, volume, viradas e recortes por brawler, modo e mapa. O denominador do pick rate inclui as escolhas identificadas no mesmo contexto. Quando faltarem partidas decisivas em um dos lados, a diferença de win rate fica indisponível.
+
 Em **Progressão → Sessões do Ranqueado**, as partidas são agrupadas por temporada e dia de Brasília, com uma nova sessão após pelo menos uma hora de intervalo. Primeiro, último e pico de Elo são mostrados quando há leituras registradas no intervalo da sessão e na mesma temporada.
 
 ## Referências

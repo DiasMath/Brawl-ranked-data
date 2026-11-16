@@ -15,6 +15,7 @@ import { MapTraining } from '@/features/analytics/map-performance';
 import { BrawlerEvolution } from '@/features/analytics/brawler-evolution';
 import { ModePerformance } from '@/features/analytics/mode-performance';
 import { Progression } from '@/features/analytics/progression';
+import { SeasonComparison } from '@/features/analytics/season-comparison';
 import { Accounts } from '@/features/collection/accounts';
 import { CollectorPanel, MetaPeriods } from '@/features/collection/collector-panel';
 import { HistoryCoverage } from '@/features/collection/history-coverage';
@@ -96,6 +97,9 @@ export default function Dashboard() {
   const historySeries=section==='matches'?filteredSeries(series,data.matches,filters,rankedOnly,elo):[];
   const rankedSeries=section==='overview'||section==='performance'?filteredSeries(series,data.matches,filters,true,elo):[];
   const performanceRows=section==='performance'?rankedSeries.map(seriesBattle):[];
+  const comparisonIds=useMemo(()=>new Set(section==='performance'?filteredSeries(rankedHistory,data.matches,{
+    ...emptyFilters,map_name:filters.map_name,mode:filters.mode,rank_label:filters.rank_label,
+  },true,elo).map(match=>match.id):[]),[section,rankedHistory,data.matches,filters.map_name,filters.mode,filters.rank_label,elo]);
   const selectedSeries=match&&series.find(item=>item.rounds.some(round=>round.id===match.id));
   const metaMatches=(section==='draft'||section==='meta')?filteredSeries(rankedHistory,data.matches,metaFilters,true,elo):[];
   const metaAccount=metaMatches.map(seriesBattle);
@@ -188,6 +192,8 @@ export default function Dashboard() {
           action={<label className="switch-label"><input type="checkbox" checked={rankedOnly} onChange={e=>setRankedOnly(e.target.checked)}/> Só ranqueadas</label>}>
           <MatchList key={JSON.stringify([filters,rankedOnly])} matches={historySeries} elo={elo} onOpen={b=>setSelected(b.id)}/></Card>}
         {section==='performance'&&<div className="stack" key={`performance:${book.active}`}>
+          <SeasonComparison matches={rankedHistory} calendar={data.ranked_seasons??[]} exportedAt={data.exported_at}
+            allowed={comparisonIds} brawler={filters.player_brawler}/>
           <ModePerformance matches={rankedSeries}/>
           <BrawlerEvolution key={JSON.stringify([filters.season,filters.player_brawler,filters.map_name,filters.rank_label])}
             matches={filteredSeries(series,data.matches,{

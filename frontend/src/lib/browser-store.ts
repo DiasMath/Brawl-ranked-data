@@ -162,7 +162,7 @@ export function fromSnapshot(input: unknown, previous: LocalData): LocalData {
   });
   return {
     ...previous,
-    dataset: { ...incoming, profile: profile ? {...profile, rank_label: displayRank(profile.rank_label)} : null,
+    dataset: { ...incoming, ranked_seasons: incoming.ranked_seasons ?? previous.dataset.ranked_seasons, profile: profile ? {...profile, rank_label: displayRank(profile.rank_label)} : null,
       matches,
       updates: [...new Map([...previous.dataset.updates, ...incoming.updates].map(v => [v.started_at, v])).values()]
         .sort((a,b) => b.started_at.localeCompare(a.started_at)).slice(0,100),

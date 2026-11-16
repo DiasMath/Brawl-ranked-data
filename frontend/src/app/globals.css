@@ -1044,3 +1044,16 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
 }
 
 .meta-coverage-detail { display: block; margin-top: 4px; }
+
+.season-comparison-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; padding:0 14px 10px; }
+.season-comparison-summary > div { display:grid; align-content:start; gap:5px; min-width:0; padding:10px; border:1px solid var(--border); border-radius:8px; }
+.season-comparison-summary h3 { margin:0; font-size:13px; }
+.season-comparison small { display:block; color:var(--muted); }
+.season-comparison-value { font-size:22px; line-height:1.4; }
+.season-comparison [data-tone=win] { color:var(--green); }
+.season-comparison [data-tone=loss] { color:var(--danger); }
+.season-comparison-controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px; justify-content:space-between; padding:0 14px 8px; }
+.season-comparison-table { max-height:420px; }
+.season-comparison-table td:first-child .image-label + .image-label { margin-top:4px; }
+.season-rate { display:grid; align-content:start; gap:2px; }
+@media (max-width:680px) { .season-comparison-summary { grid-template-columns:1fr; } }
