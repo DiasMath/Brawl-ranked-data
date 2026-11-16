@@ -10,6 +10,7 @@ export type Battle = {
   player_brawler: string | null; rank_label: string | null; rank_score: number | null; season: string | null;
   season_by_date?: { label: string; source_url: string } | null;
   season_window?: string | null;
+  season_display?: string | null;
   kd?: BattleKd | null;
   elo_evidence?: BattleElo | null;
   bans: string[] | null; players: Participant[];
@@ -66,7 +67,8 @@ export const percent = (value: number | null) => value === null ? '—' : new In
   maximumFractionDigits: 1, minimumFractionDigits: 1, style: 'percent',
 }).format(value);
 export const normalize = (value: string | null | undefined) => (value ?? '').trim().toLocaleLowerCase('pt-BR');
-export const battleSeason = (battle: Battle) => (battle.season_source?null:battle.season) ?? battle.season_by_date?.label ?? null;
+export const battleSeason = (battle: Battle) => battle.season_display !== undefined ? battle.season_display
+  : (battle.season_source?null:battle.season) ?? battle.season_by_date?.label ?? null;
 
 const modeNames: Record<string, string> = {
   gemGrab: 'Pique-Gema', brawlBall: 'Fute-Brawl', heist: 'Roubo', bounty: 'Caça-Estrelas',
@@ -181,6 +183,7 @@ export function parseSnapshot(value: unknown): Dataset {
           && isCount(b.duration_seconds) && [b.map_name, b.mode, b.api_type, b.player_brawler,
               b.rank_label, b.season, b.rank_reference, b.score_reference, b.season_reference, b.bans_reference, b.rank_source, b.score_source, b.season_source, b.bans_source].every(isText)
           && (b.season_window === undefined || isText(b.season_window))
+          && (b.season_display === undefined || isText(b.season_display))
           && (b.season_by_date == null || (typeof b.season_by_date.label === 'string'
             && typeof b.season_by_date.source_url === 'string' && Boolean(safeLink(b.season_by_date.source_url))))
           && (b.bans === null || (Array.isArray(b.bans) && b.bans.every(v => typeof v === 'string')))

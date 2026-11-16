@@ -4,6 +4,7 @@ import { Empty, Pill } from '@/components/dashboard-ui';
 import { PagedTable } from '@/components/data-table';
 import { findMap, MapImage, ModeIcon, ModeLabel, Portrait, RankArt } from '@/components/game';
 import { dateTime, durationLabel, modeName, number, resultName, safeLink } from '@/lib/data';
+import { seasonLabel } from '@/lib/ranked-seasons';
 import { ReplayAnnotation } from '@/features/analytics/replay-annotation';
 import type { ReplayReview } from '@/lib/coaching';
 import type { Battle } from '@/lib/data';
@@ -62,9 +63,9 @@ function MatchBans({ match, series }: { match: Battle; series?: MatchSeries }) {
   </section>;
 }
 
-export function MatchDetail({ match, series, elo, onRound, raw, review, onClose, onReview }: {
+export function MatchDetail({ match, series, elo, onRound, raw, review, onClose, onReview, seasonInfo }: {
   match: Battle; raw: unknown; review?: ReplayReview; onClose: () => void;
-  series?: MatchSeries; elo?:MatchElo; onRound?: (id: string) => void;
+  seasonInfo?: { season: string|null; seasonEstimated: boolean }; series?: MatchSeries; elo?:MatchElo; onRound?: (id: string) => void;
   onReview: (value:ReplayReview) => Promise<void>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -87,7 +88,7 @@ export function MatchDetail({ match, series, elo, onRound, raw, review, onClose,
   const fields = [
     { label:'Rank da partida', value:rank?.rank_label ?? elo?.rank, note:rank?.rank_label ? (rank===match?'Histórico da Supercell':'Outra rodada da série') : 'Estimativa · Mesma divisão antes e depois' },
     { label:'Pontos de rank', value:score ?? elo?.after, note:score!=null?'Histórico da Supercell':'Estimativa após a partida · Perfil' },
-    { label:'Temporada', value:(!match.season_source&&match.season)||calendar?.label, note:calendar?
+    { label:'Temporada', value:seasonInfo?seasonInfo.season:seasonLabel((!match.season_source&&match.season)||calendar?.label), note:(seasonInfo?.seasonEstimated??Boolean(calendar))?
       <>Estimativa pela data{seasonLink&&<> · <a href={seasonLink} target="_blank" rel="noreferrer">Calendário</a></>}</>:'Histórico da Supercell' },
   ].filter(field=>field.value!=null);
   return <dialog ref={dialog} className="drawer" onCancel={onClose} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>

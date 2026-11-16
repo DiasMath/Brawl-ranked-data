@@ -4,7 +4,7 @@ import { Activity, ArrowRight, ArrowUpRight, CalendarDays, Crosshair, MapPinned,
 import type { Battle, Filters } from '@/lib/data';
 import { dateTime, groupStats, localDay, modeName, normalize, number, percent, stats } from '@/lib/data';
 import { AccountIcon, findMap, MapImage, ModeIcon, Portrait, RankArt, TrophyArt } from '@/components/game';
-import type { Account, LocalData } from '@/lib/browser-store';
+import type { Account, LocalData, Progress } from '@/lib/browser-store';
 import { profileProgress, progressSeries, progressionWindow, RankGoal, rankProgress, TrendChart } from '@/features/analytics/progression';
 import { RecentForm } from './recent-form';
 import { ProfileDetails } from '@/features/analytics/profile-details';
@@ -103,13 +103,14 @@ function RankedActivity({matches,filters}:{matches:MatchSeries[];filters:Filters
   </section>;
 }
 
-export function Overview({ local, account, matches, elo, historyCount, filters, onSettings, onProgress, onDraft, onMeta, onSync, onMatch, onHistory, busy, syncing, collectorLinked }: {
+export function Overview({ local, account, matches, elo, historyCount, filters, onSettings, onProgress, onDraft, onMeta, onSync, onMatch, onHistory, busy, syncing, collectorLinked, readings, latestProfile }: {
   local: LocalData; account: Account; matches: MatchSeries[]; elo: Map<string,MatchElo>; historyCount:number; filters: Filters; onSettings:()=>void; onProgress:()=>void; onDraft:()=>void;
+  readings?: Progress[]; latestProfile?: Progress|null;
   onMeta:()=>void; onSync:()=>void; onMatch:(battle:Battle)=>void; onHistory:()=>void; busy:boolean; syncing:boolean; collectorLinked:boolean;
 }) {
-  const rows=progressSeries(local);
+  const rows=readings??progressSeries(local);
   const profile=local.dataset.profile;
-  const profileReading=profileProgress(profile);
+  const profileReading=latestProfile===undefined?profileProgress(profile):latestProfile;
   const profileHasRank=Boolean(profileReading&&(profileReading.rank||profileReading.score!==null));
   const summary=rankProgress(profileReading&&profileHasRank?[profileReading]:rows);
   const {current, rank}=summary;
@@ -119,6 +120,7 @@ export function Overview({ local, account, matches, elo, historyCount, filters, 
   const filteredProgress = progressionWindow(rows,filters);
   const trophyRows = filters.season ? progressionWindow(rows,{...filters,season:''}) : filteredProgress;
   const scoreRows=filteredProgress.filter(row=>row.score!==null&&(!current?.season||normalize(row.season)===normalize(current.season)||filters.season));
+  const showElo=scoreRows.length>0||Boolean(filters.season);
   const results = matches.map(match=>({...match.latest,result:match.result}));
   const topMaps = ordered(accountGroups(results,b=>b.map_name,3));
   const topBrawlers = ordered(accountGroups(results,b=>b.player_brawler,3));
@@ -153,8 +155,8 @@ export function Overview({ local, account, matches, elo, historyCount, filters, 
     <div className="two-col equal"><RecentForm matches={matches} elo={elo} onMatch={onMatch}
       action={<button className="button small subtle" onClick={onHistory}>Histórico <ArrowRight size={14}/></button>}/>
       <RankedActivity matches={matches} filters={filters}/></div>
-    <div className={scoreRows.length?'two-col equal':'stack'}><TrendChart rows={trophyRows} field="trophies" label="Subida de troféus" note="Total da conta por data, independente da temporada"/>
-      {scoreRows.length>0&&<TrendChart rows={scoreRows} field="score" label="Pontos do Ranqueado" note={filters.season||current?.season||'Leituras do Elo'}/>}</div>
+    <div className={showElo?'two-col equal':'stack'}><TrendChart rows={trophyRows} field="trophies" label="Subida de troféus" note="Total da conta por data, independente da temporada"/>
+      {showElo&&<TrendChart rows={scoreRows} field="score" label="Pontos do Ranqueado" note={filters.season||current?.season||'Leituras do Elo'}/>}</div>
     <div className="two-col equal"><Ranking rows={topMaps} kind="map" title="Seus melhores mapas" short/>
       <Ranking rows={topBrawlers} kind="brawler" title="Seus melhores brawlers" short/></div>
     <PublicSpotlight onDraft={onDraft} onMeta={onMeta}/>

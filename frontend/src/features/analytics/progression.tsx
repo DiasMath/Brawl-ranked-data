@@ -9,18 +9,20 @@ import { summarizeMatchElo } from '@/lib/match-series';
 import type { MatchElo, MatchSeries } from '@/lib/match-series';
 import { gameRank, nextRank, RankArt, referenceRank, TrophyArt } from '@/components/game';
 import { useDataTooltip } from '@/components/data-tooltip';
+import { rankedSeasonIndex } from '@/lib/ranked-seasons';
 
-export function profileProgress(profile: Dataset['profile']): Progress | null {
+export function profileProgress(profile: Dataset['profile'], seasons?: ReturnType<typeof rankedSeasonIndex>): Progress | null {
   if (!profile || (profile.trophies == null && !profile.rank_label && profile.rank_score == null)) return null;
-  return { id: 'profile', at: profile.fetched_at, trophies: profile.trophies, score: profile.rank_score ?? null,
-    rank: profile.rank_label ?? null, season: profile.season ?? null, method: 'api', source: 'Perfil da API Supercell' };
+  const reading = { id: 'profile', at: profile.fetched_at, trophies: profile.trophies, score: profile.rank_score ?? null,
+    rank: profile.rank_label ?? null, season: profile.season ?? null, method: 'api', source: 'Perfil da API Supercell' } satisfies Progress;
+  return seasons?.reading(reading) ?? reading;
 }
 
-export function progressSeries(local: LocalData) {
-  const rows = local.progress.filter(row=>row.method==='api');
+export function progressSeries(local: LocalData, seasons = rankedSeasonIndex(local.dataset, local.progress)) {
+  const rows = local.progress.filter(row=>row.method==='api').map(seasons.reading);
   const { profile, matches } = local.dataset;
-  const reading = profileProgress(profile);
-  const latest = rows.findLast(row => row.method === 'api' && row.id.startsWith('server:'));
+  const reading = profileProgress(profile,seasons);
+  const latest = rows.findLast(row => row.id.startsWith('server:'));
   if (reading && (!latest || latest.trophies !== reading.trophies || latest.rank !== reading.rank ||
     latest.score !== reading.score || latest.season !== reading.season)) rows.push(reading);
   for (const match of matches) {
@@ -28,7 +30,7 @@ export function progressSeries(local: LocalData) {
     const score=match.score_source?null:match.rank_score;
     if (!match.ranked || (!rank && score === null)) continue;
     rows.push({ id: match.id, at: match.played_at, trophies: null, score, rank,
-      season:match.season_source?null:match.season, source:'Histórico da API Supercell', method:'api' });
+      ...seasons.battle(match), source:'Histórico da API Supercell', method:'api' });
   }
   return rows.sort((a,b) => Date.parse(a.at)-Date.parse(b.at));
 }
@@ -100,6 +102,7 @@ export function TrendChart({ rows, field, label, note }: { rows: Progress[]; fie
     paths.at(-1)!.push(coords[i]);
   }
   const change = points.length >= 2 && paths.length===1 ? points.at(-1)![field]! - points[0][field]! : null;
+  const estimatedSeason = field === 'score' && points.some(point => point.seasonEstimated);
   const Direction=change!==null&&change<0?ArrowDownRight:ArrowUpRight;
   return <section className="card trend">
     <div className="card-head"><div><h2>{field === 'trophies' ? <Trophy size={17} /> : <TrendingUp size={17} />}{label}</h2><p>{note}</p></div>
@@ -117,11 +120,12 @@ export function TrendChart({ rows, field, label, note }: { rows: Progress[]; fie
       {points.length > 1 && <text x="467" y="171" textAnchor="end">{localDay(points.at(-1)!.at)}</text>}
     </svg> : <div className="trend-empty">
       {field === 'trophies' ? <TrophyArt /> : <RankArt />}
-      <strong>{field === 'trophies' ? 'Aguardando primeira leitura' : 'Pontuação indisponível'}</strong>
-      <span>Sincronize para buscar uma leitura do perfil.</span>
+      <strong>{field === 'trophies' ? 'Aguardando primeira leitura' : 'Nenhuma leitura de Elo neste recorte'}</strong>
+      <span>{field === 'score' ? 'As leituras coletadas para o período aparecem aqui.' : 'Sincronize para buscar uma leitura do perfil.'}</span>
     </div>}
     {points.length>0&&<p className="trend-foot">{number(points.length)} {points.length===1?'leitura':'leituras'} · máximo observado {number(max)}
-      {paths.length>1&&' · quebras por temporada ou temporada ausente'}</p>}
+      {paths.length>1&&' · quebras por temporada ou temporada ausente'}
+      {estimatedSeason&&' · inclui temporadas atribuídas pelo calendário'}</p>}
     {active&&tooltip.render(<>
       <div className="chart-tooltip-heading">{field==='trophies'?<TrophyArt/>:<RankArt rank={active.rank}/>}
         <div><small>{dateTime(active.at)}</small><strong>{label}</strong></div></div>
@@ -129,7 +133,7 @@ export function TrendChart({ rows, field, label, note }: { rows: Progress[]; fie
         <div><small>{field==='trophies'?'Troféus':'Pontos'}</small><strong>{number(active[field]!)}</strong></div>
         {delta!==null&&<div><small>Desde a última leitura</small><strong data-tone={delta>=0?'win':'loss'}>{delta>0?'+':''}{number(delta)}</strong></div>}
       </div>
-      <p className="chart-tooltip-source">{[field==='score'?active.rank:null,field==='score'?active.season:null,active.source].filter(Boolean).join(' · ')}</p>
+      <p className="chart-tooltip-source">{[field==='score'?active.rank:null,field==='score'?active.season:null,field==='score'&&active.seasonEstimated?'Temporada atribuída pelo calendário':null,active.source].filter(Boolean).join(' · ')}</p>
     </>,'chart-tooltip')}
   </section>;
 }
@@ -149,16 +153,16 @@ function SessionHistory({matches,readings}: {matches:MatchSeries[];readings:Prog
         {session.observed>1&&session.lastScore!==null?` → ${number(session.lastScore)}`:''}{session.observed>0&&<small>{session.observed} leituras</small>}</td>
       <td>{session.peak===null?null:number(session.peak)}</td></>}
     </tr>}/>
-    {hasElo&&<p className="section-note">O Elo usa as leituras feitas no intervalo da sessão, com a mesma temporada registrada.</p>}
+    {hasElo&&<p className="section-note">O Elo usa as leituras feitas no intervalo da sessão, vinculadas à temporada da sessão.</p>}
     </>:
     <p className="section-note">Nenhuma partida ranqueada no recorte.</p>}
   </section>;
 }
 
-export function Progression({ local, filters, matches, elo }: {
-  local: LocalData; filters: Filters; matches:MatchSeries[]; elo:ReadonlyMap<string,MatchElo>;
+export function Progression({ local, filters, matches, elo, readings }: {
+  local: LocalData; filters: Filters; matches:MatchSeries[]; elo:ReadonlyMap<string,MatchElo>; readings?: Progress[];
 }) {
-  const rows = progressSeries(local);
+  const rows = readings ?? progressSeries(local);
   const summary = rankProgress(rows);
   const {current, score, rank:currentRank, next:suggested}=summary;
   const trophy=rows.findLast(row=>row.trophies!==null);
@@ -185,6 +189,7 @@ export function Progression({ local, filters, matches, elo }: {
   const visible = progressionWindow(rows,filters);
   const trophyRows = filters.season ? progressionWindow(rows,{...filters,season:''}) : visible;
   const scoreRows = visible.filter(row => row.score !== null && (!current?.season || normalize(row.season)===normalize(current.season) || filters.season));
+  const showElo = scoreRows.length > 0 || Boolean(filters.season);
   const bestScore = scoreRows.reduce<number|null>((best,row)=>Math.max(best??0,row.score!),null);
   const breakEven = Number(gain)>0 && loss.trim() && Number(loss)>=0 ? Number(loss)/(Number(gain)+Number(loss)) : null;
   const milestones=visible.filter(row=>row.rank).filter((row,i,list)=>i===0
@@ -211,8 +216,8 @@ export function Progression({ local, filters, matches, elo }: {
       <div className="card game-metric"><span className="game-metric-icon orange"><CalendarClock size={22}/></span><div><small>Dias com partidas</small>
         <strong>{activity.span?number(activity.days):'—'}</strong><span>{activity.span?'No intervalo entre a primeira e a última':'Sem partidas no recorte'}</span></div></div>
     </div>
-    <div className={scoreRows.length?'two-col equal':'stack'}><TrendChart rows={trophyRows} field="trophies" label="Subida de troféus" note="Total da conta por data, independente da temporada" />
-      {scoreRows.length>0&&<TrendChart rows={scoreRows} field="score" label="Pontos do Ranqueado" note={filters.season || current?.season || 'Leituras em ordem cronológica'} />}</div>
+    <div className={showElo?'two-col equal':'stack'}><TrendChart rows={trophyRows} field="trophies" label="Subida de troféus" note="Total da conta por data, independente da temporada" />
+      {showElo&&<TrendChart rows={scoreRows} field="score" label="Pontos do Ranqueado" note={filters.season || current?.season || 'Leituras em ordem cronológica'} />}</div>
     <section className="card planner"><div className="card-head"><div><h2><Flag size={17} /> Plano de subida</h2>
       <p>Estimativa com base no ritmo, na taxa de vitória e nos ganhos e perdas informados.</p></div><span className="tag hypothesis">Hipótese</span></div>
       <div className="form-grid">

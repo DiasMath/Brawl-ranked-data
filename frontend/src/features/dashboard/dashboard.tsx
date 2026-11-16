@@ -14,7 +14,8 @@ import { Overview, Performance, PublicMeta } from '@/features/analytics/analytic
 import { MapTraining } from '@/features/analytics/map-performance';
 import { BrawlerEvolution } from '@/features/analytics/brawler-evolution';
 import { ModePerformance } from '@/features/analytics/mode-performance';
-import { Progression } from '@/features/analytics/progression';
+import { profileProgress, progressSeries, Progression } from '@/features/analytics/progression';
+import { rankedSeasonIndex, seasonLabel } from '@/lib/ranked-seasons';
 import { SeasonComparison } from '@/features/analytics/season-comparison';
 import { Accounts } from '@/features/collection/accounts';
 import { CollectorPanel, MetaPeriods } from '@/features/collection/collector-panel';
@@ -90,33 +91,43 @@ export default function Dashboard() {
     const timer=window.setInterval(()=>void refresh(),60_000);
     return ()=>{controller.abort();window.clearInterval(timer);};
   },[loadMeta]);
-  const metaFilters={...filters,start:'',end:'',rank_label:'',season:period==='reference'?filters.season:''};
-  const series=useMemo(()=>matchSeries(data.matches),[data.matches]);
+  const commonPublic=section==='meta'||section==='draft';
+  const seasons=useMemo(()=>rankedSeasonIndex(data,local.progress),[data,local.progress]);
+  const readings=useMemo(()=>progressSeries(local,seasons),[local,seasons]);
+  const latestProfile=profileProgress(data.profile,seasons);
+  const accountSeason=seasons.selection(filters.season);
+  const referenceSeason=filters.season&&normalize(accountSeason)===normalize(seasons.selection(publicIndex.season))
+    ?publicIndex.season:filters.season;
+  const accountFilters={...filters,season:commonPublic?referenceSeason:accountSeason};
+  const metaFilters={...filters,start:'',end:'',rank_label:'',season:period==='reference'?referenceSeason:''};
+  const accountMatches=useMemo(()=>commonPublic?data.matches:data.matches.map(match=>({
+    ...match,season_display:seasons.battle(match).season,
+  })),[commonPublic,data.matches,seasons]);
+  const series=useMemo(()=>matchSeries(accountMatches),[accountMatches]);
   const rankedHistory=useMemo(()=>series.filter(match=>match.latest.ranked),[series]);
   const elo=useMemo(()=>matchEloChanges(series,local.progress),[series,local.progress]);
-  const historySeries=section==='matches'?filteredSeries(series,data.matches,filters,rankedOnly,elo):[];
-  const rankedSeries=section==='overview'||section==='performance'?filteredSeries(series,data.matches,filters,true,elo):[];
+  const historySeries=section==='matches'?filteredSeries(series,accountMatches,accountFilters,rankedOnly,elo):[];
+  const rankedSeries=section==='overview'||section==='performance'?filteredSeries(series,accountMatches,accountFilters,true,elo):[];
   const performanceHistory=useMemo(()=>rankedHistory.filter(completedRankedSeries),[rankedHistory]);
   const performanceSeries=section==='performance'?rankedSeries.filter(completedRankedSeries):[];
   const performanceRows=performanceSeries.map(seriesBattle);
   const incompletePerformance=section==='performance'?rankedSeries.length-performanceSeries.length:0;
-  const comparisonIds=useMemo(()=>new Set(section==='performance'?filteredSeries(performanceHistory,data.matches,{
+  const comparisonIds=useMemo(()=>new Set(section==='performance'?filteredSeries(performanceHistory,accountMatches,{
     ...emptyFilters,map_name:filters.map_name,mode:filters.mode,rank_label:filters.rank_label,
-  },true,elo).map(match=>match.id):[]),[section,performanceHistory,data.matches,filters.map_name,filters.mode,filters.rank_label,elo]);
+  },true,elo).map(match=>match.id):[]),[section,performanceHistory,accountMatches,filters.map_name,filters.mode,filters.rank_label,elo]);
   const selectedSeries=match&&series.find(item=>item.rounds.some(round=>round.id===match.id));
-  const metaMatches=(section==='draft'||section==='meta')?filteredSeries(rankedHistory,data.matches,metaFilters,true,elo):[];
+  const metaMatches=(section==='draft'||section==='meta')?filteredSeries(rankedHistory,accountMatches,metaFilters,true,elo):[];
   const metaAccount=metaMatches.map(seriesBattle);
   const recentDrafts=metaMatches.filter(({latest})=>inMetaPeriod(latest.played_at,period,report)&&
     latest.players.some(p=>p.side==='ally')&&latest.players.some(p=>p.side==='opponent'));
   const accountHistory=useMemo(()=>rankedHistory.map(seriesBattle),[rankedHistory]);
   const current=navigation.find(item=>item.key===section)!;
   const filtersVisible=!['sources','draftlab'].includes(section)&&!(section==='meta'&&metaSource==='external');
-  const progressFilters={...emptyFilters,start:filters.start,end:filters.end,season:filters.season};
+  const progressFilters={...emptyFilters,start:filters.start,end:filters.end,season:accountFilters.season};
   const countFilters=Object.values(section==='meta'||section==='draft'?metaFilters:section==='progress'?progressFilters:filters).filter(Boolean).length;
   const dateError=Boolean(filters.start&&filters.end&&filters.end<filters.start);
-  const commonPublic=section==='meta'||section==='draft';
   const available=useMemo(()=>Object.fromEntries(columnFilters.map(([key])=>{
-    const source=section==='matches'&&rankedOnly?data.matches.filter(b=>b.ranked):data.matches;
+    const source=section==='matches'&&rankedOnly?accountMatches.filter(b=>b.ranked):accountMatches;
     const values=commonPublic?[]:source.map(b=>key==='season'?battleSeason(b):key==='rank_label'&&b.rank_source?null:b[key]);
     if(key==='rank_label'&&(section==='matches'||section==='overview')){
       for(const reading of elo.values())if(reading.rank)values.push(reading.rank);
@@ -130,9 +141,9 @@ export default function Dashboard() {
         values.push(...brawlers.filter(b=>period==='reference'||observed.has(b.id)).map(b=>b.name));
       }
     }
-    if(key==='season'&&section==='progress')values.push(data.profile?.season??null,...local.progress.filter(p=>p.method==='api').map(p=>p.season));
-    return [key,[...new Map(values.filter((v):v is string=>Boolean(v)).map(v=>[normalize(v),v])).values()].sort((a,b)=>a.localeCompare(b,'pt-BR'))];
-  })),[data,local.progress,section,rankedOnly,commonPublic,period,report,elo]);
+    if(key==='season'&&(section==='progress'||section==='overview'))values.push(...readings.map(row=>row.season));
+    return [key,[...new Map(values.filter((v):v is string=>Boolean(v)).map(v=>[normalize(v),v])).values()].sort((a,b)=>a.localeCompare(b,'pt-BR',{numeric:key==='season'}))];
+  })),[accountMatches,readings,section,rankedOnly,commonPublic,period,report,elo]);
 
   return <LiveMeta.Provider value={{report,period,setPeriod:changePeriod}}><div className={`shell lab-shell ${section==='draftlab'?'draft-shell':''}`}>
     {menuOpen&&<button className="mobile-scrim" aria-label="Fechar menu" onClick={()=>setMenuOpen(false)}/>}
@@ -181,16 +192,16 @@ export default function Dashboard() {
             {columnFilters.filter(([key])=>section==='progress'?key==='season':
               (!commonPublic||(key!=='rank_label'&&(key!=='season'||period==='reference')))&&
               (!['rank_label','season'].includes(key)||!!available[key].length||!!filters[key])).map(([key,label,placeholder])=><label key={key}>{label}
-              <select value={filters[key]} disabled={!available[key].length&&!filters[key]} onChange={e=>setFilters({...filters,[key]:e.target.value,mode:''})}>
+              <select value={accountFilters[key]} disabled={!available[key].length&&!accountFilters[key]} onChange={e=>setFilters({...filters,[key]:e.target.value,mode:''})}>
                 <option value="">{!available[key].length&&key==='rank_label'?'Rank da partida indisponível':placeholder}</option>
-                {filters[key]&&!available[key].includes(filters[key])&&<option value={filters[key]}>{filters[key]}</option>}
-                {available[key].map(v=><option key={v} value={v}>{v}</option>)}</select></label>)}</div>
+                {accountFilters[key]&&!available[key].includes(accountFilters[key])&&<option value={accountFilters[key]}>{key==='season'?seasonLabel(accountFilters[key]):accountFilters[key]}</option>}
+                {available[key].map(v=><option key={v} value={v}>{key==='season'?seasonLabel(v):v}</option>)}</select></label>)}</div>
           {dateError&&!commonPublic&&<p className="section-note error" role="alert">A data final deve ser igual ou posterior à data inicial.</p>}
         </section>}
-        {section==='overview'&&<Overview local={local} account={active} matches={rankedSeries} elo={elo} historyCount={series.length} filters={filters}
+        {section==='overview'&&<Overview local={local} readings={readings} latestProfile={latestProfile} account={active} matches={rankedSeries} elo={elo} historyCount={series.length} filters={accountFilters}
           busy={busy||!ready||sending} syncing={sending} onSettings={()=>navigate('sources')} onProgress={()=>navigate('progress')} onDraft={()=>navigate('draftlab')} onMeta={()=>navigate('meta')} onSync={()=>void sync()} onMatch={b=>setSelected(b.id)} onHistory={()=>navigate('matches')} collectorLinked={!!server?.configured}/>}
-        {section==='progress'&&<Progression key={book.active} local={local} filters={progressFilters}
-          matches={filteredSeries(series,data.matches,progressFilters,true,elo)} elo={elo}/>}
+        {section==='progress'&&<Progression key={book.active} local={local} readings={readings} filters={progressFilters}
+          matches={filteredSeries(series,accountMatches,progressFilters,true,elo)} elo={elo}/>}
         {section==='matches'&&<Card title="Histórico de partidas" icon={List} sub={`${number(historySeries.length)} no recorte · ${number(series.length)} no histórico${historySeries[0]?' · Mais recente '+dateTime(historySeries[0].latest.played_at):''} · Horário de Brasília`}
           action={<label className="switch-label"><input type="checkbox" checked={rankedOnly} onChange={e=>setRankedOnly(e.target.checked)}/> Só ranqueadas</label>}>
           <MatchList key={JSON.stringify([filters,rankedOnly])} matches={historySeries} elo={elo} onOpen={b=>setSelected(b.id)}/></Card>}
@@ -201,10 +212,10 @@ export default function Dashboard() {
           <SeasonComparison matches={performanceHistory} calendar={data.ranked_seasons??[]} exportedAt={data.exported_at}
             allowed={comparisonIds} brawler={filters.player_brawler}/>
           <ModePerformance matches={performanceSeries}/>
-          <BrawlerEvolution key={JSON.stringify([filters.season,filters.player_brawler,filters.map_name,filters.rank_label])}
-            matches={filteredSeries(performanceHistory,data.matches,{
+          <BrawlerEvolution key={JSON.stringify([accountFilters.season,filters.player_brawler,filters.map_name,filters.rank_label])}
+            matches={filteredSeries(performanceHistory,accountMatches,{
               ...emptyFilters,map_name:filters.map_name,mode:filters.mode,rank_label:filters.rank_label,
-            },true,elo)} initialSeason={filters.season} initialBrawler={filters.player_brawler} mapFilter={filters.map_name}
+            },true,elo)} initialSeason={accountFilters.season} initialBrawler={filters.player_brawler} mapFilter={filters.map_name}
             onDraft={openDraft} onMatch={setSelected}
             onTrain={(map,brawler)=>setTrainingTarget({tag:book.active,map,brawler})}/>
           <MapTraining rows={performanceRows} history={performanceHistory} elo={elo} accountName={active.name}
@@ -217,7 +228,7 @@ export default function Dashboard() {
         </div>}
         <div className="draft-surface" hidden={section!=='draftlab'}>
           <DraftLab active={section==='draftlab'} key={`${book.active}:${draftTarget.revision}`} matches={rankedHistory}
-            profile={data.profile} defaultMap={draftTarget.map||filters.map_name} defaultSeason={draftTarget.season??filters.season}
+            profile={data.profile} defaultMap={draftTarget.map||filters.map_name} defaultSeason={draftTarget.season??accountFilters.season}
             defaultSource={draftTarget.season===undefined?'draftmeta':'account'}/>
         </div>
         {section==='draft'&&<div className="stack">
@@ -259,7 +270,7 @@ export default function Dashboard() {
       {syncProgress&&<SyncProgressCard progress={syncProgress} account={active.name}/>}
       {feedback&&<FeedbackToast key={feedback} message={feedback} onDismiss={dismissFeedback}/>}
     </div>}
-    {match&&<MatchDetail key={selectedSeries?.id??match.id} match={match} series={selectedSeries} elo={selectedSeries&&elo.get(selectedSeries.id)} onRound={setSelected}
+    {match&&<MatchDetail key={selectedSeries?.id??match.id} match={match} seasonInfo={seasons.battle(match)} series={selectedSeries} elo={selectedSeries&&elo.get(selectedSeries.id)} onRound={setSelected}
       raw={local.raw[match.id]} review={local.reviews?.[match.id]} onClose={()=>setSelected(null)}
       onReview={value=>saveCoaching({review:{id:match.id,value}})}/>}
   </div></LiveMeta.Provider>;

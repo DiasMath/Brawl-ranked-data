@@ -6,7 +6,7 @@ import rankTable from '@/lib/catalog/ranks.json';
 export type Account = { tag: string; name: string };
 export type Progress = {
   id: string; at: string; trophies: number | null; score: number | null; rank: string | null;
-  season: string | null; source: string; method: 'api' | 'manual';
+  season: string | null; seasonEstimated?: boolean; source: string; method: 'api' | 'manual';
 };
 export type MetaMatchup = {
   brawler: string; opponent: string; map_name: string | null; mode: string | null;
