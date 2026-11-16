@@ -1,5 +1,5 @@
 import { useContext, useMemo, useState } from 'react';
-import { ArrowLeftRight, Clock3 } from 'lucide-react';
+import { ArrowLeftRight, History } from 'lucide-react';
 import { Card } from '@/components/dashboard-ui';
 import { PagedTable } from '@/components/data-table';
 import { Portrait } from '@/components/game';
@@ -24,7 +24,7 @@ const sample = (row:{rate:number|null; wins:number; losses:number})=>
 const iso=(value:number)=>new Date(value).toISOString();
 const sequence=(matches:MatchSeries[])=>matches.slice(0,8).map(match=>match.result==='victory'?'V':'D').join(' · ')+(matches.length>8?` · +${matches.length-8}`:'');
 
-function PeriodSeries<T extends Samples>({ row,onOpen }: {row:T; onOpen:(id:string)=>void}) {
+function PeriodSeries({ row,onOpen }: {row:Samples; onOpen:(id:string)=>void}) {
   const [period,setPeriod] = useState<'current'|'previous'>(row.current.length?'current':'previous');
   return <section aria-label={`${row.name} · Séries dos períodos`}>
     <div className="mode-filters">
@@ -113,7 +113,7 @@ export function SessionEvolution({history,matches,onOpen}: {history:MatchSeries[
   const [selected,setSelected]=useState<string|null>(null);
   const result=useMemo(()=>sessionStartsAndEnds(history,new Set(matches.map(match=>match.id))),[history,matches]);
   const row=result.rows.find(entry=>entry.first.id===selected);
-  return <Card title="Início × fim da sessão" icon={Clock3} className="ranked-analysis"
+  return <Card title="Início × fim da sessão" icon={History} className="ranked-analysis"
     sub="Primeira e última metade das sessões reconstruídas como em Progressão. O jogo do meio fica fora quando o total é ímpar.">
     {result.rows.length?<div className="analysis-section">
       <PerformanceKpis label="Win rate por metade da sessão" items={[

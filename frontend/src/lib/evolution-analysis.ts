@@ -22,7 +22,7 @@ export function diagnoseMapMix(current:MatchSeries[], previous:MatchSeries[]) {
     for (const match of matches) {
       if (match.result!=='victory'&&match.result!=='defeat') continue;
       const map = mapGroup(match);
-      const group = groups.get(map.id) ?? {...map,current:[],previous:[]};
+      const group:Group = groups.get(map.id) ?? {...map,current:[],previous:[]};
       group[period].push(match);
       groups.set(map.id,group);
     }
@@ -65,7 +65,7 @@ export function patchComparison(
     const brawler = playerPick(match);
     if (!map.id || !map.mode || !brawler) {unknown[period]++;continue;}
     const id=JSON.stringify([map.id,normalize(brawler)]);
-    const group=groups.get(id)??{...map,id,brawler,current:[],previous:[]};
+    const group:Group=groups.get(id)??{...map,id,brawler,current:[],previous:[]};
     group[period].push(match);
     groups.set(id,group);
   }
@@ -87,7 +87,7 @@ export function sessionStartsAndEnds(history:MatchSeries[], allowed:ReadonlySet<
 }
 
 export function trainingMetricReadings(matches:MatchSeries[], metric:TrainingMetric) {
-  const rows = matches.flatMap(match=>{
+  const rows = matches.flatMap<{match:MatchSeries;value:number}>(match=>{
     if (metric==='safePerMinute' && normalize(match.latest.mode)!=='heist') return [];
     const value=seriesMeasurements(match)[metric];
     return value===undefined?[]:[{match,value}];

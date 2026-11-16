@@ -4,7 +4,7 @@ import { PagedTable } from '@/components/data-table';
 import { findMap, MapImage, ModeIcon, Portrait } from '@/components/game';
 import { dateTime, groupStats, modeName, normalize, number, orderByMatchCount, percent, resultName } from '@/lib/data';
 import type { Battle } from '@/lib/data';
-import type { ArchivedTrainingPlan, ReplayReview, TrainingPlan, TrainingScope } from '@/lib/coaching';
+import type { ArchivedTrainingPlan, ReplayReview, TrainingMetric, TrainingPlan, TrainingScope } from '@/lib/coaching';
 import { MAP_MIN_GAMES, mapPerformance, reviewPair, trainingMetrics, trainingProgress } from '@/lib/coaching';
 import { accountInExternalScope, mapKey } from '@/lib/external-comparison';
 import { collectionRequest } from '@/lib/live';
@@ -133,7 +133,7 @@ function TrainingMeasures({plan,progress,onOpen}: {
 }) {
   const [selected,setSelected]=useState<{key:string; phase:'before'|'during'}|null>(null);
   const primary=trainingMetrics.find(metric=>metric.key===plan.metric)??trainingMetrics[0];
-  const keys=primary.key==='safePerMinute'?[primary]:[primary,trainingMetrics[5]];
+  const keys:ReadonlyArray<{key:TrainingMetric;label:string}>=primary.key==='safePerMinute'?[primary]:[primary,trainingMetrics[5]];
   const started=plan.startedAt??'';
   const readings=keys.map(metric=>({...metric,
     before:trainingMetricReadings(progress.referenceMatches,metric.key),
