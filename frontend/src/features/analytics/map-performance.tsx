@@ -144,7 +144,7 @@ function TrainingMeasures({plan,progress,onOpen}: {
     id:`${started}:${metric.key}:${selected.phase}`,
     title:`${metric.label} · ${selected.phase==='before'?'Antes do treino':'Durante o treino'}`,
     rows:metric[selected.phase].rows,
-    metric:{key:metric.key,label:metric.label.replace('/min',''),unit:'minute' as const},
+    metric:{label:metric.label.replace('/min',''),unit:'minute' as const},
   } : null;
   return <section className="analysis-section" aria-label="Métricas do treino">
     <h3>Métricas do treino</h3>

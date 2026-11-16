@@ -14,12 +14,13 @@ type ReviewMap = NonNullable<ReturnType<typeof mapForReview>>;
 type RankedMap = ReturnType<typeof rankedMaps>[number];
 type Metric = ReturnType<typeof compareSeriesResults>['metrics'][number];
 type Outcome = 'victory'|'defeat';
-type Evidence = { id:string; title:string; rows:{ match:MatchSeries; value?:number }[]; metric?:Metric };
+type MetricDisplay = Pick<Metric,'label'|'unit'>;
+type Evidence = { id:string; title:string; rows:{ match:MatchSeries; value?:number }[]; metric?:MetricDisplay };
 type ComparisonSelection = { pick:string }|{ outcome:Outcome; metric:Metric['key'] }|'all';
 const outcomes: { key:Outcome; label:string }[] = [{key:'victory',label:'Vitórias'},{key:'defeat',label:'Derrotas'}];
 const decimal = new Intl.NumberFormat('pt-BR',{maximumFractionDigits:1});
-const metricLabel = (metric:Metric)=>`${metric.label}${metric.unit==='minute'?' por minuto':metric.unit==='series'?' por série':''}`;
-const metricValue = (metric:Metric,value:number)=>metric.unit==='share'?percent(value):decimal.format(value);
+const metricLabel = (metric:MetricDisplay)=>`${metric.label}${metric.unit==='minute'?' por minuto':metric.unit==='series'?' por série':''}`;
+const metricValue = (metric:MetricDisplay,value:number)=>metric.unit==='share'?percent(value):decimal.format(value);
 const sampleLabel = (known:number,total:number)=>`${number(known)} de ${number(total)} ${total===1?'série':'séries'}`;
 
 export function EvidenceTable({ evidence, onOpen }: { evidence:Evidence; onOpen:(id:string)=>void }) {
