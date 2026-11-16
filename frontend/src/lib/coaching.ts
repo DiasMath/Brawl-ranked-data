@@ -12,7 +12,16 @@ export const replayTags = [
 export type ReplayTag = typeof replayTags[number];
 export type ReplayReview = { tag: ReplayTag; note: string };
 export type TrainingScope = { map?: string; brawler?: string };
-export type TrainingPlan = TrainingScope & { focus: string; completed: boolean; startedAt?: string; completedAt?: string };
+export const trainingMetrics = [
+  {key:'deaths',label:'Mortes/min'},
+  {key:'kills',label:'Eliminações/min'},
+  {key:'damageDealt',label:'Dano causado/min'},
+  {key:'damageTaken',label:'Dano recebido/min'},
+  {key:'healing',label:'Cura/min'},
+  {key:'safePerMinute',label:'Dano ao cofre/min'},
+] as const;
+export type TrainingMetric = typeof trainingMetrics[number]['key'];
+export type TrainingPlan = TrainingScope & { focus: string; completed: boolean; startedAt?: string; completedAt?: string; metric?: TrainingMetric };
 export type ArchivedTrainingPlan = TrainingPlan & { archivedAt: string };
 export const MAP_MIN_GAMES = 10;
 const FORM_SIZE = 10;
@@ -142,8 +151,9 @@ export function rankedSessions(matches: MatchSeries[], readings: Progress[]) {
       const score=scores[offset++];
       if(normalize(season)===normalize(score.season)) observed.push(score);
     }
-    const summary=stats(rows.map(row=>row.match));
-    return { first,last,summary,observed:observed.length,
+    const matches=rows.map(row=>row.match);
+    const summary=stats(matches);
+    return { first,last,matches,summary,observed:observed.length,
       firstScore:observed[0]?.score??null, lastScore:observed.at(-1)?.score??null,
       peak:observed.length?observed.reduce((max,row)=>Math.max(max,row.score!),0):null };
   }).reverse();
@@ -176,6 +186,6 @@ export function trainingProgress(matches: MatchSeries[], plan: TrainingPlan | Ar
     else if(last<start&&(match.result==='victory'||match.result==='defeat'))before.push(match);
   }
   const observed=stats(after);
-  const reference=stats(before.sort((a,b)=>b.latest.played_at.localeCompare(a.latest.played_at)).slice(0,observed.decided));
-  return {observed, reference};
+  const referenceMatches=before.sort((a,b)=>b.latest.played_at.localeCompare(a.latest.played_at)).slice(0,observed.decided);
+  return {observed,reference:stats(referenceMatches),observedMatches:after,referenceMatches};
 }

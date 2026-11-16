@@ -6,6 +6,8 @@
 
 **Piloto de fonte externa** · Meta pode carregar um snapshot leve do DraftMeta por patch e mapa. O histórico das contas continua vindo da Supercell. Na prova, o recorte Masters+ começava antes do balanceamento e ficou fora do piloto. O recorte de todos os ranks passou na checagem de patch. Bans observados e matchups por patch e mapa dependem de cobertura adicional antes de alimentar a tabela ou o Draft Lab. A atualização é manual no piloto, com cache de uma hora por recorte.
 
+**Andamento em 16/11/2026** · O histórico pessoal interpreta as listas oficiais e os seis bans por jogador quando o conjunto está completo. A migração `008_competitive_bans` acrescenta cobertura de bans à amostra competitiva. O painel compara as fontes por mapa e janela, identifica as respectivas unidades e mantém o denominador restrito aos registros com listas conhecidas. A primeira rodada real após a migração ainda precisa ser conferida. Os logs de desenvolvimento de 13/11 registraram uma coleta pessoal com 25 novas partidas. A confirmação da coleta competitiva agendada em produção, a medição de uso e o ensaio de restauração continuam pendentes. Agregados incrementais e Parquet dependem de medir o custo da consulta e da retenção.
+
 ## 1. Ponto de partida
 
 | Área | Existe no projeto | Próxima lacuna |

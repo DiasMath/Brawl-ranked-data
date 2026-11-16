@@ -39,10 +39,10 @@ Na largura de desktop, a matriz fica ao lado da comparação de picks, e a compa
 
 | Análise | Situação | Recorte e entrega |
 | --- | --- | --- |
-| Diagnóstico da mudança no win rate | Planejada | Comparar períodos e decompor a mudança em participação dos mapas e resultado dentro de cada mapa. Exibir mapas sem comparável em separado e abrir as séries por período. |
-| Antes × depois do balanceamento | Planejada | Comparar janelas antes e depois do patch em mapas e picks presentes nas duas. Informar o patch, dias cobertos, mudanças no conjunto de mapas e referência da meta quando comparável. |
-| Início × fim de sessão | Planejada | Usar o critério de intervalo entre partidas adotado em Progressão para reconstruir sessões. Comparar pontos da sessão com amostra, duração e sequências observadas. |
-| Efeito do treino | Evolução do plano existente | Comparar janelas antes e durante no mesmo mapa e pick. Acompanhar a métrica escolhida, como mortes por minuto, junto de dano ao objetivo e win rate. Preservar anotações, períodos, histórico e partidas da amostra. |
+| Diagnóstico da mudança no win rate | Disponível | Comparar as temporadas do recorte selecionado e decompor a diferença em frequência dos mapas, resultado dentro de cada mapa e contribuição dos mapas sem comparável. Cada linha abre as séries por período. |
+| Antes × depois do balanceamento | Disponível | Comparar janelas de mesma duração dentro dos dois patches, usando mapa, modo e pick. Mostrar combinações exclusivas e abrir as partidas dos dois períodos. Usar a Meta quando as janelas completas coincidirem. |
+| Início × fim de sessão | Disponível | Usar as sessões de Progressão e comparar as duas metades com séries em cada lado. Mostrar o intervalo registrado, resultados em ordem e acesso às partidas. |
+| Efeito do treino | Disponível | Salvar no plano a métrica a acompanhar e comparar antes e durante. Mostrar win rate, cobertura da métrica e dano ao cofre por minuto em Roubo. Abrir a amostra do plano ativo ou dos planos arquivados. |
 
 ## Critérios de dados
 
@@ -50,4 +50,4 @@ Na largura de desktop, a matriz fica ao lado da comparação de picks, e a compa
 - Usar vitórias e derrotas como denominador do win rate. Exibir valores ausentes como `—` e conservar o zero observado.
 - Calcular taxas por minuto com as durações registradas. Exigir dados completos das métricas somadas e dos integrantes usados para calcular a participação da equipe. Só somar métricas de objetivo quando a unidade e o tipo forem compatíveis.
 - Exibir origem, período, filtros e tamanho das amostras. Rank e temporada ausentes podem reduzir a comparabilidade. Resultados observados, incluindo os de treinos e balanceamentos, são descritivos.
-- Priorizar métricas de treino e diagnóstico de mudança no aproveitamento. Confirmar a cobertura dos bans competitivos após a migração.
+- Confirmar a cobertura dos bans competitivos na primeira coleta real após a migração `008_competitive_bans`. Conferir a presença de um brawler em um registro com lista completa, a contagem por mapa e o mesmo dado em Draft e Meta. A ausência de lista continua fora do denominador.

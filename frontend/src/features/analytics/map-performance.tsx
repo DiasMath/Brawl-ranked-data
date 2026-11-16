@@ -5,12 +5,14 @@ import { findMap, MapImage, ModeIcon, Portrait } from '@/components/game';
 import { dateTime, groupStats, modeName, normalize, number, orderByMatchCount, percent, resultName } from '@/lib/data';
 import type { Battle } from '@/lib/data';
 import type { ArchivedTrainingPlan, ReplayReview, TrainingPlan, TrainingScope } from '@/lib/coaching';
-import { MAP_MIN_GAMES, mapPerformance, reviewPair, trainingProgress } from '@/lib/coaching';
+import { MAP_MIN_GAMES, mapPerformance, reviewPair, trainingMetrics, trainingProgress } from '@/lib/coaching';
 import { accountInExternalScope, mapKey } from '@/lib/external-comparison';
 import { collectionRequest } from '@/lib/live';
 import { ordered } from '@/lib/scouting';
 import { AccountComparison } from '@/features/meta/external-account';
 import { RecentForm } from './recent-form';
+import { trainingMetricReadings } from '@/lib/evolution-analysis';
+import { EvidenceTable } from './ranked-analysis';
 import { seriesBattle, seriesInScope } from '@/lib/match-series';
 import type { MatchElo, MatchSeries } from '@/lib/match-series';
 import { ReplayAnnotation } from './replay-annotation';
@@ -126,9 +128,52 @@ function MapSheet({map, history, elo, accountName, reviews, onOpen, onReview, on
   </>;
 }
 
-function SessionPlan({strong,weak,plan,seed,history,onChoose,onSave}: {
+function TrainingMeasures({plan,progress,onOpen}: {
+  plan:TrainingPlan; progress:ReturnType<typeof trainingProgress>; onOpen:(id:string)=>void;
+}) {
+  const [selected,setSelected]=useState<{key:string; phase:'before'|'during'}|null>(null);
+  const primary=trainingMetrics.find(metric=>metric.key===plan.metric)??trainingMetrics[0];
+  const keys=primary.key==='safePerMinute'?[primary]:[primary,trainingMetrics[5]];
+  const started=plan.startedAt??'';
+  const readings=keys.map(metric=>({...metric,
+    before:trainingMetricReadings(progress.referenceMatches,metric.key),
+    during:trainingMetricReadings(progress.observedMatches,metric.key),
+  })).filter(metric=>metric.key===primary.key||metric.before.rows.length||metric.during.rows.length);
+  const metric=readings.find(row=>row.key===selected?.key);
+  const evidence=metric&&selected ? {
+    id:`${started}:${metric.key}:${selected.phase}`,
+    title:`${metric.label} · ${selected.phase==='before'?'Antes do treino':'Durante o treino'}`,
+    rows:metric[selected.phase].rows,
+    metric:{key:metric.key,label:metric.label.replace('/min',''),unit:'minute' as const},
+  } : null;
+  return <section className="analysis-section" aria-label="Métricas do treino">
+    <h3>Métricas do treino</h3>
+    <PagedTable label="Métricas antes e durante o treino" rows={readings} unit={['métrica','métricas']}
+      headings={<><th>Métrica</th><th>Antes</th><th>Durante</th><th>Variação</th></>}
+      renderRow={row=>{
+        const delta=row.during.average===null||row.before.average===null?null:Math.round((row.during.average-row.before.average)*10)/10;
+        return <tr key={row.key}><th scope="row">{row.label}</th>
+          {(['before','during'] as const).map(phase=>{
+            const {average,rows}=row[phase];
+            const pressed=selected?.key===row.key&&selected.phase===phase;
+            const total=phase==='before'?progress.reference.games:progress.observed.games;
+            return <td key={phase}>{average===null?'—':number(Math.round(average*10)/10)}
+              {rows.length>0?<small><button className="text-button" aria-pressed={pressed}
+                onClick={()=>setSelected(pressed?null:{key:row.key,phase})}>{number(rows.length)} de {number(total)} séries</button></small>
+                :<small>0 de {number(total)} séries</small>}
+            </td>;
+          })}
+          <td>{delta===null?'—':`${delta>0?'+':''}${number(delta)}/min`}</td>
+        </tr>;
+      }}/>
+    <p className="muted">Média por série com duração e métrica completas. Dano ao cofre usa só as séries de Roubo.</p>
+    {evidence&&<EvidenceTable evidence={evidence} onOpen={onOpen}/>}
+  </section>;
+}
+
+function SessionPlan({strong,weak,plan,seed,history,onChoose,onSave,onOpen}: {
   strong?:MapPerformance; weak?:MapPerformance; plan?:TrainingPlan; seed?:TrainingScope; history:MatchSeries[];
-  onChoose:(key:string)=>void; onSave:(plan:TrainingPlan)=>Promise<void>;
+  onChoose:(key:string)=>void; onSave:(plan:TrainingPlan)=>Promise<void>; onOpen:(id:string)=>void;
 }) {
   const [message,setMessage]=useState('');
   const [saving,setSaving]=useState(false);
@@ -174,9 +219,10 @@ function SessionPlan({strong,weak,plan,seed,history,onChoose,onSave}: {
       const focus=String(form.get('focus')??'').trim();
       const map=options.maps.find(([key])=>key===form.get('map'))?.[1];
       const brawler=options.brawlers.find(([key])=>key===form.get('brawler'))?.[1];
+      const metric=trainingMetrics.find(item=>item.key===form.get('metric'))?.key??trainingMetrics[0].key;
       if(!focus||saving)return;
       setSaving(true);setMessage('');
-      try{await onSave({focus,map,brawler,completed:form.has('completed')});setMessage('Plano salvo neste navegador.');}
+      try{await onSave({focus,map,brawler,metric,completed:form.has('completed')});setMessage('Plano salvo neste navegador.');}
       catch(error){setMessage(error instanceof Error?error.message:'Falha ao salvar o plano.');}
       finally{setSaving(false);}
     }}>
@@ -188,6 +234,9 @@ function SessionPlan({strong,weak,plan,seed,history,onChoose,onSave}: {
       <label>Brawler do treino<select ref={brawlerField} name="brawler" defaultValue={normalize(plan?.brawler)} onChange={clearCompleted}>
         <option value="">Todos os brawlers</option>{options.brawlers.map(([key,label])=><option key={key} value={key}>{label}</option>)}
       </select></label>
+      <label>Métrica do treino<select name="metric" defaultValue={plan?.metric??trainingMetrics[0].key}>
+        {trainingMetrics.map(metric=><option key={metric.key} value={metric.key}>{metric.label}</option>)}
+      </select></label>
       <label className="checkbox"><input ref={completedField} name="completed" type="checkbox" defaultChecked={plan?.completed??false}/> Consegui executar o ajuste</label>
       <div className="actions"><button className="button small subtle" disabled={saving}>{saving?'Salvando…':'Salvar plano'}</button>
         {message&&<span role="status" className="muted">{message}</span>}</div>
@@ -197,20 +246,24 @@ function SessionPlan({strong,weak,plan,seed,history,onChoose,onSave}: {
       {reference?.rate!=null?<p className="section-note">Antes do treino, no mesmo recorte · {number(reference.decided)} {reference.decided===1?'decisiva':'decisivas'} · {percent(reference.rate)} de win rate
         {difference!==null&&` · Variação ${difference>0?'+':''}${number(difference)} p.p.`}</p>:
         observed.decided>0&&<p className="section-note">Sem partidas decisivas anteriores nesse recorte para comparar.</p>}</>}
+    {plan&&progress&&<TrainingMeasures key={`${plan.startedAt}:${plan.metric}`} plan={plan} progress={progress} onOpen={onOpen}/>}
   </section>;
 }
 
-function TrainingHistory({plans,history}: {plans:ArchivedTrainingPlan[]; history:MatchSeries[]}) {
+function TrainingHistory({plans,history,onOpen}: {plans:ArchivedTrainingPlan[]; history:MatchSeries[]; onOpen:(id:string)=>void}) {
+  const [selected,setSelected]=useState<ArchivedTrainingPlan|null>(null);
+  const detailed=selected&&plans.includes(selected)?selected:null;
   return <section className="card coaching-card">
     <div className="card-head"><div><h2><History size={17}/> Histórico de treinos</h2>
-      <p>Win rate antes e durante cada treino, no mapa e brawler do plano salvo.</p></div></div>
+      <p>Win rate antes e durante cada treino, no mapa e brawler do plano salvo. Selecione um ajuste para ver suas métricas.</p></div></div>
     <PagedTable label="Histórico de treinos" rows={plans} unit={['treino','treinos']}
       headings={<><th>Ajuste e recorte</th><th>Período</th><th>Antes</th><th>Durante</th><th>Variação</th></>}
       renderRow={plan=>{
         const {observed,reference}=trainingProgress(history,plan);
         const delta=observed.rate===null||reference.rate===null?null:Math.round((observed.rate-reference.rate)*1000)/10;
         return <tr key={JSON.stringify([plan.startedAt,plan.archivedAt,plan.focus,plan.map,plan.brawler])}>
-          <td className="training-history-focus"><strong>{plan.focus}</strong>
+          <td className="training-history-focus"><button className="text-button" aria-pressed={detailed===plan}
+            onClick={()=>setSelected(detailed===plan?null:plan)}>{plan.focus}</button>
             <small>{plan.map||'Todos os mapas'} · {plan.brawler||'Todos os brawlers'}</small></td>
           <td>{dateTime(plan.startedAt??null)}
             <small>{dateTime(plan.completedAt??plan.archivedAt)} · {plan.completed?'Concluído':'Substituído'}</small></td>
@@ -221,6 +274,8 @@ function TrainingHistory({plans,history}: {plans:ArchivedTrainingPlan[]; history
           <td>{delta===null?'—':`${delta>0?'+':''}${number(delta)} p.p.`}</td>
         </tr>;
       }}/>
+    {detailed&&<TrainingMeasures key={`${detailed.startedAt}:${detailed.archivedAt}`} plan={detailed}
+      progress={trainingProgress(history,detailed)} onOpen={onOpen}/>}
   </section>;
 }
 
@@ -251,7 +306,7 @@ export function MapTraining({rows,history,elo,accountName,reviews,plan,archivedP
     </section>
     {active&&<MapSheet key={active.key} map={active} history={history} elo={elo} accountName={accountName} reviews={reviews}
       onOpen={onOpen} onReview={onReview} onDraft={onDraft}/>}
-    <SessionPlan history={history} strong={strong} weak={weak} plan={plan} seed={seed} onChoose={setMap} onSave={onPlan}/>
-    {!!archivedPlans?.length&&<TrainingHistory plans={archivedPlans} history={history}/>}
+    <SessionPlan history={history} strong={strong} weak={weak} plan={plan} seed={seed} onChoose={setMap} onSave={onPlan} onOpen={onOpen}/>
+    {!!archivedPlans?.length&&<TrainingHistory plans={archivedPlans} history={history} onOpen={onOpen}/>}
   </>;
 }

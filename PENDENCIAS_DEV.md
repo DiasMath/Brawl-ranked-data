@@ -51,6 +51,8 @@ Para escolher picks, use a temporada e compare opções no mesmo mapa e modo. Ab
 
 Em 14/11/2026, uma leitura externa da conta no DraftMeta continha 25 registros recentes. Entre eles, 12 estavam classificados como `soloRanked`. Por horário, mapa, brawler e composição dos dois lados, eles formavam seis pares compatíveis com séries, três com duas vitórias e três com duas derrotas. A leitura externa trouxe os brawlers dos dois times. Faltavam as tags dos participantes, a duração e o craque. Essa amostra fornece placares esperados para comparação e não confirma o agrupamento do painel, que também usa as tags. Ainda falta observar uma virada após perder a primeira rodada.
 
+A rodada de Roubo compartilhada em 16/11/2026, às 17:04:34 UTC, identifica Bridge Too Far, duração de 80 segundos, Anthony como craque e seis bans por jogador. A evidência é de uma rodada. Ainda faltam as demais rodadas da série e o detalhe da mesma partida dentro do jogo para comparar placar, sequência e duração total.
+
 | Verificação | Evidência para concluir |
 | --- | --- |
 | Série e ordem das rodadas | Comparar o placar e as rodadas do histórico do jogo com **Partidas → Detalhe**. Usar mapa, brawler e sequência de resultados para identificar a mesma série. |

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeftRight } from 'lucide-react';
+import { MapMixDiagnosis } from './evolution-diagnostics';
 import { PagedTable } from '@/components/data-table';
 import { Card } from '@/components/dashboard-ui';
 import { byBrawlerName, ModeIcon, Portrait } from '@/components/game';
@@ -32,9 +33,9 @@ function WinRate({ row }: { row: { rate: number | null; wins: number; losses: nu
   </div>;
 }
 
-export function SeasonComparison({ matches, calendar, exportedAt, allowed, brawler }: {
+export function SeasonComparison({ matches, calendar, exportedAt, allowed, brawler,onOpen }: {
   matches: MatchSeries[]; calendar: RankedSeason[]; exportedAt: string;
-  allowed: ReadonlySet<string>; brawler: string;
+  allowed: ReadonlySet<string>; brawler: string; onOpen:(id:string)=>void;
 }) {
   const [selected, setSelected] = useState('');
   const [extent, setExtent] = useState<SeasonExtent>('elapsed');
@@ -151,5 +152,6 @@ export function SeasonComparison({ matches, calendar, exportedAt, allowed, brawl
     <p className="section-note">Win rate usa vitórias e derrotas por série. Pick rate usa séries com brawler identificado. A ordenação por variação prioriza grupos com 10 ou mais decisivas de cada lado.
       {cohorts.unassigned > 0 && ` ${number(cohorts.unassigned)} séries ficaram fora por falta de vínculo seguro com o calendário.`}
     </p>
+    <MapMixDiagnosis key={JSON.stringify([current.window.id,extent,brawler])} current={currentScoped} previous={previousScoped} onOpen={onOpen}/>
   </Card>;
 }

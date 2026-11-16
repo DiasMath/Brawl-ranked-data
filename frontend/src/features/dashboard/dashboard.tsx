@@ -15,6 +15,7 @@ import { MapTraining } from '@/features/analytics/map-performance';
 import { BrawlerEvolution } from '@/features/analytics/brawler-evolution';
 import { ModePerformance } from '@/features/analytics/mode-performance';
 import { PerformanceMapReview, RankedAnalysis } from '@/features/analytics/ranked-analysis';
+import { PatchEvolution, patchHistoryScope, SessionEvolution } from '@/features/analytics/evolution-diagnostics';
 import { ReviewPatterns } from '@/features/analytics/review-patterns';
 import { PerformanceTabs } from '@/features/analytics/performance-tabs';
 import type { PerformanceTab } from '@/features/analytics/performance-tabs';
@@ -277,7 +278,11 @@ export default function Dashboard() {
             evolution:<>
               <EvolutionTrends matches={performanceSeries} onOpen={setSelected}/>
               <SeasonComparison matches={performanceHistory} calendar={data.ranked_seasons??[]} exportedAt={data.exported_at}
-                allowed={comparisonIds} brawler={filters.player_brawler}/>
+                allowed={comparisonIds} brawler={filters.player_brawler} onOpen={setSelected}/>
+              <div className="performance-two-columns">
+                <PatchEvolution matches={patchHistoryScope(performanceHistory,comparisonIds,filters.player_brawler)} exportedAt={data.exported_at} onOpen={setSelected}/>
+                <SessionEvolution history={rankedHistory} matches={performanceSeries} onOpen={setSelected}/>
+              </div>
               <MapTraining rows={performanceRows} history={performanceHistory} elo={elo} accountName={active.name}
                 selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training} archivedPlans={local.trainingHistory}
                 seed={trainingTarget?.tag===book.active?trainingTarget:undefined}

@@ -82,7 +82,7 @@ export function pairedVictory(matches: MatchSeries[], defeat: MatchSeries) {
 type Outcome = 'victory'|'defeat';
 type MetricReading = { match:MatchSeries; value:number };
 
-function seriesMeasurements(match: MatchSeries) {
+export function seriesMeasurements(match: MatchSeries) {
   const players = seriesPlayers(match);
   const own = players.find(player=>player.side==='self');
   const seconds = seriesDuration(match);
