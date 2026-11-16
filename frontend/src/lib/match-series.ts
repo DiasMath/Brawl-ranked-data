@@ -69,6 +69,7 @@ export function matchSeries(battles: Battle[]): MatchSeries[] {
     const limit = Math.min(360,Math.max(240,(previous?.duration_seconds??0)+60,(battle.duration_seconds??0)+60));
     if (previous && (previous.api_type!==battle.api_type || normalize(previous.mode)!==normalize(battle.mode)
         || !sameMap(previous,battle) || !sameLineup(signature,key)
+        || normalize(battleSeason(previous))!==normalize(battleSeason(battle))
         || !(gap > 0 && gap <= limit) || wins === 2 || losses === 2)) {
       series.push(makeSeries(rounds,wins,losses));
       rounds = [];

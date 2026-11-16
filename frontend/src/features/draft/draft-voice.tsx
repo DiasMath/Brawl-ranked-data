@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, Loader2, Mic, Square, X } from 'lucide-react';
 import { recordDraftSpeech } from './draft-speech';
 import type { DraftSpeech } from './draft-speech';
+import { recognizeBans, recognizeBrawler } from './draft-voice-names';
 
 type Action = 'ban' | 'pick';
 type Status = 'loading' | 'permission' | 'recording' | 'processing';
@@ -20,46 +21,7 @@ const statusMessages = {
   processing: 'Reconhecendo a fala…',
 };
 
-const aliases = new Map([
-  ['hico', 'rico'], ['shaly', 'shelly'], ['shely', 'shelly'],
-  ['xeli', 'shelly'], ['cheli', 'shelly'], ['collet', 'colette'],
-  ['colete', 'colette'], ['paiper', 'piper'],
-]);
-
-function words(value: string) {
-  return value.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[^a-z0-9]+/g, ' ').trim();
-}
-
-function nameKey(value: string) {
-  const key = words(value).replace(/ /g, '');
-  if (/^(8|oito)bits?$/.test(key)) return '8bit';
-  if (key === 'erte' || key === 'errete') return 'rt';
-  return aliases.get(key) ?? key;
-}
-
-function recognizeBrawler(transcript: string, action: Action, roster: readonly { name: string }[]) {
-  const utterance = words(transcript);
-  const command = /^(ban|banir|bani|bana|banimento|pick|pickar|picar|escolher|escolha|escolhe|esco|selecionar|selecione) (?:(?:o|a|um|uma) )?(.+)$/.exec(utterance);
-  if (command && (command[1].startsWith('ban') ? 'ban' : 'pick') !== action) {
-    return { options: [], opposite: true };
-  }
-  const value = (command?.[2] ?? utterance).replace(/^brawler /, '');
-  const keys = [nameKey(value)];
-  // Whisper can split "escolher" across two words and attach its ending to the name.
-  if (command?.[1] === 'esco') keys.push(nameKey(value.replace(/^her(?=[a-z])/, '')));
-  const exact = roster.filter(brawler => keys.includes(nameKey(brawler.name)));
-  if (exact.length) return { options: exact.map(brawler => brawler.name), opposite: false };
-
-  // The verb can be misheard even when the last word is a recognizable brawler.
-  const mentions = roster.filter(brawler => {
-    const name = words(brawler.name);
-    return name.length > 2 && ` ${value} `.includes(` ${name} `);
-  });
-  const candidate = mentions.length === 1 && value.endsWith(` ${words(mentions[0].name)}`) ? mentions[0] : null;
-  return { options: candidate ? [candidate.name] : [], opposite: false };
-}
-
-export function DraftVoice({ action, team, position, firstPickSelected, roster, onStart, isBlocked, onAssign, getSpeech }: {
+export function DraftVoice({ action, team, position, firstPickSelected, roster, onStart, isBlocked, onAssign, getSpeech, bans }: {
   action: Action;
   team: 'Azul' | 'Vermelho';
   position: number;
@@ -69,12 +31,19 @@ export function DraftVoice({ action, team, position, firstPickSelected, roster, 
   isBlocked: (name: string) => boolean;
   onAssign: (name: string) => void;
   getSpeech: () => DraftSpeech;
+  bans?: {
+    slots: { team: 'Azul' | 'Vermelho'; position: number }[];
+    validate: (names: string[]) => boolean;
+    apply: (names: string[]) => void;
+  };
 }) {
   const active = useRef<AbortController | null>(null);
   const stopRecording = useRef<(() => void) | null>(null);
   const [status, setStatus] = useState<Status>();
   const [options, setOptions] = useState<string[]>([]);
   const [message, setMessage] = useState('');
+  const [review, setReview] = useState<{ name: string; heard: string }[]>([]);
+  const [transcription, setTranscription] = useState('');
 
   useEffect(() => () => active.current?.abort(), []);
 
@@ -85,6 +54,8 @@ export function DraftVoice({ action, team, position, firstPickSelected, roster, 
     setStatus(undefined);
     setMessage('');
     setOptions([]);
+    setReview([]);
+    setTranscription('');
   }
 
   async function listen() {
@@ -131,14 +102,30 @@ export function DraftVoice({ action, team, position, firstPickSelected, roster, 
       stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, noiseSuppression: true, echoCancellation: true } });
       if (signal.aborted) return;
       setStatus(phase = 'recording');
-      const audio = await recordDraftSpeech(stream, context, signal, stop => { stopRecording.current = stop; });
+      const audio = await recordDraftSpeech(stream, context, signal, stop => { stopRecording.current = stop; }, Boolean(bans && bans.slots.length > 1));
       if (signal.aborted) return;
       release();
 
       setStatus(phase = 'processing');
-      const transcript = (await speech.request(audio)).trim();
+      const transcript = (await speech.request(audio, Boolean(bans && bans.slots.length > 1))).trim();
       if (signal.aborted) return;
       const { options, opposite } = recognizeBrawler(transcript, action, roster);
+      if (bans && !opposite && transcript) {
+        const recognized = recognizeBans(transcript, roster);
+        if (recognized.length > bans.slots.length) {
+          setMessage(`Ouvi “${transcript}”. Diga até ${bans.slots.length} nomes, na ordem do draft.`);
+          return;
+        }
+        if (recognized.length > 1 || recognized[0]?.heard) {
+          setReview(bans.slots.map((_, i) => recognized[i] ?? { name: '', heard: '' }));
+          setTranscription(transcript);
+          return;
+        }
+        if (recognized[0]?.name) {
+          setOptions([recognized[0].name]);
+          return;
+        }
+      }
       setOptions(options);
       if (!options.length) setMessage(opposite ? `O próximo turno é de ${action}.`
         : transcript ? `Ouvi “${transcript}”. Tente dizer o comando com o nome do brawler.` : errors['no-speech']!);
@@ -161,8 +148,10 @@ export function DraftVoice({ action, team, position, firstPickSelected, roster, 
 
   const label = action === 'ban' ? 'Ban' : 'Pick';
   const turn = `${label} ${position} · ${team}`;
+  const names = review.map(row => row.name);
+  const ready = Boolean(bans && review.length && names.every(Boolean) && bans.validate(names));
   const hint = status === 'recording'
-    ? (action === 'ban' ? 'Ouvindo… diga “banir Rico”, por exemplo.' : 'Ouvindo… diga “escolher Nita”, por exemplo.')
+    ? (bans && bans.slots.length > 1 ? `Ouvindo… diga até ${bans.slots.length} nomes. Primeiro Azul, depois Vermelho.` : action === 'ban' ? 'Ouvindo… diga “banir Rico”.' : 'Ouvindo… diga “escolher Nita”.')
     : status ? statusMessages[status] : '';
   return <div className="draft-voice">
     <button type="button" className="draft-voice-toggle" aria-pressed={status === 'recording'}
@@ -170,11 +159,33 @@ export function DraftVoice({ action, team, position, firstPickSelected, roster, 
       title={`${turn} · diga o comando e o nome do brawler`}
       onClick={() => void listen()}>{status === 'recording' ? <Square size={13}/> :
         status ? <Loader2 className="draft-voice-spinner" size={15}/> : <Mic size={15}/>}</button>
-    {(status || options.length > 0 || message) && <div className="draft-voice-popover">
+    {(status || options.length > 0 || review.length > 0 || message) && <div className="draft-voice-popover">
       <div className="draft-voice-head">
-        <span role="status">{options.length ? `Confirmar ${turn}` : message || `${turn} · ${hint}`}</span>
+        <span role="status">{review.length ? 'Revisar bans' : options.length ? `Confirmar ${turn}` : message || `${turn} · ${hint}`}</span>
         <button type="button" aria-label="Fechar comando por voz" onClick={close}><X size={14}/></button>
       </div>
+      {bans && review.length > 0 && <>
+        <small className="draft-voice-transcript">{transcription}</small>
+        <ol className="draft-voice-list">{review.map((row, i) => {
+          const slot = bans.slots[i];
+          return <li key={i}>
+            <label><span>{slot.team} · Ban {slot.position}</span>
+              <select aria-label={`${slot.team} · Ban ${slot.position}`} value={row.name}
+                onChange={event => {
+                  const name = event.target.value;
+                  setReview(current => current.map((item, index) => index === i ? { ...item, name } : item));
+                }}>
+                <option value="">{row.heard ? `Ouvi: ${row.heard}` : 'Escolher brawler'}</option>
+                {roster.map(brawler => <option key={brawler.name}>{brawler.name}</option>)}
+              </select>
+            </label>
+          </li>;
+        })}</ol>
+        {!ready && <small>Revise nomes pendentes, repetidos no mesmo time ou já escolhidos.</small>}
+        <button type="button" disabled={!ready} onClick={() => { if (ready) { bans.apply(names); close(); } }}>
+          <Check size={14}/> Confirmar {review.length} {review.length === 1 ? 'ban' : 'bans'}
+        </button>
+      </>}
       {options.map(name => <button type="button" key={name} disabled={isBlocked(name)}
         onClick={() => { if (!isBlocked(name)) { close(); onAssign(name); } }}>
         <Check size={14}/> {name}{isBlocked(name) ? ' · indisponível' : ''}

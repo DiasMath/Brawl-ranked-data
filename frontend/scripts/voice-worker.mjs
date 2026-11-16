@@ -9,9 +9,11 @@ env.backends.onnx.wasm.numThreads = 1;
 let engine;
 let queue = Promise.resolve();
 
-function voiceVocabulary({ model, tokenizer }, roster) {
+function voiceVocabulary({ model, tokenizer }, roster, batch = false) {
   const config = model.generation_config;
-  const context = ' Brawl Stars. O jogador vai banir ou escolher um brawler. Brawlers: ';
+  const context = batch
+    ? ' Brawl Stars. Lista de brawlers para banir, separados por vírgulas. Brawlers: '
+    : ' Brawl Stars. O jogador vai banir ou escolher um brawler. Brawlers: ';
   const encode = text => tokenizer.encode(text, { add_special_tokens: false });
   const names = encode(`${context}${roster.join(', ')}. Brawler:`);
   const prefix = [
@@ -30,18 +32,21 @@ function voiceVocabulary({ model, tokenizer }, roster) {
           if (!node.has(token)) node.set(token, new Map());
           node = node.get(token);
         }
-        node.set(config.eos_token_id, new Map());
+        if (!batch) node.set(config.eos_token_id, new Map());
       }
     }
   }
 
+  const separators = new Set([",", ";"].flatMap(encode));
   class BrawlerBias extends LogitsProcessor {
     _call(sequences, scores) {
       for (const [index, sequence] of sequences.entries()) {
         let node = roots;
-        for (const token of sequence.slice(prefix.length)) node = node?.get(Number(token));
-        // Favor known names while keeping the original model vocabulary available.
-        if (node) for (const token of node.keys()) scores[index].data[token] += 2;
+        const spoken = sequence.slice(prefix.length);
+        const cursor = batch ? spoken.findLastIndex(token => separators.has(Number(token))) + 1 : 0;
+        for (const token of spoken.slice(cursor)) node = node?.get(Number(token));
+        // Restart the name bias after a separator without forcing a match.
+        if (node) for (const token of node.keys()) scores[index].data[token] += batch ? 2.5 : 2;
       }
       return scores;
     }
@@ -51,18 +56,19 @@ function voiceVocabulary({ model, tokenizer }, roster) {
   return { prefix, biases };
 }
 
-async function handle({ id, audio, roster }) {
+async function handle({ id, audio, roster, batch }) {
   try {
     if (!engine) {
       const recognizer = await pipeline('automatic-speech-recognition', 'whisper-base', { device: 'wasm', dtype: 'q8' });
-      engine = { recognizer, ...voiceVocabulary(recognizer, roster) };
+      engine = { recognizer, single: voiceVocabulary(recognizer, roster), batch: voiceVocabulary(recognizer, roster, true) };
     }
     let text = '';
     if (audio) {
-      const { recognizer, prefix, biases } = engine;
+      const { recognizer } = engine;
+      const { prefix, biases } = batch ? engine.batch : engine.single;
       const { input_features } = await recognizer.processor(audio);
       const tokens = await recognizer.model.generate({
-        inputs: input_features, decoder_input_ids: prefix, logits_processor: biases, max_new_tokens: 16,
+        inputs: input_features, decoder_input_ids: prefix, logits_processor: biases, max_new_tokens: batch ? 42 : 16,
       });
       text = recognizer.tokenizer.decode(tokens[0].tolist().slice(prefix.length), { skip_special_tokens: true });
     }

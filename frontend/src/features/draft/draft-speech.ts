@@ -16,7 +16,7 @@ export class DraftSpeech {
     return this.closed;
   }
 
-  request(audio?: Float32Array) {
+  request(audio?: Float32Array, batch = false) {
     return new Promise<string>((resolve, reject) => {
       if (this.closed) return reject(new Error('model-load-failed'));
       const id = ++this.id;
@@ -30,7 +30,7 @@ export class DraftSpeech {
           reject(new Error(reply.error));
         } else resolve(reply.text ?? '');
       });
-      if (audio) this.worker.postMessage({ id, audio }, [audio.buffer as ArrayBuffer]);
+      if (audio) this.worker.postMessage({ id, audio, batch }, [audio.buffer as ArrayBuffer]);
       else this.worker.postMessage({ id, roster: this.roster });
     });
   }
@@ -47,6 +47,7 @@ export async function recordDraftSpeech(
   audio: AudioContext,
   signal: AbortSignal,
   onRecording: (stop: () => void) => void,
+  batch = false,
 ) {
   const source = audio.createMediaStreamSource(stream);
   const analyser = audio.createAnalyser();
@@ -61,13 +62,13 @@ export async function recordDraftSpeech(
       const stop = () => {
         if (recorder.state !== 'inactive') recorder.stop();
       };
-      const limit = setTimeout(stop, 6000);
+      const limit = setTimeout(stop, batch ? 12_000 : 6000);
       const silence = setInterval(() => {
         analyser.getFloatTimeDomainData(samples);
         const rms = Math.sqrt(samples.reduce((sum, value) => sum + value * value, 0) / samples.length);
         const now = performance.now();
         if (rms >= 0.012) lastSpeech = now;
-        else if (lastSpeech && now - lastSpeech > 650) stop();
+        else if (lastSpeech && now - lastSpeech > (batch ? 1050 : 650)) stop();
       }, 50);
       function cleanup() {
         clearTimeout(limit);

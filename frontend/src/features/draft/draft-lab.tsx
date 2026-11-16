@@ -164,7 +164,8 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
       map:external.sourceMap,our_picks:allies,enemy_picks:enemies,
       bans:[...new Set([...draft.blueBan,...draft.redBan].filter(Boolean))],first_pick:firstSide==='team',
     }:null);
-  const nextBan=banOrder.find(s=>!draft[s.side][s.index]);
+  const openBans=banOrder.filter(s=>!draft[s.side][s.index]);
+  const [nextBan]=openBans;
   const voiceTarget=nextBan??nextPick;
   const next=phase==='ban'?voiceTarget:nextPick;
   const query=normalize(search);
@@ -207,17 +208,30 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
     setAdvice(banZone(to.side)?'bans':'picks');setCompactView('roster');
     input.current?.focus({preventScroll:true});
   }
-  function assign(name:string,where=slot){
-    if(draft[where.side][where.index]===name||(name&&blocked(name,where)))return;
-    const modified={...draft,[where.side]:draft[where.side].map((v,i)=>i===where.index?name:v)};
+  function saveDraft(modified:DraftState, where:Slot, removed=false){
     setHistory(h=>[...h,{draft,slot,phase}]);setDraft(modified);setSearch('');
-    if(!name){setSlot(where);return;}
+    if(removed){setSlot(where);return;}
     const nextBan=banZone(where.side)?banOrder.find(s=>!modified[s.side][s.index]):undefined;
     const following=nextBan??order.find(s=>!modified[s.side][s.index]);
     if(following){
       setSlot(following);setPhase(banZone(following.side)?'ban':'pick');
       setAdvice(banZone(following.side)?'bans':'picks');
     }
+  }
+  function assign(name:string,where=slot){
+    if(draft[where.side][where.index]===name||(name&&blocked(name,where)))return;
+    const modified={...draft,[where.side]:draft[where.side].map((v,i)=>i===where.index?name:v)};
+    saveDraft(modified,where,!name);
+  }
+  function planBans(names:string[]){
+    if(!names.length||names.length>openBans.length)return null;
+    const modified={...draft,blueBan:[...draft.blueBan],redBan:[...draft.redBan]};
+    for(const [index,name] of names.entries()){
+      const where=openBans[index];
+      if(!name||blocked(name,where)||modified[where.side].some(value=>normalize(value)===normalize(name)))return null;
+      modified[where.side][where.index]=name;
+    }
+    return modified;
   }
   function reset(){
     setFirst(null);setDraft(fresh());setSlot({side:'blueBan',index:0});setPhase('ban');setAdvice('bans');setHistory([]);setSearch('');
@@ -367,10 +381,15 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
           onChange={e=>setSearch(e.target.value)} placeholder="Buscar brawler"
           onKeyDown={e=>{if(e.key==='Enter'&&!e.nativeEvent.isComposing&&query&&selectable.length===1){e.preventDefault();assign(selectable[0].name);}}}/></label>
         {active&&!mapOpen&&!complete&&compactView==='roster'&&voiceTarget&&<DraftVoice
-          key={`${first}:${voiceTarget.side}:${voiceTarget.index}`}
+          key={`${first}:${voiceTarget.side}:${voiceTarget.index}:${openBans.map(({side,index})=>side+index).join(',')}`}
           action={banZone(voiceTarget.side)?'ban':'pick'} team={teamColor(voiceTarget.side)}
           position={banZone(voiceTarget.side)?voiceTarget.index+1:order.indexOf(voiceTarget)+1}
           firstPickSelected={first!==null} roster={brawlers}
+          bans={nextBan?{
+            slots:openBans.map(({side,index})=>({team:teamColor(side),position:index+1})),
+            validate:names=>planBans(names)!==null,
+            apply:names=>{const modified=planBans(names);if(modified)saveDraft(modified,nextBan);},
+          }:undefined}
           getSpeech={()=>{
             if(!speech.current||speech.current.disposed)speech.current=new DraftSpeech(voiceRoster);
             return speech.current;

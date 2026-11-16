@@ -73,13 +73,18 @@ function observedPace(matches:MatchSeries[]) {
   return {days:days.length,span,perDay:span?matches.length/span:null};
 }
 
+function continuousTrend(current: Progress, previous: Progress, field: 'trophies'|'score') {
+  const season = normalize(current.season);
+  return field === 'trophies' || Boolean(season && season === normalize(previous.season));
+}
+
 export function TrendChart({ rows, field, label, note }: { rows: Progress[]; field: 'trophies'|'score'; label: string; note: string }) {
   const tooltip=useDataTooltip();
   const points = rows.filter(row => row[field] !== null);
   const index=points.findIndex(point=>point.id===tooltip.anchor?.getAttribute('data-reading'));
   const active=points[index];
   const prior=points[index-1];
-  const delta=active&&prior&&(field==='trophies'||(active.season&&normalize(active.season)===normalize(prior.season)))
+  const delta=active&&prior&&continuousTrend(active,prior,field)
     ? active[field]!-prior[field]! : null;
   const min = points.reduce((v,p) => Math.min(v, p[field]!), Infinity);
   const max = points.reduce((v,p) => Math.max(v, p[field]!), -Infinity);
@@ -91,7 +96,7 @@ export function TrendChart({ rows, field, label, note }: { rows: Progress[]; fie
   ]);
   const paths: number[][][] = [];
   for (const [i,point] of points.entries()) {
-    if(i===0 || (field==='score' && normalize(point.season)!==normalize(points[i-1].season))) paths.push([]);
+    if(i===0 || !continuousTrend(point,points[i-1],field)) paths.push([]);
     paths.at(-1)!.push(coords[i]);
   }
   const change = points.length >= 2 && paths.length===1 ? points.at(-1)![field]! - points[0][field]! : null;

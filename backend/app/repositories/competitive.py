@@ -29,8 +29,8 @@ def competitive_periods(cursor, now):
         end = patch["earliest_at"]
     cursor.execute("""
         SELECT id, label, starts_at, ends_at, source_url, date_only FROM ranked_seasons
-        WHERE starts_at <= %s ORDER BY starts_at DESC LIMIT 1
-    """, (now,))
+        WHERE starts_at <= %s AND %s < ends_at ORDER BY starts_at DESC LIMIT 1
+    """, (now, now))
     season = cursor.fetchone()
     if season:
         periods["season"] = {"id": season["id"], "label": season["label"],
