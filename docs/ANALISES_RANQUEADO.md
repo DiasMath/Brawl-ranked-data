@@ -30,9 +30,9 @@ Na largura de desktop, a matriz fica ao lado da comparação de picks, e a compa
 | --- | --- | --- |
 | Vitória × derrota pareada | Primeira entrega | Escolher uma derrota e encontrar uma vitória do mesmo mapa, modo e pick no recorte. Priorizar temporada e rank coincidentes quando conhecidos e, depois, proximidade pela data. Comparar a sequência de rodadas, métricas e placares com acesso aos dois detalhes. |
 | Vitórias × derrotas agregadas | Disponível | Comparar eliminações, mortes, dano causado, dano recebido, cura e objetivo para um mapa e pick. Mostrar cobertura por métrica e resultado. |
-| Conversão da primeira rodada | Próxima etapa | Comparar séries vencidas após ganhar e após perder a abertura. Agrupar por mapa ou pick, manter empates da abertura fora das duas amostras e abrir as séries de cada grupo. O indicador de viradas já existe por modo e mapa. |
-| Contribuição no objetivo × combate | Próxima etapa | Em Roubo, plotar dano causado por minuto contra dano ao cofre por minuto. Um ponto por série com ambas as métricas, cor pelo resultado e clique para abrir o placar. |
-| Composição das derrotas | Próxima etapa | Exibir adversários, pares e depois trios recorrentes. Cada combinação conta uma vez por série. Mostrar frequência nas derrotas, volume e recorte. |
+| Conversão da primeira rodada | Disponível | Agrupar por mapa ou brawler e comparar vitórias na série após ganhar ou perder a abertura. Cada taxa abre a amostra. Empates na abertura ficam fora das duas amostras. |
+| Contribuição no objetivo × combate | Disponível | Em Roubo, comparar dano causado e dano ao cofre por minuto. Cada ponto representa uma série, mostra o resultado pela cor e abre o placar. A tabela paginada mostra os mesmos dados. |
+| Composição das derrotas | Disponível | Alternar entre adversários, duplas e trios. Ordenar por séries enfrentadas e desempatar por derrotas. A presença usa as derrotas com os três adversários identificados. Cada linha abre as derrotas da combinação. |
 | Mapa para revisar | Disponível | Destacar o maior saldo de derrotas, listar picks e adversários e abrir as séries correspondentes. |
 
 ## Evolução
@@ -50,4 +50,4 @@ Na largura de desktop, a matriz fica ao lado da comparação de picks, e a compa
 - Usar vitórias e derrotas como denominador do win rate. Exibir valores ausentes como `—` e conservar o zero observado.
 - Calcular taxas por minuto com as durações registradas. Exigir dados completos das métricas somadas e dos integrantes usados para calcular a participação da equipe. Só somar métricas de objetivo quando a unidade e o tipo forem compatíveis.
 - Exibir origem, período, filtros e tamanho das amostras. Rank e temporada ausentes podem reduzir a comparabilidade. Resultados observados, incluindo os de treinos e balanceamentos, são descritivos.
-- Priorizar, na sequência, conversão da primeira rodada e gráfico de objetivo, análise de confrontos e aliados, métricas de treino e diagnóstico de mudança no aproveitamento.
+- Priorizar, na sequência, análise de confrontos e aliados, métricas de treino e diagnóstico de mudança no aproveitamento.

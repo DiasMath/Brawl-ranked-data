@@ -15,6 +15,7 @@ import { MapTraining } from '@/features/analytics/map-performance';
 import { BrawlerEvolution } from '@/features/analytics/brawler-evolution';
 import { ModePerformance } from '@/features/analytics/mode-performance';
 import { PerformanceMapReview, RankedAnalysis } from '@/features/analytics/ranked-analysis';
+import { ReviewPatterns } from '@/features/analytics/review-patterns';
 import { PerformanceTabs } from '@/features/analytics/performance-tabs';
 import type { PerformanceTab } from '@/features/analytics/performance-tabs';
 import { DraftCoverage, EvolutionTrends, MapResultsChart, ModeWinRateChart, SummaryKpis } from '@/features/analytics/performance-visuals';
@@ -267,8 +268,11 @@ export default function Dashboard() {
                 }}/>
               <Performance rows={performanceRows}/>
             </>,
-            review:<RankedAnalysis matches={performanceSeries} pickMatches={performanceSeries} preferredBrawler={filters.player_brawler}
-              selectedMap={selectedAnalysisMap} view="review" onSelectMap={selectAnalysisMap} onOpen={setSelected}/>,
+            review:<>
+              <RankedAnalysis matches={performanceSeries} pickMatches={performanceSeries} preferredBrawler={filters.player_brawler}
+                selectedMap={selectedAnalysisMap} view="review" onSelectMap={selectAnalysisMap} onOpen={setSelected}/>
+              <ReviewPatterns matches={performanceSeries} onOpen={setSelected}/>
+            </>,
             evolution:<>
               <EvolutionTrends matches={performanceSeries} onOpen={setSelected}/>
               <SeasonComparison matches={performanceHistory} calendar={data.ranked_seasons??[]} exportedAt={data.exported_at}

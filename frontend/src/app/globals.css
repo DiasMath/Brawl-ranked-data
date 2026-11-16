@@ -1281,3 +1281,16 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
   .performance-kpis > div { padding:7px 8px; }
   .performance-kpis dd strong { font-size:19px; }
 }
+
+.heist-scatter { position:relative; height:176px; margin:6px 8px 0; border-bottom:1px solid var(--muted); border-left:1px solid var(--muted);
+  background:repeating-linear-gradient(to top,transparent 0,transparent calc(25% - 1px),rgba(255,255,255,.12) calc(25% - 1px),rgba(255,255,255,.12) 25%),
+    repeating-linear-gradient(to right,transparent 0,transparent calc(25% - 1px),rgba(255,255,255,.12) calc(25% - 1px),rgba(255,255,255,.12) 25%); }
+.heist-scatter-label { display:flex; justify-content:space-between; gap:8px; color:var(--muted); font-size:11px; }
+.heist-scatter button { position:absolute; transform:translate(-50%,50%); width:22px; height:22px; padding:0;
+  display:grid; place-items:center; border:0; border-radius:50%; background:transparent; cursor:pointer; }
+.heist-scatter [data-result=victory],.heist-scatter-legend [data-result=victory] { --point-color:var(--green); }
+.heist-scatter [data-result=defeat],.heist-scatter-legend [data-result=defeat] { --point-color:var(--danger); }
+.heist-scatter button::before,.heist-scatter-legend span::before { content:''; width:8px; height:8px; border-radius:50%; background:var(--point-color); }
+.heist-scatter button:is(:hover,:focus-visible) { z-index:1; outline:1px solid var(--point-color); }
+.heist-scatter-legend { display:flex; flex-wrap:wrap; gap:12px; font-size:11px; }
+.heist-scatter-legend span { display:flex; align-items:center; gap:4px; }

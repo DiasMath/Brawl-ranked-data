@@ -130,3 +130,72 @@ export function compareSeriesResults(matches: MatchSeries[], mode: string|null) 
   });
   return {metrics};
 }
+
+export function openingConversion(matches: MatchSeries[], groupBy:'map'|'brawler') {
+  const groups = new Map<string,{
+    id:string; name:string; mode:string|null;
+    victory:MatchSeries[]; defeat:MatchSeries[];
+  }>();
+  for (const match of matches) {
+    if (!completedRankedSeries(match) || match.rounds.some(round=>!round.result) || match.rounds.at(-1)?.result!==match.result) continue;
+    const opening = match.rounds[0].result;
+    if (opening!=='victory' && opening!=='defeat') continue;
+    const {map_name:map,mode} = match.latest;
+    const name = groupBy==='map' ? map : match.rounds.findLast(round=>normalize(round.player_brawler))?.player_brawler;
+    if (!name || !normalize(name)) continue;
+    const id = groupBy==='map' ? JSON.stringify([normalize(mode),mapKey(name)]) : normalize(name);
+    const group = groups.get(id) ?? {id,name,mode:groupBy==='map'?mode:null,victory:[],defeat:[]};
+    group[opening].push(match);
+    groups.set(id,group);
+  }
+  return [...groups.values()].map(group=>({...group, games:group.victory.length+group.defeat.length,
+    afterWin:stats(group.victory), afterLoss:stats(group.defeat),
+  })).sort((a,b)=>b.games-a.games || a.name.localeCompare(b.name,'pt-BR'));
+}
+
+export function heistObjectivePoints(matches: MatchSeries[]) {
+  const points: { match:MatchSeries; damage:number; objective:number }[] = [];
+  let eligible = 0;
+  for (const match of matches) {
+    if (normalize(match.latest.mode)!=='heist' || !completedRankedSeries(match)) continue;
+    eligible++;
+    const { damageDealt, safePerMinute } = seriesMeasurements(match);
+    if (damageDealt!==undefined && safePerMinute!==undefined) {
+      points.push({match,damage:damageDealt,objective:safePerMinute});
+    }
+  }
+  return { points, eligible };
+}
+
+export function opponentCompositions(matches: MatchSeries[], size:1|2|3) {
+  const groups = new Map<string,{id:string; names:string[]; games:number; wins:number; losses:number; defeats:MatchSeries[]}>();
+  let covered = 0;
+  let coveredLosses = 0;
+  let losses = 0;
+  for (const match of matches) {
+    if (!completedRankedSeries(match)) continue;
+    const lost = match.result==='defeat';
+    if (lost) losses++;
+    const opponents = match.latest.players.filter(player=>player.side==='opponent').map(player=>player.brawler?.trim()??'');
+    if (opponents.length!==3 || opponents.some(name=>!name)) continue;
+    covered++;
+    if (lost) coveredLosses++;
+    const names = opponents.sort((a,b)=>normalize(a).localeCompare(normalize(b),'pt-BR'));
+    const [first,second,third] = names;
+    const combinations = size===3 ? [names] : size===2 ? [[first,second],[first,third],[second,third]] : names.map(name=>[name]);
+    const seen = new Set<string>();
+    for (const combo of combinations) {
+      const id = JSON.stringify(combo.map(normalize));
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const group = groups.get(id) ?? {id,names:combo,games:0,wins:0,losses:0,defeats:[]};
+      group.games++;
+      if (lost) {
+        group.losses++;
+        group.defeats.push(match);
+      } else group.wins++;
+      groups.set(id,group);
+    }
+  }
+  return {rows:orderByMatchCount([...groups.values()].filter(row=>row.losses),'losses'),covered,coveredLosses,losses};
+}
