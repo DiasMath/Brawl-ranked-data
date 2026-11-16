@@ -1,6 +1,12 @@
 export type Participant = {
   team_index: number; player_tag: string | null; player_name: string | null;
   brawler: string | null; brawler_id?: number | null; power: number | null; side: 'self' | 'ally' | 'opponent' | 'unknown';
+  banned_brawler?: Equipment;
+  stats?: ParticipantStats;
+};
+export const participantMetrics = ['kills', 'deaths', 'damage_dealt', 'damage_taken', 'healing'] as const;
+export type ParticipantStats = Partial<Record<typeof participantMetrics[number], number>> & {
+  objective?: { type: string; value: number };
 };
 export type BattleKd = { kills: number; deaths: number; reference: string | null };
 export type BattleElo = { before: number; after: number; reference: string };
@@ -189,6 +195,11 @@ export function parseSnapshot(value: unknown): Dataset {
           && (b.bans === null || (Array.isArray(b.bans) && b.bans.every(v => typeof v === 'string')))
           && Array.isArray(b.players) && b.players.every(p => p && isCount(p.team_index)
               && [p.player_tag, p.player_name, p.brawler].every(isText) && isCount(p.power)
+              && (p.banned_brawler === undefined || (p.banned_brawler && typeof p.banned_brawler.name === 'string' && isCount(p.banned_brawler.id)))
+              && (p.stats === undefined || (p.stats && typeof p.stats === 'object' && !Array.isArray(p.stats)
+                && participantMetrics.every(key => p.stats?.[key] === undefined || (p.stats[key] !== null && isCount(p.stats[key])))
+                && (p.stats.objective === undefined || (p.stats.objective && typeof p.stats.objective.type === 'string'
+                  && p.stats.objective.value !== null && isCount(p.stats.objective.value)))))
               && ['self', 'ally', 'opponent', 'unknown'].includes(p.side)))
       || !d.updates.every(row => row && isDate(row.started_at) && (row.finished_at === null || isDate(row.finished_at))
           && ['success', 'error', 'running'].includes(row.status) && isCount(row.received) && isCount(row.added)

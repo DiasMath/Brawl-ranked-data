@@ -61,26 +61,64 @@ def bans(value):
     return names if all(names) else None
 
 
+def battle_teams(battle):
+    teams = battle.get("teams")
+    return teams if isinstance(teams, list) and teams and all(isinstance(team, list) for team in teams) else []
+
+
+def battle_members(battle):
+    teams = battle_teams(battle)
+    if teams:
+        return [member for team in teams for member in team]
+    players = battle.get("players")
+    return players if isinstance(players, list) else []
+
+
+def banned_brawler(member):
+    entry = obj(member.get("bannedBrawler"))
+    name = string(entry.get("name"))
+    return {"id": integer(entry.get("id")), "name": name} if name else None
+
+
 def battle_bans(battle):
     draft_bans = bans(obj(battle.get("draft")).get("bans"))
-    return draft_bans if draft_bans is not None else bans(battle.get("bans"))
+    explicit = draft_bans if draft_bans is not None else bans(battle.get("bans"))
+    if explicit:
+        return explicit
+    teams = battle_teams(battle)
+    if battle.get("type") not in RANKED_TYPES or len(teams) != 2 or any(len(team) != 3 for team in teams):
+        return explicit
+    members = [obj(member) for team in teams for member in team]
+    observed = [entry["name"] for member in members if (entry := banned_brawler(member))]
+    tags = {string(member.get("tag")) for member in members}
+    if len(observed) == len(members) == len(tags) and None not in tags:
+        return observed
+    return None if observed else explicit
+
+
+def member_stats(member):
+    readings = (obj(member.get("stats")), obj(member.get("statistics")), member)
+    fields = {"kills": "kills", "deaths": "deaths", "damageDealt": "damage_dealt",
+              "damageTaken": "damage_taken", "healing": "healing"}
+    stats = {}
+    for reading in readings:
+        for source, field in fields.items():
+            value = integer(reading.get(source))
+            if value is not None and value >= 0:
+                stats.setdefault(field, value)
+        objective = obj(reading.get("modeStat"))
+        kind, value = string(objective.get("type")), integer(objective.get("value"))
+        if kind and value is not None and value >= 0:
+            stats.setdefault("objective", {"type": kind, "value": value})
+    return stats
 
 
 def battle_kd(battle, account):
-    teams = battle.get("teams")
-    players = battle.get("players")
-    if isinstance(teams, list):
-        players = [player for team in teams if isinstance(team, list) for player in team]
-    if not isinstance(players, list):
-        return None
-    matching = [obj(player) for player in players if obj(player).get("tag") == account]
-    if len(matching) != 1:
-        return None
-    player = matching[0]
-    for stats in (obj(player.get("statistics")), player):
-        kills, deaths = integer(stats.get("kills")), integer(stats.get("deaths"))
-        if kills is not None and deaths is not None and kills >= 0 and deaths >= 0:
-            return {"kills": kills, "deaths": deaths, "reference": None}
+    matching = [obj(member) for member in battle_members(battle) if obj(member).get("tag") == account]
+    if len(matching) == 1:
+        stats = member_stats(matching[0])
+        if "kills" in stats and "deaths" in stats:
+            return {"kills": stats["kills"], "deaths": stats["deaths"], "reference": None}
     return None
 
 
@@ -90,6 +128,14 @@ def encoded(value):
 
 def with_known(previous, current):
     return {**obj(previous), **{key: value for key, value in obj(current).items() if value is not None}}
+
+
+def merge_stats(previous, current):
+    stats = with_known(previous, current)
+    old_objective, new_objective = obj(obj(previous).get("modeStat")), obj(obj(current).get("modeStat"))
+    if old_objective and new_objective.get("type") in (None, old_objective.get("type")):
+        stats["modeStat"] = with_known(old_objective, new_objective)
+    return stats
 
 
 def merge_members(previous, current):
@@ -102,9 +148,14 @@ def merge_members(previous, current):
         member = obj(entry)
         old = known.get(string(member.get("tag")), {})
         updated = with_known(old, member)
-        for key in ("brawler", "statistics"):
+        if obj(old.get("brawler")) or obj(member.get("brawler")):
+            updated["brawler"] = with_known(old.get("brawler"), member.get("brawler"))
+        for key in ("stats", "statistics"):
             if obj(old.get(key)) or obj(member.get(key)):
-                updated[key] = with_known(old.get(key), member.get(key))
+                updated[key] = merge_stats(old.get(key), member.get(key))
+        old_ban, new_ban = obj(old.get("bannedBrawler")), obj(member.get("bannedBrawler"))
+        if old_ban and new_ban.get("id") in (None, old_ban.get("id")):
+            updated["bannedBrawler"] = with_known(old_ban, new_ban)
         merged.append(updated)
     return merged
 
@@ -117,6 +168,8 @@ def merge_battle_log(previous, current):
     """Preserve observations already saved for the same account and battle time."""
     old, fresh = obj(previous.get("battle")), obj(current.get("battle"))
     battle = with_known(old, fresh)
+    if obj(old.get("draft")) or obj(fresh.get("draft")):
+        battle["draft"] = with_known(old.get("draft"), fresh.get("draft"))
     old_star, new_star = obj(old.get("starPlayer")), obj(fresh.get("starPlayer"))
     if old_star and not (string(new_star.get("tag")) or string(new_star.get("name"))):
         battle["starPlayer"] = old_star
@@ -151,8 +204,8 @@ def parse_battle(item, account):
     battle = obj(item.get("battle"))
     raw_type = string(battle.get("type"))
     ranked = raw_type in RANKED_TYPES
-    groups = battle.get("teams")
-    grouped = isinstance(groups, list) and bool(groups) and all(isinstance(team, list) for team in groups)
+    groups = battle_teams(battle)
+    grouped = bool(groups)
     if not grouped:
         players = battle.get("players")
         groups = [[member] for member in players] if isinstance(players, list) else []

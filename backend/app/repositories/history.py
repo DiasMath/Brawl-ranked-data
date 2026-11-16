@@ -1,7 +1,9 @@
+from collections import Counter
 from datetime import timedelta
 import json
 
-from ..domain import battle_bans, battle_kd, integer, iso, obj, ranked_reading, string, utc_now
+from ..domain import (banned_brawler, battle_bans, battle_kd, battle_members, integer, iso, member_stats, obj,
+                      ranked_reading, string, utc_now)
 
 
 def latest_run(cursor, player, successful=False, *, scheduled=False):
@@ -86,11 +88,25 @@ def dataset(cursor, player, after_run=0, include_archive=False, include_updates=
     matches = cursor.fetchall()
     by_id = {row["id"]: row for row in matches}
     raw_battles = {}
+    player_details = {}
     for match in matches:
         item = json.loads(match.pop("raw"))
         battle = obj(item.get("battle"))
         performance = obj(match.pop("performance"))
         match["kd"] = battle_kd(battle, player) or performance.get("kd")
+        members = [(tag, member) for entry in battle_members(battle) if (member := obj(entry))
+                   and (tag := string(member.get("tag")))]
+        counts = Counter(tag for tag, _ in members)
+        for tag, member in members:
+            if counts[tag] != 1:
+                continue
+            details = {}
+            if ban := banned_brawler(member):
+                details["banned_brawler"] = ban
+            if stats := member_stats(member):
+                details["stats"] = stats
+            if details:
+                player_details[match["id"], tag] = details
         match["elo_evidence"] = performance.get("elo")
         if include_archive:
             raw_battles[match["id"]] = item
@@ -126,7 +142,9 @@ def dataset(cursor, player, after_run=0, include_archive=False, include_updates=
         ORDER BY p.battle_id, p.team_index, p.slot
     """, params)
     for participant in cursor.fetchall():
-        by_id[participant.pop("battle_id")]["players"].append(participant)
+        battle_id = participant.pop("battle_id")
+        participant.update(player_details.get((battle_id, participant["player_tag"]), {}))
+        by_id[battle_id]["players"].append(participant)
     updates = update_page(cursor, player, limit=100)["rows"] if include_updates else []
     cursor.execute("SELECT id, source_name, source_url, period_start, period_end, map_name, mode, rank_label, season, "
                    "brawler, wins, games, pick_count, pick_total, ban_count, ban_total "

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Ban, ChevronDown, ChevronRight, Clock3, List, Star, Swords, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Clock3, List, Star, X } from 'lucide-react';
 import { Empty, Pill } from '@/components/dashboard-ui';
 import { PagedTable } from '@/components/data-table';
 import { findMap, MapImage, ModeIcon, ModeLabel, Portrait, RankArt } from '@/components/game';
@@ -8,8 +8,9 @@ import { seasonLabel } from '@/lib/ranked-seasons';
 import { ReplayAnnotation } from '@/features/analytics/replay-annotation';
 import type { ReplayReview } from '@/lib/coaching';
 import type { Battle } from '@/lib/data';
-import { hasOfficialBans, matchKd, seriesBans, seriesDuration, seriesRank } from '@/lib/match-series';
+import { matchKd, seriesDuration, seriesRank } from '@/lib/match-series';
 import type { MatchElo, MatchSeries } from '@/lib/match-series';
+import { MatchBans, MatchScoreboard, SeriesImpact } from './match-scoreboard';
 
 function resultTone(result: Battle['result']) {
   return result === 'victory' ? 'success' : result === 'defeat' ? 'danger' : 'neutral';
@@ -45,24 +46,6 @@ export function MatchList({ matches, elo, onOpen, compact = false }: {
     }}/>;
 }
 
-function MatchBans({ match, series }: { match: Battle; series?: MatchSeries }) {
-  const rounds = series?.rounds ?? [match];
-  const consistent = series ? seriesBans(series) : undefined;
-  const rows = consistent ? [consistent] : rounds.filter(hasOfficialBans);
-  if (!rows.length) return null;
-
-  return <section className="match-bans" aria-label="Bans da partida">
-    <h3><Ban size={15}/> Bans da partida</h3>
-    <p className="muted">Histórico da Supercell</p>
-    {rows.map(row => <div key={row.id} className="match-ban-list">
-      {rounds.length > 1 && <small>Lista recebida na rodada {rounds.indexOf(row) + 1}</small>}
-      {row.bans.length ? <ul>{row.bans.map((name, i) => <li key={i} className="image-label">
-        <Portrait name={name}/><span>{name}</span>
-      </li>)}</ul> : <p>Sem bans</p>}
-    </div>)}
-  </section>;
-}
-
 export function MatchDetail({ match, series, elo, onRound, raw, review, onClose, onReview, seasonInfo }: {
   match: Battle; raw: unknown; review?: ReplayReview; onClose: () => void;
   seasonInfo?: { season: string|null; seasonEstimated: boolean }; series?: MatchSeries; elo?:MatchElo; onRound?: (id: string) => void;
@@ -75,7 +58,6 @@ export function MatchDetail({ match, series, elo, onRound, raw, review, onClose,
     element?.showModal();
     return () => { element?.close(); };
   }, []);
-  const groups = [...new Set(match.players.map(p => p.team_index))];
   const grouped = series && series.rounds.length>1 ? series : null;
   const duration=series?seriesDuration(series):match.duration_seconds;
   const totalKd=grouped?matchKd(grouped):null;
@@ -91,7 +73,7 @@ export function MatchDetail({ match, series, elo, onRound, raw, review, onClose,
     { label:'Temporada', value:seasonInfo?seasonInfo.season:seasonLabel((!match.season_source&&match.season)||calendar?.label), note:(seasonInfo?.seasonEstimated??Boolean(calendar))?
       <>Estimativa pela data{seasonLink&&<> · <a href={seasonLink} target="_blank" rel="noreferrer">Calendário</a></>}</>:'Histórico da Supercell' },
   ].filter(field=>field.value!=null);
-  return <dialog ref={dialog} className="drawer" onCancel={onClose} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+  return <dialog ref={dialog} className="drawer match-drawer" onCancel={onClose} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
     <div className="drawer-content"><div className="drawer-head"><div><span className="eyebrow">Histórico de partidas</span>
       <h2>{match.map_name ?? 'Partida'}</h2><p>{modeName(match.mode)} · {dateTime(match.played_at)}</p></div>
       <button className="icon-button" aria-label="Fechar detalhes" onClick={onClose}><X size={21} /></button></div>
@@ -127,14 +109,8 @@ export function MatchDetail({ match, series, elo, onRound, raw, review, onClose,
       {star&&<div><dt>{grouped?'Craque da rodada':'Craque da partida'}</dt><dd className="image-label"><Star size={15}/>{star}</dd></div>}
     </dl>}
     <MatchBans match={match} series={grouped??undefined}/>
-    {groups.length ? groups.map(group => {
-      const members = match.players.filter(p => p.team_index === group);
-      const hasSelf = members.some(p => p.side === 'self');
-      const isOpponent = members.every(p => p.side === 'opponent');
-      return <section key={group} className="team"><h3>{hasSelf ? 'Sua equipe' : isOpponent ? 'Equipe adversária' : `Grupo ${group + 1}`}</h3>
-        {members.map((p, i) => <div key={i} className="member"><div><strong>{p.player_name ?? 'Jogador'}</strong><small>{p.player_tag ?? '—'}</small></div>
-          <div className="image-label"><Portrait name={p.brawler} id={p.brawler_id}/><div><strong>{p.brawler ?? '—'}</strong><small>{p.power !== null ? `Poder ${p.power}` : ''}</small></div></div>{p.side === 'self' && <Pill kind="accent">Você</Pill>}</div>)}</section>;
-    }) : <Empty icon={Swords} title="Composição indisponível" />}
+    {grouped&&<SeriesImpact series={grouped}/>}
+    <MatchScoreboard match={match} isRound={Boolean(grouped)}/>
     {raw !== undefined && <div className="actions"><button className="button subtle" onClick={()=>setRawOpen(v=>!v)}>
       <ChevronDown size={16} /> {rawOpen ? 'Ocultar JSON' : 'Ver JSON da API'}</button></div>}
     {match.ranked&&<ReplayAnnotation key={match.id} review={review} onSave={onReview}/>}

@@ -87,6 +87,16 @@ function archivedLineup(battle: Record<string,unknown>, account: string): Battle
   }));
 }
 
+function preservePlayerDetails(lineup: Battle['players'], previous: Battle['players']) {
+  const known=new Map(previous.filter(p=>p.player_tag&&(p.stats||p.banned_brawler)).map(p=>[p.player_tag,p]));
+  if(!known.size)return lineup;
+  return lineup.map(player=>{
+    const before=known.get(player.player_tag);
+    return before?{...player, banned_brawler:player.banned_brawler??before.banned_brawler,
+      stats:before.stats?{...before.stats,...player.stats}:player.stats}:player;
+  });
+}
+
 export function mergeBattles(previous: Battle[], incoming: Battle[]) {
   const map = new Map(previous.map(row => [row.id, row]));
   for (const next of incoming) {
@@ -112,7 +122,8 @@ export function mergeBattles(previous: Battle[], incoming: Battle[]) {
       score_source: next.rank_score !== null ? next.score_source : old.score_source,
       season_source: next.season !== null ? next.season_source : old.season_source,
       bans_source: next.bans !== null ? next.bans_source : old.bans_source,
-      players: next.players.length&&lineupCoverage(next.players)>=lineupCoverage(old.players)?next.players:old.players,
+      players: next.players.length&&lineupCoverage(next.players)>=lineupCoverage(old.players)
+        ?preservePlayerDetails(next.players,old.players):preservePlayerDetails(old.players,next.players),
     });
   }
   return [...map.values()].sort((a, b) => b.played_at.localeCompare(a.played_at));
@@ -157,7 +168,7 @@ export function fromSnapshot(input: unknown, previous: LocalData): LocalData {
     return {...match,
       duration_seconds:match.duration_seconds??count(fresh.duration)??count(saved.duration),
       star_player:match.star_player?.tag||match.star_player?.name?match.star_player:tag||name?{tag,name}:null,
-      players,
+      players:players===match.players?players:preservePlayerDetails(players,match.players),
     };
   });
   return {

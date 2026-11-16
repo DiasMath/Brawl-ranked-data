@@ -1,6 +1,6 @@
 import unittest
 
-from app.domain import battle_kd, merge_battle_log, parse_battle
+from app.domain import battle_bans, battle_kd, member_stats, merge_battle_log, parse_battle
 
 
 class BattleLogMergeTest(unittest.TestCase):
@@ -34,3 +34,26 @@ class BattleLogMergeTest(unittest.TestCase):
         merged = merge_battle_log(old, new)
         self.assertEqual(merged["battle"]["teams"], [[b], [a]])
         self.assertEqual(merged["battle"]["starPlayer"], new_star)
+
+    def test_ranked_player_bans_and_mode_stats_survive_partial_refresh(self):
+        owner = {"tag": "#PPPPPP", "bannedBrawler": {"id": 16000040, "name": "AMBER"},
+                 "stats": {"kills": 3, "deaths": 1, "damageDealt": 16696, "damageTaken": 15626,
+                           "healing": 4030, "modeStat": {"type": "safeDamage", "value": 39776}}}
+        others = [{"tag": tag, "bannedBrawler": {"name": name}} for tag, name in
+                  zip(("#QQQQQQ", "#RRRRRR", "#YYYYYY", "#LLLLLL", "#UUUUUU"),
+                      ("NORI", "8-BIT", "RICO", "MANDY", "CHUCK"))]
+        old = {"battle": {"type": "soloRanked", "teams": [[owner, *others[:2]], others[2:]]}}
+        fresh = {"battle": {"teams": [[{"tag": owner["tag"], "bannedBrawler": {"id": 16000040},
+                                        "stats": {"healing": 0, "modeStat": {"type": "safeDamage"}}},
+                                       *others[:2]], others[2:]]}}
+        battle = merge_battle_log(old, fresh)["battle"]
+        self.assertEqual(battle_bans(battle), ["AMBER", "NORI", "8-BIT", "RICO", "MANDY", "CHUCK"])
+        self.assertEqual(battle_kd(battle, owner["tag"]), {"kills": 3, "deaths": 1, "reference": None})
+        self.assertEqual(member_stats(battle["teams"][0][0]), {
+            "kills": 3, "deaths": 1, "damage_dealt": 16696, "damage_taken": 15626,
+            "healing": 0, "objective": {"type": "safeDamage", "value": 39776},
+        })
+        del battle["teams"][0][0]["bannedBrawler"]
+        self.assertIsNone(battle_bans(battle))
+        battle["bans"] = ["COLT"]
+        self.assertEqual(battle_bans(battle), ["COLT"])
