@@ -7,6 +7,7 @@ import { dateTime, durationLabel, modeName, normalize, number, percent, resultNa
 import { seriesDuration } from '@/lib/match-series';
 import type { MatchSeries } from '@/lib/match-series';
 import { compareSeriesResults, mapForReview, opponentsInDefeats, pairedVictory, picksOnMap, rankedMaps } from '@/lib/ranked-analysis';
+import { BanComparison, MapPickPlan } from './draft-map-evidence';
 import { PerformanceKpis } from './performance-kpis';
 
 type ReviewMap = NonNullable<ReturnType<typeof mapForReview>>;
@@ -94,8 +95,8 @@ function PairedReview({ matches,mode,onOpen }: { matches:MatchSeries[]; mode:str
   </section>;
 }
 
-function MapComparison({ map,pickMap,preferredBrawler,view,onOpen }: {
-  map:RankedMap; pickMap:RankedMap; preferredBrawler:string; view:'review'|'draft'; onOpen:(id:string)=>void;
+function MapComparison({ map,pickMap,preferredBrawler,view,onOpen,onDraft }: {
+  map:RankedMap; pickMap:RankedMap; preferredBrawler:string; view:'review'|'draft'; onOpen:(id:string)=>void; onDraft?:()=>void;
 }) {
   const [choice,setChoice] = useState('');
   const [selection,setSelection] = useState<{id:string; target:ComparisonSelection}|null>(null);
@@ -173,7 +174,10 @@ function MapComparison({ map,pickMap,preferredBrawler,view,onOpen }: {
         </div>)}
       </div>
     </section>
-    {selectedEvidence&&<EvidenceTable evidence={selectedEvidence} onOpen={onOpen}/>}</>}
+    {selectedEvidence&&<EvidenceTable evidence={selectedEvidence} onOpen={onOpen}/>}
+    <MapPickPlan matches={pickMap.matches} map={pickMap.name} mode={pickMap.mode} onDraft={onDraft}/>
+    <BanComparison matches={pickMap.matches} map={pickMap.name} mode={pickMap.mode}/>
+    </>}
   </>;
 }
 
@@ -214,9 +218,9 @@ export function PerformanceMapReview({matches,onAnalyze,onOpen}: {
   return review?<ReviewDetails key={review.id} map={review} onAnalyze={()=>onAnalyze(review.id)} onOpen={onOpen}/>:null;
 }
 
-export function RankedAnalysis({ matches,pickMatches,selectedMap,preferredBrawler,view,onSelectMap,onOpen }: {
+export function RankedAnalysis({ matches,pickMatches,selectedMap,preferredBrawler,view,onSelectMap,onOpen,onDraft }: {
   matches:MatchSeries[]; pickMatches:MatchSeries[]; selectedMap:string; preferredBrawler:string; view:'review'|'draft';
-  onSelectMap:(map:string)=>void; onOpen:(id:string)=>void;
+  onSelectMap:(map:string)=>void; onOpen:(id:string)=>void; onDraft?:(map:string)=>void;
 }) {
   const maps = useMemo(()=>rankedMaps(matches),[matches]);
   const pickMaps = useMemo(()=>pickMatches===matches ? maps : rankedMaps(pickMatches),[matches,maps,pickMatches]);
@@ -232,7 +236,8 @@ export function RankedAnalysis({ matches,pickMatches,selectedMap,preferredBrawle
         {maps.map(row=><option key={row.id} value={row.id}>{row.name} · {modeName(row.mode)}</option>)}
       </select></label>}>
       <MapComparison key={JSON.stringify([map.id,preferredBrawler])}
-        map={map} pickMap={pickMap} preferredBrawler={preferredBrawler} view={view} onOpen={onOpen}/>
+        map={map} pickMap={pickMap} preferredBrawler={preferredBrawler} view={view} onOpen={onOpen}
+        onDraft={onDraft?()=>onDraft(map.name):undefined}/>
     </Card>;
 }
 

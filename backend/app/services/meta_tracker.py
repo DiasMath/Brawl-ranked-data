@@ -9,7 +9,7 @@ from ..repositories.accounts import list_accounts
 from ..repositories.history import retry_until
 from ..repositories.competitive import record_collection
 from .credentials import stored_token
-from .meta_sample import choose_players, discovered_players, player_battlelog, sample_battle, save_sample
+from .meta_sample import choose_players, discovered_players, merge_sample_rows, player_battlelog, sample_battle, save_sample
 from .supercell import CollectionError, CountedCompetitiveClient, fetch, official_client
 
 
@@ -42,7 +42,7 @@ def read_player(client, player, minimum):
             return elo, {}, set()
         items = player_battlelog(client, player)
         complete = [(item, battle) for item in items if (battle := sample_battle(item, player)) is not None]
-        return elo, {battle[0]: battle for _, battle in complete}, discovered_players(item for item, _ in complete)
+        return elo, merge_sample_rows(battle for _, battle in complete), discovered_players(item for item, _ in complete)
     except CollectionError as error:
         return error
 

@@ -1,0 +1,2 @@
+ALTER TABLE meta_sample_battles ADD COLUMN IF NOT EXISTS bans TEXT[];
+ALTER TABLE meta_sample_battles ADD COLUMN IF NOT EXISTS bans_conflict BOOLEAN NOT NULL DEFAULT FALSE;

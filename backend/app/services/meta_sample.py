@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from itertools import permutations
+import json
 
 from ..config import meta_min_elo
 from ..domain import encoded, iso, obj, parse_battle, tag, utc_now
@@ -35,8 +36,24 @@ def sample_battle(item, player):
     winning_index = None if battle["result"] == "draw" else ordered.index(own_team)
     if battle["result"] == "defeat":
         winning_index = 1 - winning_index
+    bans = sorted({name.casefold().strip() for name in json.loads(battle["bans"])}) if battle["bans"] is not None else None
     return (match_id, played_at, battle["map_name"], battle["mode"],
-            [brawler for _, brawler in identities[0]], [brawler for _, brawler in identities[1]], winning_index)
+            [brawler for _, brawler in identities[0]], [brawler for _, brawler in identities[1]], winning_index,
+            bans, False)
+
+
+def merge_sample_rows(rows):
+    observations = {}
+    for row in rows:
+        previous = observations.get(row[0])
+        if previous is not None:
+            old_bans, old_conflict = previous[7:]
+            new_bans, new_conflict = row[7:]
+            mismatch = old_bans is not None and new_bans is not None and old_bans != new_bans
+            row = (*row[:7], old_bans if old_bans is not None else new_bans,
+                   old_conflict or new_conflict or mismatch)
+        observations[row[0]] = row
+    return observations
 
 
 def choose_players(client, excluded, *, region="global", limit=10, count=5):
@@ -92,22 +109,33 @@ def sample_players(client, players):
         raise limited
     if errors and len(errors) == len(players):
         raise errors[0]
-    return {row[0]: row for result in results if isinstance(result, list) for row in result}, len(errors)
+    return merge_sample_rows(row for result in results if isinstance(result, list) for row in result), len(errors)
 
 
 def save_sample(cursor, battles, observed_elo=None):
     added = 0
     for row in battles.values():
         cursor.execute("""
-            INSERT INTO meta_sample_battles (id, played_at, map_name, mode, team_a, team_b, winner, observed_elo)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING
-        """, (*row, observed_elo))
+            INSERT INTO meta_sample_battles
+                (id, played_at, map_name, mode, team_a, team_b, winner, observed_elo, bans, bans_conflict)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING
+        """, (*row[:7], observed_elo, *row[7:]))
         added += cursor.rowcount
-        if cursor.rowcount == 0 and observed_elo is not None:
+        bans, bans_conflict = row[7:]
+        if cursor.rowcount == 0 and (observed_elo is not None or bans is not None or bans_conflict):
             cursor.execute("""
-                UPDATE meta_sample_battles SET observed_elo=%s
-                WHERE id=%s AND (observed_elo IS NULL OR observed_elo < %s)
-            """, (observed_elo, row[0], observed_elo))
+                UPDATE meta_sample_battles AS stored
+                SET observed_elo=GREATEST(stored.observed_elo, incoming.elo),
+                    bans=COALESCE(stored.bans, incoming.bans),
+                    bans_conflict=stored.bans_conflict OR incoming.conflict OR
+                        (stored.bans IS NOT NULL AND incoming.bans IS NOT NULL AND stored.bans <> incoming.bans)
+                FROM (VALUES (%s::int, %s::text[], %s::boolean)) AS incoming(elo, bans, conflict)
+                WHERE stored.id=%s AND (
+                    (incoming.elo IS NOT NULL AND (stored.observed_elo IS NULL OR stored.observed_elo < incoming.elo))
+                    OR (NOT stored.bans_conflict AND
+                        (incoming.conflict OR (incoming.bans IS NOT NULL AND stored.bans IS DISTINCT FROM incoming.bans)))
+                )
+            """, (observed_elo, bans, bans_conflict, row[0]))
     return added
 
 
@@ -115,8 +143,15 @@ def summarize_context(rows, mode, map_name):
     picks = defaultdict(lambda: [0, 0, 0])
     pairs = defaultdict(lambda: [0, 0])
     allies = defaultdict(lambda: [0, 0])
+    bans = defaultdict(int)
+    ban_known = 0
     decisive = 0
     for row in rows:
+        recorded = row["bans"]
+        if recorded is not None and not row["bans_conflict"]:
+            ban_known += 1
+            for name in recorded:
+                bans[name] += 1
         teams = (row["team_a"], row["team_b"])
         winner = row["winner"]
         decisive += int(winner is not None)
@@ -143,7 +178,8 @@ def summarize_context(rows, mode, map_name):
         "latest": iso(max(row["played_at"] for row in rows)),
         "sample": {"picks": [[key, *stat] for key, stat in picks.items()],
                    "pairs": [[*key, *stat] for key, stat in pairs.items()],
-                   "allies": [[*key, *stat] for key, stat in allies.items()]},
+                   "allies": [[*key, *stat] for key, stat in allies.items()],
+                   "banKnown": ban_known, "bansByName": list(bans.items())},
     }
 
 

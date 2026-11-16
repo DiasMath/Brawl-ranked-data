@@ -11,11 +11,18 @@ export type PublicIndex = {
   source: string; url: string; start: string; end: string; season: string; contexts: PublicContext[]; unit?: 'registros'|'séries'; latest?: string|null;
 };
 export type PublicStats = { picks: [number, number, number, number?][]; pairs: [number, number, number, number][];
-  allies?: [number, number, number, number][]; bans?: [number,number][]; banKnown?: number };
+  allies?: [number, number, number, number][]; bans?: [number,number][]; bansByName?: [string,number][]; banKnown?: number };
 export type ScoutingRow = { name: string; wins: number; games: number; pickCount?: number; details: { name: string; wins: number; games: number }[] };
 export const byId = new Map(brawlers.map(b => [b.id, b]));
 const contextCache = new Map<string, Promise<PublicStats>>();
 let indexRequest: Promise<PublicIndex> | null = null;
+
+export function publicBans(sample:PublicStats) {
+  return (sample.bansByName ?? (sample.bans??[]).flatMap(([id,count])=>{
+    const name=byId.get(id)?.name;
+    return name ? [[name,count] as [string,number]] : [];
+  })).map(([name,count])=>({name,count}));
+}
 
 function getIndex() {
   indexRequest ??= fetch('/scouting/index.json').then(async response => {

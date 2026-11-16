@@ -28,9 +28,14 @@ class CompetitivePeriodsTest(unittest.TestCase):
                 dates = ("2026-11-03T07:59:59.999", "2026-11-03T08:00:00", "2026-11-10T23:59:59.999",
                          "2026-11-11T00:00:00", "2026-11-11T23:59:59.999", "2026-11-12T00:00:00")
                 batches = {str(i): (str(i), datetime.fromisoformat(played), "Test map", "gemGrab",
-                                    [1, 2, 3], [4, 5, 6], 0) for i, played in enumerate(dates)}
+                                    [1, 2, 3], [4, 5, 6], 0, None, False) for i, played in enumerate(dates)}
                 self.assertEqual(save_sample(cursor, batches, 9000), 6)
                 self.assertEqual(save_sample(cursor, batches, 9000), 0)
+                with_bans = {str(index): (*batches[str(index)][:7], bans, False)
+                             for index, bans in ((1, ["colt"]), (2, []), (3, ["piper"]), (5, ["max"]))}
+                self.assertEqual(save_sample(cursor, with_bans), 0)
+                self.assertEqual(save_sample(cursor, {"3": (*batches["3"][:7], ["max"], False)}), 0)
+                self.assertEqual(save_sample(cursor, batches), 0)
                 client = CountedCompetitiveClient(Mock())
                 for path in ("rankings/global/players", "players/test", "players/test/battlelog"):
                     client.get(path)
@@ -43,6 +48,12 @@ class CompetitivePeriodsTest(unittest.TestCase):
                 self.assertEqual(current["contexts"][0]["sets"], 1)
                 self.assertEqual(previous["contexts"][0]["sets"], 2)
                 self.assertEqual(windows["season"]["contexts"][0]["sets"], 6)
+                previous_sample = previous["contexts"][0]["sample"]
+                self.assertEqual(previous_sample["banKnown"], 2)
+                self.assertEqual(previous_sample["bansByName"], [("colt", 1)])
+                season_sample = windows["season"]["contexts"][0]["sample"]
+                self.assertEqual(season_sample["banKnown"], 3)
+                self.assertEqual(dict(season_sample["bansByName"]), {"colt": 1, "max": 1})
                 self.assertTrue(current["date_only"])
                 self.assertFalse(previous["date_only"])
                 self.assertEqual(previous["start_at"], "2026-11-03T08:00:00.000Z")

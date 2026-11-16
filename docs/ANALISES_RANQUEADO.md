@@ -19,10 +19,10 @@ Na largura de desktop, a matriz fica ao lado da comparação de picks, e a compa
 | --- | --- | --- |
 | Matriz de cobertura mapa × brawler | Primeira entrega | Uma célula por mapa e pick da conta. Win rate, número de séries e lista das partidas ao selecionar a célula. Mostrar opções com pelo menos três séries e sinalizar amostras menores. |
 | Pick frequente × efetivo | Disponível | Comparar frequência e taxa de vitória no mapa. Usar todas as escolhas identificadas do mapa no denominador da frequência. |
-| Melhores picks pessoais por mapa | Próxima etapa | Combinar aproveitamento, volume, evolução recente e a métrica do objetivo quando disponível. Expor cada evidência e abrir o mapa no Draft Lab. |
-| Confronto contra o próprio padrão | Próxima etapa | Para o mesmo mapa e pick, comparar resultados contra o adversário escolhido com os resultados contra outros. Mostrar as duas amostras. |
-| Sinergia com aliados | Próxima etapa | No mesmo mapa e pick, comparar séries com e sem o aliado. Mostrar objetivo quando disponível. A comparação descreve os resultados observados. |
-| Ban pessoal × ban da meta | Próxima etapa | Cruzar presença do adversário no mapa, resultados pessoais e referência competitiva. Exibir fontes, janelas e tamanhos das amostras. |
+| Melhores picks pessoais por mapa | Disponível | Ordenar pelo limite inferior de Wilson a partir de três séries decisivas. Exibir volume, pick rate, forma recente e dano ao cofre por minuto quando disponível. Abrir o mapa e a temporada no Draft Lab. |
+| Confronto contra o próprio padrão | Disponível | Na ficha do brawler, selecionar um mapa e comparar séries contra o adversário com séries contra outros adversários no mesmo mapa, modo e pick. Mostrar as duas amostras com composição identificada. |
+| Sinergia com aliados | Disponível | No mesmo mapa, modo e pick, comparar séries com e sem o aliado usando os dois aliados identificados. Mostrar dano ao cofre por minuto e sua amostra em Roubo. A comparação descreve os resultados observados. |
+| Ban pessoal × ban da meta | Implementado, coleta competitiva a validar | Comparar presença do adversário, derrotas, bans dos drafts da conta e bans dos registros competitivos no mesmo mapa e janela. Mostrar origem, denominadores e cobertura. Confirmar listas no primeiro lote real após a migração. |
 
 ## Revisão de partidas
 
@@ -50,4 +50,4 @@ Na largura de desktop, a matriz fica ao lado da comparação de picks, e a compa
 - Usar vitórias e derrotas como denominador do win rate. Exibir valores ausentes como `—` e conservar o zero observado.
 - Calcular taxas por minuto com as durações registradas. Exigir dados completos das métricas somadas e dos integrantes usados para calcular a participação da equipe. Só somar métricas de objetivo quando a unidade e o tipo forem compatíveis.
 - Exibir origem, período, filtros e tamanho das amostras. Rank e temporada ausentes podem reduzir a comparabilidade. Resultados observados, incluindo os de treinos e balanceamentos, são descritivos.
-- Priorizar, na sequência, análise de confrontos e aliados, métricas de treino e diagnóstico de mudança no aproveitamento.
+- Priorizar métricas de treino e diagnóstico de mudança no aproveitamento. Confirmar a cobertura dos bans competitivos após a migração.

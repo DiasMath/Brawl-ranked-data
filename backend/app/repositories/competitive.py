@@ -47,7 +47,7 @@ def public_period(period):
 
 def sampled_battles(cursor, start, end):
     cursor.execute("""
-        SELECT played_at, map_name, mode, team_a, team_b, winner, observed_elo,
+        SELECT played_at, map_name, mode, team_a, team_b, winner, observed_elo, bans, bans_conflict,
                ((played_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo')::date AS day
         FROM meta_sample_battles WHERE played_at >= %s AND played_at < %s
     """, (start, end))

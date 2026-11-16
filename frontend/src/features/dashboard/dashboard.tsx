@@ -257,7 +257,8 @@ export default function Dashboard() {
               <div className="performance-draft-grid">
                 <DraftCoverage matches={performanceSeries} onOpen={setSelected}/>
                 <RankedAnalysis matches={performanceSeries} pickMatches={pickComparisonSeries} preferredBrawler={filters.player_brawler}
-                  selectedMap={selectedAnalysisMap} view="draft" onSelectMap={selectAnalysisMap} onOpen={setSelected}/>
+                  selectedMap={selectedAnalysisMap} view="draft" onSelectMap={selectAnalysisMap} onOpen={setSelected}
+                  onDraft={map=>openDraft(map,accountFilters.season)}/>
               </div>
               <BrawlerEvolution key={JSON.stringify([accountFilters.season,filters.player_brawler,filters.map_name,filters.rank_label])}
                 matches={performanceTab==='draft'?filteredSeries(performanceHistory,accountMatches,{

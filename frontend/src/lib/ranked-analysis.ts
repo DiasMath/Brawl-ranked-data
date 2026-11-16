@@ -1,6 +1,7 @@
 import { normalize, orderByMatchCount, stats } from './data';
+import { recentFormWindows } from './coaching';
 import { mapKey } from './external-comparison';
-import { completedRankedSeries, seriesDuration, seriesPlayers, seriesRank, seriesSeason, sumRecorded } from './match-series';
+import { completedRankedSeries, seriesBattle, seriesDuration, seriesPlayers, seriesRank, seriesSeason, sumRecorded } from './match-series';
 import type { MatchSeries } from './match-series';
 import { ordered } from './scouting';
 
@@ -198,4 +199,58 @@ export function opponentCompositions(matches: MatchSeries[], size:1|2|3) {
     }
   }
   return {rows:orderByMatchCount([...groups.values()].filter(row=>row.losses),'losses'),covered,coveredLosses,losses};
+}
+
+function objectiveAverage(matches:MatchSeries[]) {
+  let total = 0;
+  let coverage = 0;
+  for (const match of matches) {
+    if (normalize(match.latest.mode)!=='heist') continue;
+    const { safePerMinute } = seriesMeasurements(match);
+    if (safePerMinute===undefined) continue;
+    total += safePerMinute;
+    coverage++;
+  }
+  return { coverage, average:coverage?total/coverage:null };
+}
+
+export function personalMapPicks(matches:MatchSeries[]) {
+  return ordered(picksOnMap(matches).rows.filter(pick=>pick.decided>=3).map(pick=>{
+    const chronological = pick.matches.slice().sort((a,b)=>b.latest.played_at.localeCompare(a.latest.played_at));
+    return {...pick,...recentFormWindows(chronological),objective:objectiveAverage(chronological)};
+  }));
+}
+
+export function matchupBaseline(matches:MatchSeries[], brawler:string, side:'ally'|'opponent') {
+  const conditions = new Map<string,Set<string>>();
+  let context:string|undefined;
+  const groups = new Map<string,MatchSeries[]>();
+  const own:MatchSeries[] = [];
+  for (const match of matches) {
+    const battle = seriesBattle(match);
+    if (normalize(battle.player_brawler)!==brawler || !completedRankedSeries(match)) continue;
+    if (!battle.map_name || !battle.mode) return null;
+    const current = JSON.stringify([mapKey(battle.map_name),normalize(battle.mode)]);
+    if (context && current!==context) return null;
+    context = current;
+    const teammates = battle.players.filter(player=>player.side===side);
+    if (teammates.length!==(side==='ally'?2:3) || teammates.some(player=>!normalize(player.brawler))) continue;
+    const names = new Set(teammates.map(player=>normalize(player.brawler)));
+    conditions.set(match.id,names);
+    own.push(match);
+    for (const name of names) {
+      const group = groups.get(name) ?? [];
+      group.push(match);
+      groups.set(name,group);
+    }
+  }
+  const map = new Map([...groups].map(([name,withBrawler])=>{
+    const withoutBrawler = own.filter(match=>!conditions.get(match.id)?.has(name));
+    return [name,{
+      withBrawler:stats(withBrawler),withoutBrawler:stats(withoutBrawler),
+      withObjective:side==='ally'?objectiveAverage(withBrawler):null,
+      withoutObjective:side==='ally'?objectiveAverage(withoutBrawler):null,
+    }] as const;
+  }));
+  return { rows:map, covered:own.length };
 }

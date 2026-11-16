@@ -4,7 +4,7 @@ import { PublicMeta } from '@/features/analytics/analytics';
 import { MetaPeriods } from '@/features/collection/collector-panel';
 import { findMap, MapImage, ModeIcon, Portrait, roleName } from '@/components/game';
 import { LiveMeta } from '@/lib/live';
-import { byId, ordered, publicPicks, usePublicStats } from '@/lib/scouting';
+import { byId, ordered, publicBans, publicPicks, usePublicStats } from '@/lib/scouting';
 import type { PublicStats } from '@/lib/scouting';
 import type { Battle, Filters } from '@/lib/data';
 import { dateTime, modeName, normalize, number, percent } from '@/lib/data';
@@ -17,10 +17,10 @@ function metaLeaders(sample:PublicStats, volume:number, metric:Metric):ChartRow[
   const picks=publicPicks(sample);
   if(metric==='ban'){
     if(!sample.banKnown)return [];
-    return (sample.bans??[]).flatMap(([id,n])=>{
-      const b=byId.get(id);
-      return b?[{name:b.name,value:n/sample.banKnown!,detail:`${number(n)} bans · ${number(sample.banKnown!)} registros com lista`}]:[];
-    });
+    const known=sample.banKnown;
+    return publicBans(sample).map(({name,count})=>({
+      name,value:count/known,detail:`${number(count)} bans · ${number(known)} registros com lista`,
+    }));
   }
   if(metric==='pick')return picks.map(r=>({
     name:r.name,value:volume?(r.pickCount??0)/(volume*6):0,detail:`${number(r.pickCount??0)} escolhas`,

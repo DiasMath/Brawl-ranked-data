@@ -6,6 +6,7 @@ import { ModeIcon, Portrait } from '@/components/game';
 import { brawlerMapPerformance, brawlerMatchups, brawlerPerformance } from '@/lib/coaching';
 import { modeName, normalize, number, orderByMatchCount, orderByWinRate, percent } from '@/lib/data';
 import { mapKey } from '@/lib/external-comparison';
+import { matchupBaseline } from '@/lib/ranked-analysis';
 import type { MatchSeries } from '@/lib/match-series';
 import { seriesSeason } from '@/lib/match-series';
 
@@ -44,6 +45,7 @@ export function BrawlerEvolution({ matches, initialSeason, initialBrawler, mapFi
   const selectedKey=selected?.key;
   const byMap=useMemo(()=>selectedKey?orderByWinRate(brawlerMapPerformance(scoped,selectedKey)):[],[scoped,selectedKey]);
   const matchups=useMemo(()=>selectedKey?brawlerMatchups(scoped,selectedKey,side):null,[scoped,selectedKey,side]);
+  const baseline=useMemo(()=>selectedKey&&(mapFilter||activeMap)?matchupBaseline(scoped,selectedKey,side):null,[scoped,selectedKey,side,activeMap,mapFilter]);
   const allies=side==='ally';
   const counterpart=allies?'Aliado':'Adversário';
   const relation=allies?'com':'contra';
@@ -130,19 +132,27 @@ export function BrawlerEvolution({ matches, initialSeason, initialBrawler, mapFi
         </div>
         {matchups.rows.length?<><PagedTable label={`${counterpart}s de ${selected.label}`} rows={orderByMatchCount(matchups.rows,hardFirst?'losses':'wins')}
           pageKey={JSON.stringify([selectedKey,season,activeMode,activeMap,side,hardFirst])}
-          headings={<><th>{counterpart}</th><th aria-sort="descending">Partidas</th><th>Win rate pessoal</th><th>Últimas partidas</th></>}
-          renderRow={row=><tr key={row.key}>
+          headings={<><th>{counterpart}</th><th aria-sort="descending">Partidas</th><th>Win rate pessoal</th>{baseline&&<th>Presença × ausência</th>}<th>Últimas partidas</th></>}
+          renderRow={row=>{
+            const comparison=baseline?.rows.get(row.key);
+            return <tr key={row.key}>
             <td><span className="image-label"><Portrait name={row.name}/>{row.name}</span></td>
             <td>{number(row.games)}</td>
             <td><strong>{percent(row.rate)}</strong><small>{number(row.wins)} V · {number(row.losses)} D</small></td>
+            {baseline&&<td>{comparison?<><small>{allies?'Com':'Contra'} {percent(comparison.withBrawler.rate)} · {number(comparison.withBrawler.decided)} séries</small>
+              <small>{allies?'Sem':'Outros'} {percent(comparison.withoutBrawler.rate)} · {number(comparison.withoutBrawler.decided)} séries</small>
+              {comparison.withObjective?.coverage||comparison.withoutObjective?.coverage?<small>Cofre/min {comparison.withObjective?.average==null?'—':number(Math.round(comparison.withObjective.average))}
+                {' × '}{comparison.withoutObjective?.average==null?'—':number(Math.round(comparison.withoutObjective.average))}
+                {' · '}{number(comparison.withObjective?.coverage??0)} × {number(comparison.withoutObjective?.coverage??0)} séries</small>:null}</>:'—'}</td>}
             <td><div className="actions">
               {row.defeat&&<button type="button" className="button small subtle" aria-label={`Ver derrota ${relation} ${row.name}`}
                 onClick={()=>onMatch(row.defeat!.id)}>Ver derrota</button>}
               {row.victory&&<button type="button" className="button small subtle" aria-label={`Ver vitória ${relation} ${row.name}`}
                 onClick={()=>onMatch(row.victory!.id)}>Ver vitória</button>}
             </div></td>
-          </tr>}/>
-          <p className="section-note">{allies?'Resultados da sua equipe quando esse brawler era aliado.':'Resultados da sua equipe quando enfrentou esse brawler.'} A ordem leva em conta o tamanho da amostra.</p>
+          </tr>; }}/>
+          <p className="section-note">{baseline?`Presença × ausência usa ${number(baseline.covered)} séries com ${allies?'os dois aliados':'os três adversários'} identificados no mesmo mapa, modo e pick. `:
+            'Selecione um único mapa para comparar presença e ausência. '}{allies?'Resultados da sua equipe quando esse brawler era aliado.':'Resultados da sua equipe quando enfrentou esse brawler.'} A ordem leva em conta o tamanho da amostra.</p>
         </>:<p className="section-note">Nenhum {counterpart.toLowerCase()} identificado neste recorte.</p>}
       </section>}
     </>:<p className="section-note">Nenhuma partida com brawler identificado neste recorte.</p>}
