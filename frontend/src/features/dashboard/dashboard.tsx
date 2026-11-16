@@ -144,6 +144,28 @@ export default function Dashboard() {
     if(key==='season'&&(section==='progress'||section==='overview'))values.push(...readings.map(row=>row.season));
     return [key,[...new Map(values.filter((v):v is string=>Boolean(v)).map(v=>[normalize(v),v])).values()].sort((a,b)=>a.localeCompare(b,'pt-BR',{numeric:key==='season'}))];
   })),[accountMatches,readings,section,rankedOnly,commonPublic,period,report,elo]);
+  const isOverview=section==='overview';
+  const filterHeading=<h2><Filter size={16} aria-hidden="true"/><span className="filter-title">Filtros</span>
+    {countFilters>0&&<span className="filter-count">{countFilters}</span>}</h2>;
+  const filterActions=<div className="actions">{!commonPublic&&(isOverview||section==='progress'?[1,7,30]:[1]).map(days=><button key={days} className="text-button" onClick={()=>{
+    const end=localDay(new Date().toISOString());
+    const start=new Date(Date.parse(end)-(days-1)*86400000).toISOString().slice(0,10);
+    setFilters({...filters,start,end});
+  }}>{days===1?'Hoje':days+' dias'}</button>)}
+    <button className="text-button" aria-label="Limpar filtros" onClick={()=>setFilters(emptyFilters)} disabled={!countFilters}>{isOverview?'Limpar':'Limpar filtros'}</button></div>;
+
+  const filterFields=<div className={`filter-fields ${section==='progress'?'progress-filters':commonPublic?'map-filters':''}`}>
+    {!commonPublic&&<fieldset><legend><CalendarDays size={13}/> Período</legend>
+      <div className="date-fields"><input aria-label="Data inicial" type="date" value={filters.start} onChange={e=>setFilters({...filters,start:e.target.value})}/>
+        <span aria-hidden="true">–</span><input aria-label="Data final" type="date" value={filters.end} onChange={e=>setFilters({...filters,end:e.target.value})}/></div></fieldset>}
+    {columnFilters.filter(([key])=>section==='progress'?key==='season':
+      (!commonPublic||(key!=='rank_label'&&(key!=='season'||period==='reference')))&&
+      (!['rank_label','season'].includes(key)||!!available[key].length||!!filters[key])).map(([key,label,placeholder])=><label key={key}>{label}
+      <select value={accountFilters[key]} disabled={!available[key].length&&!accountFilters[key]} onChange={e=>setFilters({...filters,[key]:e.target.value,mode:''})}>
+        <option value="">{!available[key].length&&key==='rank_label'?'Rank da partida indisponível':placeholder}</option>
+        {accountFilters[key]&&!available[key].includes(accountFilters[key])&&<option value={accountFilters[key]}>{key==='season'?seasonLabel(accountFilters[key]):accountFilters[key]}</option>}
+        {available[key].map(v=><option key={v} value={v}>{key==='season'?seasonLabel(v):v}</option>)}</select></label>)}
+  </div>;
 
   return <LiveMeta.Provider value={{report,period,setPeriod:changePeriod}}><div className={`shell lab-shell ${section==='draftlab'?'draft-shell':''}`}>
     {menuOpen&&<button className="mobile-scrim" aria-label="Fechar menu" onClick={()=>setMenuOpen(false)}/>}
@@ -177,28 +199,13 @@ export default function Dashboard() {
             <RefreshCw size={14} aria-hidden="true"/><span>{sending?'Sincronizando…':'Sincronizar'}</span></button></>}
           <button className="button small top-button" onClick={()=>navigate('sources')} aria-label="Gerenciar contas"><Settings size={15}/><span>Contas</span></button></div>
       </header>
-      <main className={`main compact-main ${section==='draftlab'?'draft-main':''}`}>
+      <main className={`main compact-main${section==='draftlab'?' draft-main':isOverview?' overview-main':''}`}>
         {filtersVisible&&<section className="card filters" aria-label="Filtros de análise">
-          <div className="filters-head"><h2><Filter size={16}/> Filtros {countFilters>0&&<span>{countFilters}</span>}</h2>
-            <div className="actions">{!commonPublic&&(section==='overview'||section==='progress'?[1,7,30]:[1]).map(days=><button key={days} className="text-button" onClick={()=>{
-              const end=localDay(new Date().toISOString());
-              const start=new Date(Date.parse(end)-(days-1)*86400000).toISOString().slice(0,10);
-              setFilters({...filters,start,end});
-            }}>{days===1?'Hoje':days+' dias'}</button>)}
-              <button className="text-button" onClick={()=>setFilters(emptyFilters)} disabled={!countFilters}>Limpar filtros</button></div></div>
-          <div className={`filter-fields ${section==='progress'?'progress-filters':commonPublic?'map-filters':''}`}>{!commonPublic&&<fieldset><legend><CalendarDays size={13}/> Período</legend>
-            <div className="date-fields"><input aria-label="Data inicial" type="date" value={filters.start} onChange={e=>setFilters({...filters,start:e.target.value})}/>
-              <span>–</span><input aria-label="Data final" type="date" value={filters.end} onChange={e=>setFilters({...filters,end:e.target.value})}/></div></fieldset>}
-            {columnFilters.filter(([key])=>section==='progress'?key==='season':
-              (!commonPublic||(key!=='rank_label'&&(key!=='season'||period==='reference')))&&
-              (!['rank_label','season'].includes(key)||!!available[key].length||!!filters[key])).map(([key,label,placeholder])=><label key={key}>{label}
-              <select value={accountFilters[key]} disabled={!available[key].length&&!accountFilters[key]} onChange={e=>setFilters({...filters,[key]:e.target.value,mode:''})}>
-                <option value="">{!available[key].length&&key==='rank_label'?'Rank da partida indisponível':placeholder}</option>
-                {accountFilters[key]&&!available[key].includes(accountFilters[key])&&<option value={accountFilters[key]}>{key==='season'?seasonLabel(accountFilters[key]):accountFilters[key]}</option>}
-                {available[key].map(v=><option key={v} value={v}>{key==='season'?seasonLabel(v):v}</option>)}</select></label>)}</div>
+          {isOverview?<div className="overview-filter-bar">{filterHeading}{filterFields}{filterActions}</div>:
+            <><div className="filters-head">{filterHeading}{filterActions}</div>{filterFields}</>}
           {dateError&&!commonPublic&&<p className="section-note error" role="alert">A data final deve ser igual ou posterior à data inicial.</p>}
         </section>}
-        {section==='overview'&&<Overview local={local} readings={readings} latestProfile={latestProfile} account={active} matches={rankedSeries} elo={elo} historyCount={series.length} filters={accountFilters}
+        {isOverview&&<Overview local={local} readings={readings} latestProfile={latestProfile} account={active} matches={rankedSeries} elo={elo} historyCount={series.length} filters={accountFilters}
           busy={busy||!ready||sending} syncing={sending} onSettings={()=>navigate('sources')} onProgress={()=>navigate('progress')} onDraft={()=>navigate('draftlab')} onMeta={()=>navigate('meta')} onSync={()=>void sync()} onMatch={b=>setSelected(b.id)} onHistory={()=>navigate('matches')} collectorLinked={!!server?.configured}/>}
         {section==='progress'&&<Progression key={book.active} local={local} readings={readings} filters={progressFilters}
           matches={filteredSeries(series,accountMatches,progressFilters,true,elo)} elo={elo}/>}

@@ -73,7 +73,7 @@ function RankedActivity({matches,filters}:{matches:MatchSeries[];filters:Filters
   const active=series.find(day=>day.day===tooltip.anchor?.getAttribute('data-day'));
   return <section className="card ranked-activity"><div className="card-head"><div><h2><CalendarDays size={17}/> Atividade por dia</h2>
     <p>{days.length?`${dayLabel(days[0])} – ${dayLabel(days.at(-1)!)} · horário de Brasília`:'Ranqueadas por data no histórico da conta'}</p></div>
-    {!!total&&<span className="activity-count">{number(total)} partidas</span>}</div>
+    {!!total&&<span className="activity-count">{number(total)} {total===1?'partida':'partidas'}</span>}</div>
     {total?<><ol className="activity-bars" style={{gridTemplateColumns:`repeat(${series.length},minmax(0,1fr))`}}>
       {series.map((s,i)=>{
         const other=s.games-s.decided;
@@ -124,33 +124,33 @@ export function Overview({ local, account, matches, elo, historyCount, filters, 
   const results = matches.map(match=>({...match.latest,result:match.result}));
   const topMaps = ordered(accountGroups(results,b=>b.map_name,3));
   const topBrawlers = ordered(accountGroups(results,b=>b.player_brawler,3));
-  return <div className="stack">
-    <div className="rank-summary-grid">
-      <section className="command-hero overview-hero">
+  return <div className="stack overview-content">
+    <div className="overview-summary">
+      <section className="command-hero overview-hero" aria-label="Rank atual">
         <div className="hero-info"><div className="hero-profile"><AccountIcon id={profile?.icon_id}/><div><strong>{account.name}</strong>{account.name!==account.tag&&<span>{account.tag}</span>}</div></div>
-          <div className="hero-rank"><small>{profileHasRank?'RANQUEADO · PERFIL DA SUPERCELL':'RANQUEADO · ÚLTIMA LEITURA'}</small><h2>{rank || 'Rank indisponível'}</h2>
-            <p>{current ? [current.score!=null?number(current.score)+' pontos':'',dateTime(current.at),current.season,current.rank?'':'divisão de referência'].filter(Boolean).join(' · ')
+          <div className="hero-rank"><small>Rank atual</small><h2>{rank || 'Rank indisponível'}</h2>
+            {current?.score!=null&&<strong className="overview-rank-score">{number(current.score)} pontos</strong>}
+            <p>{current ? [profileHasRank?'Perfil Supercell':'Última leitura',dateTime(current.at),current.season,current.rank?'':'divisão de referência'].filter(Boolean).join(' · ')
               : profile?'O último perfil recebido veio sem o rank atual.':'Sincronize a conta para consultar seu rank.'}</p></div>
           {!collectorLinked&&<button className="button small primary" onClick={onSettings} disabled={busy}>Ver status da coleta <ArrowRight size={15}/></button>}
           {collectorLinked&&!current&&<button className="button small primary" onClick={onSync} disabled={busy} aria-busy={syncing}>
             <RefreshCw size={15} aria-hidden="true"/>{syncing?'Sincronizando…':'Sincronizar conta'}</button>}
         </div>
-        <div className="hero-art" aria-hidden="true"><img className="hero-portrait one" src="/game/art/16000016.webp" alt=""/>
-          <RankArt rank={rank}/><img className="hero-portrait two" src="/game/art/16000025.webp" alt=""/></div>
+        <div className="hero-art" aria-hidden="true"><RankArt rank={rank}/></div>
       </section>
       <RankGoal data={summary} onProgress={onProgress}/>
-    </div>
-    <div className="overview-metrics">
-      <div className="card game-metric"><TrophyArt/><div><small>Troféus da conta</small><strong>{trophy?.trophies != null?number(trophy.trophies):'—'}</strong>
-        <span>{trophy?dateTime(trophy.at):'Sem leitura do perfil'}</span></div></div>
-      <div className="card game-metric"><span className="game-metric-icon violet"><Swords size={22}/></span><div><small>Ranqueadas no recorte</small>
-        <strong>{profile||historyCount?number(s.games):'—'}</strong><span>{historyCount
-          ?number(historyCount)+' partidas no histórico'
-          :previous?'Atualizado '+dateTime(previous.finished_at):'Histórico da conta'}</span></div></div>
-      <div className="card game-metric"><span className="game-metric-icon green"><Activity size={22}/></span><div><small>Win rate do recorte</small><strong>{percent(s.rate)}</strong>
-        <span>{s.decided?number(s.wins)+' vitórias · '+number(s.losses)+' derrotas':'Vitórias / registros decisivos'}</span></div></div>
-      <div className="card game-metric"><span className="game-metric-icon orange"><Crosshair size={22}/></span><div><small>Brawlers usados</small>
-        <strong>{s.games?number(new Set(results.flatMap(b=>b.player_brawler?[normalize(b.player_brawler)]:[])).size):'—'}</strong><span>Picks identificados no recorte</span></div></div>
+      <div className="overview-kpis" role="group" aria-label="Indicadores da conta e do recorte">
+        <div className="card game-metric"><TrophyArt/><div><small>Troféus da conta</small><strong>{trophy?.trophies != null?number(trophy.trophies):'—'}</strong>
+          <span>{trophy?dateTime(trophy.at):'Sem leitura do perfil'}</span></div></div>
+        <div className="card game-metric"><span className="game-metric-icon violet"><Swords size={16}/></span><div><small>Ranqueadas</small>
+          <strong>{profile||historyCount?number(s.games):'—'}</strong><span>{historyCount
+            ?number(historyCount)+' no histórico'
+            :previous?'Atualizado '+dateTime(previous.finished_at):'Histórico da conta'}</span></div></div>
+        <div className="card game-metric"><span className="game-metric-icon green"><Activity size={16}/></span><div><small>Win rate</small><strong>{percent(s.rate)}</strong>
+          <span>{s.decided?`${number(s.wins)} ${s.wins===1?'vitória':'vitórias'} · ${number(s.losses)} ${s.losses===1?'derrota':'derrotas'}`:'Partidas decisivas'}</span></div></div>
+        <div className="card game-metric"><span className="game-metric-icon orange"><Crosshair size={16}/></span><div><small>Brawlers usados</small>
+          <strong>{s.games?number(new Set(results.flatMap(b=>b.player_brawler?[normalize(b.player_brawler)]:[])).size):'—'}</strong><span>Picks no recorte</span></div></div>
+      </div>
     </div>
     <div className="two-col equal"><RecentForm matches={matches} elo={elo} onMatch={onMatch}
       action={<button className="button small subtle" onClick={onHistory}>Histórico <ArrowRight size={14}/></button>}/>
