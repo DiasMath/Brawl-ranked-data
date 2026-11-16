@@ -1,6 +1,6 @@
 import { normalize, stats } from './data';
 import { mapKey } from './external-comparison';
-import { completedRankedSeries, seriesDuration, seriesPlayers, sumRecorded } from './match-series';
+import { completedRankedSeries, seriesDuration, seriesPlayers, seriesRank, seriesSeason, sumRecorded } from './match-series';
 import type { MatchSeries } from './match-series';
 import { ordered } from './scouting';
 
@@ -59,6 +59,19 @@ export function opponentsInDefeats(matches: MatchSeries[]) {
     }
   }
   return [...groups.values()].sort((a,b)=>b.matches.length-a.matches.length || a.name.localeCompare(b.name,'pt-BR'));
+}
+
+// Call with a single map, mode and brawler cohort so the ranking only breaks ties inside that scope.
+export function pairedVictory(matches: MatchSeries[], defeat: MatchSeries) {
+  const season = normalize(seriesSeason(defeat));
+  const rank = normalize(seriesRank(defeat)?.rank_label);
+  const date = Date.parse(defeat.latest.played_at);
+  return matches.filter(match=>match.result==='victory').map(match=>({
+    match,
+    sameSeason:Boolean(season && normalize(seriesSeason(match))===season),
+    sameRank:Boolean(rank && normalize(seriesRank(match)?.rank_label)===rank),
+    distance:Math.abs(Date.parse(match.latest.played_at)-date),
+  })).sort((a,b)=>Number(b.sameSeason)-Number(a.sameSeason) || Number(b.sameRank)-Number(a.sameRank) || a.distance-b.distance)[0];
 }
 
 type Outcome = 'victory'|'defeat';

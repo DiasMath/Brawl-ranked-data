@@ -2,6 +2,8 @@
 
 Lista de trabalho do Brawl Ranked Data, em ordem de execução no ambiente local.
 
+O desenho das abas e a lista de novas análises estão em [Análises do Ranqueado](docs/ANALISES_RANQUEADO.md).
+
 | Etapa | Entrega | Estado | Critério de conclusão |
 | --- | --- | --- | --- |
 | 1 | Contar partidas agrupadas na Progressão | Concluída no código e validada em teste | Uma vitória por 2–1 conta como uma partida e uma vitória nas sessões, no ritmo diário e no win rate sugerido. Os filtros de período e temporada mantêm a série inteira. |

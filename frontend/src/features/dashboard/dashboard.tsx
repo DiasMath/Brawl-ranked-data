@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, ChevronRight, Filter, FlaskConical, History, List, LockKeyhole, Menu, RefreshCw, Settings, ShieldCheck } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronRight, Filter, FlaskConical, History, List, LockKeyhole, Menu, RefreshCw, Settings, ShieldCheck } from 'lucide-react';
 import { Card } from '@/components/dashboard-ui';
 import { FeedbackToast } from '@/components/feedback-toast';
 import { AccountIcon, brawlers } from '@/components/game';
@@ -14,7 +14,10 @@ import { Overview, Performance, PublicMeta } from '@/features/analytics/analytic
 import { MapTraining } from '@/features/analytics/map-performance';
 import { BrawlerEvolution } from '@/features/analytics/brawler-evolution';
 import { ModePerformance } from '@/features/analytics/mode-performance';
-import { RankedAnalysis } from '@/features/analytics/ranked-analysis';
+import { PerformanceMapReview, RankedAnalysis } from '@/features/analytics/ranked-analysis';
+import { PerformanceTabs } from '@/features/analytics/performance-tabs';
+import type { PerformanceTab } from '@/features/analytics/performance-tabs';
+import { DraftCoverage, MapResultsChart } from '@/features/analytics/performance-visuals';
 import { profileProgress, progressSeries, Progression } from '@/features/analytics/progression';
 import { rankedSeasonIndex, seasonLabel } from '@/lib/ranked-seasons';
 import { SeasonComparison } from '@/features/analytics/season-comparison';
@@ -47,11 +50,21 @@ export default function Dashboard() {
   const [draftTarget,setDraftTarget]=useState<{map:string;season?:string;revision:number}>({map:'',revision:0});
   const [trainingTarget,setTrainingTarget]=useState<{tag:string;map:string;brawler:string}>();
   const [analysisTarget,setAnalysisTarget]=useState<{tag:string;map:string}>();
+  const [performanceTab,setPerformanceTab]=useState<PerformanceTab>('summary');
+  const [performanceFiltersOpen,setPerformanceFiltersOpen]=useState(false);
   const [metaSource,setMetaSource]=useState<'external'|'own'>('external');
   const [exporting,setExporting]=useState(false);
   function openDraft(map:string, season?:string) {
     setDraftTarget(target=>({map,season,revision:target.revision+1}));
     navigate('draftlab');
+  }
+  function openMapAnalysis(map:string) {
+    selectAnalysisMap(map);
+    setPerformanceTab('review');
+    navigate('performance');
+  }
+  function selectAnalysisMap(map:string) {
+    setAnalysisTarget({tag:book.active,map});
   }
   async function exportHistory() {
     setExporting(true);
@@ -114,6 +127,7 @@ export default function Dashboard() {
   const performanceSeries=section==='performance'?rankedSeries.filter(completedRankedSeries):[];
   const pickComparisonSeries=section==='performance'&&filters.player_brawler
     ?filteredSeries(performanceHistory,accountMatches,{...accountFilters,player_brawler:''},true,elo):performanceSeries;
+  const selectedAnalysisMap=analysisTarget?.tag===book.active?analysisTarget.map:'';
   const performanceRows=performanceSeries.map(seriesBattle);
   const incompletePerformance=section==='performance'?rankedSeries.length-performanceSeries.length:0;
   const comparisonIds=useMemo(()=>new Set(section==='performance'?filteredSeries(performanceHistory,accountMatches,{
@@ -206,12 +220,19 @@ export default function Dashboard() {
       <main className={`main compact-main${section==='draftlab'?' draft-main':isOverview?' overview-main':''}`}>
         {filtersVisible&&<section className="card filters" aria-label="Filtros de análise">
           {isOverview?<div className="overview-filter-bar">{filterHeading}{filterFields}{filterActions}</div>:
-            <><div className="filters-head">{filterHeading}{filterActions}</div>{filterFields}</>}
+            section==='performance'?<>
+              <button type="button" className="performance-filter-toggle" aria-expanded={performanceFiltersOpen} aria-controls="performance-filters"
+                onClick={()=>setPerformanceFiltersOpen(open=>!open)}><Filter size={15} aria-hidden="true"/><span>Filtros{countFilters>0&&` (${number(countFilters)})`}</span>
+                <ChevronDown size={15} aria-hidden="true"/></button>
+              <div id="performance-filters" className="performance-filter-body" data-open={performanceFiltersOpen}>
+                <div className="filters-head">{filterHeading}{filterActions}</div>{filterFields}
+              </div>
+            </>:<><div className="filters-head">{filterHeading}{filterActions}</div>{filterFields}</>}
           {dateError&&!commonPublic&&<p className="section-note error" role="alert">A data final deve ser igual ou posterior à data inicial.</p>}
         </section>}
         {isOverview&&<Overview local={local} readings={readings} latestProfile={latestProfile} account={active} matches={rankedSeries} elo={elo} historyCount={series.length} filters={accountFilters}
           busy={busy||!ready||sending} syncing={sending} onSettings={()=>navigate('sources')} onProgress={()=>navigate('progress')} onDraft={()=>navigate('draftlab')} onMeta={()=>navigate('meta')} onSync={()=>void sync()} onMatch={b=>setSelected(b.id)} onHistory={()=>navigate('matches')} collectorLinked={!!server?.configured}
-          onReviewMap={map=>{setAnalysisTarget({tag:book.active,map});navigate('performance');}}/>}
+          onReviewMap={openMapAnalysis}/>}
         {section==='progress'&&<Progression key={book.active} local={local} readings={readings} filters={progressFilters}
           matches={filteredSeries(series,accountMatches,progressFilters,true,elo)} elo={elo}/>}
         {section==='matches'&&<Card title="Histórico de partidas" icon={List} sub={`${number(historySeries.length)} no recorte · ${number(series.length)} no histórico${historySeries[0]?' · Mais recente '+dateTime(historySeries[0].latest.played_at):''} · Horário de Brasília`}
@@ -221,24 +242,40 @@ export default function Dashboard() {
           {incompletePerformance>0&&<p className="section-note">
             {number(incompletePerformance)} {incompletePerformance===1?'registro ficou':'registros ficaram'} fora do Desempenho neste recorte por falta de confirmação do resultado da série. Consulte em Partidas.
           </p>}
-          <RankedAnalysis matches={performanceSeries} pickMatches={pickComparisonSeries} preferredBrawler={filters.player_brawler}
-            initialMap={analysisTarget?.tag===book.active?analysisTarget.map:''} onOpen={setSelected}/>
-          <SeasonComparison matches={performanceHistory} calendar={data.ranked_seasons??[]} exportedAt={data.exported_at}
-            allowed={comparisonIds} brawler={filters.player_brawler}/>
-          <ModePerformance matches={performanceSeries}/>
-          <BrawlerEvolution key={JSON.stringify([accountFilters.season,filters.player_brawler,filters.map_name,filters.rank_label])}
-            matches={filteredSeries(performanceHistory,accountMatches,{
-              ...emptyFilters,map_name:filters.map_name,mode:filters.mode,rank_label:filters.rank_label,
-            },true,elo)} initialSeason={accountFilters.season} initialBrawler={filters.player_brawler} mapFilter={filters.map_name}
-            onDraft={openDraft} onMatch={setSelected}
-            onTrain={(map,brawler)=>setTrainingTarget({tag:book.active,map,brawler})}/>
-          <MapTraining rows={performanceRows} history={performanceHistory} elo={elo} accountName={active.name}
-            selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training} archivedPlans={local.trainingHistory}
-            seed={trainingTarget?.tag===book.active?trainingTarget:undefined}
-            onOpen={setSelected} onReview={(id,value)=>saveCoaching({review:{id,value}})}
-            onPlan={async training=>{await saveCoaching({training});setTrainingTarget(undefined);}}
-            onDraft={openDraft}/>
-          <Performance rows={performanceRows}/>
+          <PerformanceTabs value={performanceTab} onChange={setPerformanceTab} panels={{
+            summary:<>
+              <div className="performance-summary-grid">
+                <MapResultsChart matches={performanceSeries} onReview={openMapAnalysis}/>
+                <PerformanceMapReview matches={performanceSeries} onAnalyze={openMapAnalysis} onOpen={setSelected}/>
+              </div>
+              <ModePerformance matches={performanceSeries}/>
+            </>,
+            draft:<>
+              <DraftCoverage matches={performanceSeries} onOpen={setSelected}/>
+              <RankedAnalysis matches={performanceSeries} pickMatches={pickComparisonSeries} preferredBrawler={filters.player_brawler}
+                selectedMap={selectedAnalysisMap} view="draft" onSelectMap={selectAnalysisMap} onOpen={setSelected}/>
+              <BrawlerEvolution key={JSON.stringify([accountFilters.season,filters.player_brawler,filters.map_name,filters.rank_label])}
+                matches={performanceTab==='draft'?filteredSeries(performanceHistory,accountMatches,{
+                  ...emptyFilters,map_name:filters.map_name,mode:filters.mode,rank_label:filters.rank_label,
+                },true,elo):[]} initialSeason={accountFilters.season} initialBrawler={filters.player_brawler} mapFilter={filters.map_name}
+                onDraft={openDraft} onMatch={setSelected} onTrain={(map,brawler)=>{
+                  setTrainingTarget({tag:book.active,map,brawler});setPerformanceTab('evolution');
+                }}/>
+              <Performance rows={performanceRows}/>
+            </>,
+            review:<RankedAnalysis matches={performanceSeries} pickMatches={performanceSeries} preferredBrawler={filters.player_brawler}
+              selectedMap={selectedAnalysisMap} view="review" onSelectMap={selectAnalysisMap} onOpen={setSelected}/>,
+            evolution:<>
+              <SeasonComparison matches={performanceHistory} calendar={data.ranked_seasons??[]} exportedAt={data.exported_at}
+                allowed={comparisonIds} brawler={filters.player_brawler}/>
+              <MapTraining rows={performanceRows} history={performanceHistory} elo={elo} accountName={active.name}
+                selectedMap={filters.map_name} reviews={local.reviews??{}} plan={local.training} archivedPlans={local.trainingHistory}
+                seed={trainingTarget?.tag===book.active?trainingTarget:undefined}
+                onOpen={setSelected} onReview={(id,value)=>saveCoaching({review:{id,value}})}
+                onPlan={async training=>{await saveCoaching({training});setTrainingTarget(undefined);}}
+                onDraft={openDraft}/>
+            </>,
+          }}/>
         </div>}
         <div className="draft-surface" hidden={section!=='draftlab'}>
           <DraftLab active={section==='draftlab'} key={`${book.active}:${draftTarget.revision}`} matches={rankedHistory}

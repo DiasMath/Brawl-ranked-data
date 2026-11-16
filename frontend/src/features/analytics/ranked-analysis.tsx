@@ -3,9 +3,10 @@ import { ArrowRight, BarChart3, MapPinned, Target } from 'lucide-react';
 import { Card } from '@/components/dashboard-ui';
 import { PagedTable } from '@/components/data-table';
 import { findMap, MapImage, Portrait } from '@/components/game';
-import { dateTime, modeName, normalize, number, percent, resultName } from '@/lib/data';
+import { dateTime, durationLabel, modeName, normalize, number, percent, resultName } from '@/lib/data';
+import { seriesDuration } from '@/lib/match-series';
 import type { MatchSeries } from '@/lib/match-series';
-import { compareSeriesResults, mapForReview, opponentsInDefeats, picksOnMap, rankedMaps } from '@/lib/ranked-analysis';
+import { compareSeriesResults, mapForReview, opponentsInDefeats, pairedVictory, picksOnMap, rankedMaps } from '@/lib/ranked-analysis';
 
 type ReviewMap = NonNullable<ReturnType<typeof mapForReview>>;
 type RankedMap = ReturnType<typeof rankedMaps>[number];
@@ -19,7 +20,7 @@ const metricLabel = (metric:Metric)=>`${metric.label}${metric.unit==='minute'?' 
 const metricValue = (metric:Metric,value:number)=>metric.unit==='share'?percent(value):decimal.format(value);
 const sampleLabel = (known:number,total:number)=>`${number(known)} de ${number(total)} ${total===1?'série':'séries'}`;
 
-function EvidenceTable({ evidence, onOpen }: { evidence:Evidence; onOpen:(id:string)=>void }) {
+export function EvidenceTable({ evidence, onOpen }: { evidence:Evidence; onOpen:(id:string)=>void }) {
   const {title,rows,metric} = evidence;
   const ref = useRef<HTMLElement>(null);
   useEffect(()=>{
@@ -39,8 +40,61 @@ function EvidenceTable({ evidence, onOpen }: { evidence:Evidence; onOpen:(id:str
   </section>;
 }
 
-function MapComparison({ map,pickMap,preferredBrawler,onOpen }: {
-  map:RankedMap; pickMap:RankedMap; preferredBrawler:string; onOpen:(id:string)=>void;
+function PairedReview({ matches,mode,onOpen }: { matches:MatchSeries[]; mode:string|null; onOpen:(id:string)=>void }) {
+  const [selected,setSelected] = useState('');
+  const defeats=matches.filter(match=>match.result==='defeat');
+  const defeat=defeats.find(match=>match.id===selected)??defeats[0];
+  const pair=defeat&&pairedVictory(matches,defeat);
+  const metrics=pair&&compareSeriesResults([pair.match,defeat],mode).metrics.filter(row=>row.victory.average!==null||row.defeat.average!==null);
+  return <section className="analysis-section" aria-label="Revisão pareada">
+    <div className="analysis-section-head"><div><h3>Revisão pareada</h3>
+      <p className="muted">Vitória comparável no mesmo mapa, modo e brawler.</p></div>
+      {defeat&&<label>Derrota para revisar<select value={defeat.id} onChange={event=>setSelected(event.target.value)}>
+        {defeats.map(match=><option key={match.id} value={match.id}>{dateTime(match.latest.played_at)} · {match.wins}–{match.losses}</option>)}
+      </select></label>}
+    </div>
+    {pair?<>
+      <p className="muted">{pair.sameSeason?'Mesma temporada · ':''}{pair.sameRank?'Mesmo rank · ':''}Vitória mais próxima entre as opções com o mesmo nível de correspondência.</p>
+      <div className="analysis-picks pair-series">
+        {[pair.match,defeat].map(match=>{
+          const duration=seriesDuration(match);
+          return <div key={match.id} data-result={match.result}><strong>{resultName(match.result)} · {match.wins}–{match.losses}</strong>
+            <small>{dateTime(match.latest.played_at)}{duration!==null&&` · ${durationLabel(duration)}`}</small>
+            <ol aria-label="Resultados por rodada" className="pair-rounds">{match.rounds.map((round,index)=><li key={round.id}
+              title={`Rodada ${index+1} · ${resultName(round.result)}`} aria-label={`Rodada ${index+1} · ${resultName(round.result)}`}
+              data-result={round.result}>{round.result==='victory'?'V':round.result==='defeat'?'D':round.result==='draw'?'E':'—'}</li>)}</ol>
+            <div className="pair-lineup">{(['ally','opponent'] as const).map(side=><div key={side}>
+              <small>{side==='ally'?'Sua equipe':'Adversários'}</small>
+              {match.latest.players.filter(player=>player.side===side||(side==='ally'&&player.side==='self')).map(player=><span key={player.player_tag} title={player.brawler??undefined}>
+                <Portrait name={player.brawler} id={player.brawler_id} alt={player.brawler??'Brawler indisponível'}/>
+              </span>)}
+            </div>)}</div>
+            <button className="text-button" onClick={()=>onOpen(match.latest.id)}>Abrir {resultName(match.result).toLocaleLowerCase('pt-BR')}</button>
+          </div>;
+        })}
+      </div>
+      {!!metrics?.length&&<div className="pair-chart" role="group" aria-label="Métricas das duas séries">
+        {metrics.map(metric=>{
+          const maximum=Math.max(metric.victory.average??0,metric.defeat.average??0)||1;
+          return <div className="pair-chart-row" key={metric.key}><strong>{metricLabel(metric)}</strong>
+            {outcomes.map(({key,label})=>{
+              const value=metric[key].average;
+              return <div key={key} data-result={key} className="pair-chart-bar"><span>{label==='Vitórias'?'Vitória':'Derrota'}</span>
+                <span aria-hidden="true" className="analysis-track"><i style={{width:`${(value??0)/maximum*100}%`}}/></span>
+                <b>{value===null?'—':metricValue(metric,value)}</b></div>;
+            })}
+          </div>;
+        })}
+      </div>}
+    </>:<>
+      <p className="muted">{defeat?'Nenhuma vitória comparável para a derrota selecionada.':'Nenhuma derrota deste brawler no recorte.'}</p>
+      {defeat&&<button className="text-button" onClick={()=>onOpen(defeat.latest.id)}>Abrir derrota</button>}
+    </>}
+  </section>;
+}
+
+function MapComparison({ map,pickMap,preferredBrawler,view,onOpen }: {
+  map:RankedMap; pickMap:RankedMap; preferredBrawler:string; view:'review'|'draft'; onOpen:(id:string)=>void;
 }) {
   const [choice,setChoice] = useState('');
   const [selection,setSelection] = useState<{id:string; target:ComparisonSelection}|null>(null);
@@ -48,7 +102,7 @@ function MapComparison({ map,pickMap,preferredBrawler,onOpen }: {
   const picks = useMemo(()=>picksOnMap(pickMap.matches),[pickMap]);
   const active = scoped.rows.find(row=>row.id===choice) ?? scoped.rows.find(row=>row.id===normalize(preferredBrawler))
     ?? scoped.rows.find(row=>row.wins && row.losses) ?? scoped.frequency;
-  const comparison = useMemo(()=>compareSeriesResults(active?.matches??[],map.mode),[active,map.mode]);
+  const comparison = useMemo(()=>compareSeriesResults(view==='review'?active?.matches??[]:[],map.mode),[active,map.mode,view]);
   const withMetrics = comparison.metrics.some(row=>row.victory.readings.length||row.defeat.readings.length);
   const selectedEvidence = (() : Evidence|null => {
     if (!selection) return null;
@@ -68,7 +122,7 @@ function MapComparison({ map,pickMap,preferredBrawler,onOpen }: {
   }
 
   return <>
-    <section className="analysis-section" aria-label="Vitórias × derrotas">
+    {view==='review'&&<><section className="analysis-section" aria-label="Vitórias × derrotas">
       <div className="analysis-section-head"><div><h3>Vitórias × derrotas</h3>
         <p className="muted">{active?`${active.name} · ${map.name} · ${number(active.wins)} V · ${number(active.losses)} D`:'Aguardando um brawler identificado no mapa.'}</p></div>
         {active&&<label>Brawler da comparação<select value={active.id} onChange={event=>{setChoice(event.target.value);setSelection(null);}}>
@@ -97,7 +151,9 @@ function MapComparison({ map,pickMap,preferredBrawler,onOpen }: {
         <button className="text-button" aria-pressed={selectedEvidence?.id===`${active.id}:all`} onClick={()=>show(`${active.id}:all`,'all')}>Ver todas as séries comparadas</button>
       </>}
     </section>
-    <section className="analysis-section" aria-label="Pick frequente × pick efetivo">
+    {selectedEvidence&&<EvidenceTable evidence={selectedEvidence} onOpen={onOpen}/>}
+    {active&&<PairedReview key={active.id} matches={active.matches} mode={map.mode} onOpen={onOpen}/>}</>}
+    {view==='draft'&&<><section className="analysis-section" aria-label="Pick frequente × pick efetivo">
       <h3>Pick frequente × pick efetivo</h3>
       <p className="muted">{sampleLabel(picks.known,pickMap.matches.length)} com pick identificado. A frequência usa todos os brawlers do mapa. O pick mais efetivo considera a taxa de vitória e o tamanho da amostra.</p>
       <div className="analysis-picks">
@@ -111,7 +167,7 @@ function MapComparison({ map,pickMap,preferredBrawler,onOpen }: {
         </div>)}
       </div>
     </section>
-    {selectedEvidence&&<EvidenceTable evidence={selectedEvidence} onOpen={onOpen}/>}
+    {selectedEvidence&&<EvidenceTable evidence={selectedEvidence} onOpen={onOpen}/>}</>}
   </>;
 }
 
@@ -145,33 +201,33 @@ function ReviewDetails({ map,onAnalyze,onOpen }: { map:ReviewMap; onAnalyze:()=>
   </Card>;
 }
 
-export function RankedAnalysis({ matches,pickMatches,initialMap,preferredBrawler,onOpen }: {
-  matches:MatchSeries[]; pickMatches:MatchSeries[]; initialMap:string; preferredBrawler:string; onOpen:(id:string)=>void;
+export function PerformanceMapReview({matches,onAnalyze,onOpen}: {
+  matches:MatchSeries[]; onAnalyze:(map:string)=>void; onOpen:(id:string)=>void;
 }) {
-  const [selected,setSelected] = useState(initialMap);
-  const analysis = useRef<HTMLDivElement>(null);
+  const review=useMemo(()=>mapForReview(rankedMaps(matches)),[matches]);
+  return review?<ReviewDetails key={review.id} map={review} onAnalyze={()=>onAnalyze(review.id)} onOpen={onOpen}/>:null;
+}
+
+export function RankedAnalysis({ matches,pickMatches,selectedMap,preferredBrawler,view,onSelectMap,onOpen }: {
+  matches:MatchSeries[]; pickMatches:MatchSeries[]; selectedMap:string; preferredBrawler:string; view:'review'|'draft';
+  onSelectMap:(map:string)=>void; onOpen:(id:string)=>void;
+}) {
   const maps = useMemo(()=>rankedMaps(matches),[matches]);
   const pickMaps = useMemo(()=>pickMatches===matches ? maps : rankedMaps(pickMatches),[matches,maps,pickMatches]);
-  const map = maps.find(row=>row.id===selected) ?? maps[0];
+  const map = maps.find(row=>row.id===selectedMap) ?? maps[0];
   const pickMap = pickMaps.find(row=>row.id===map?.id) ?? map;
-  const review = mapForReview(maps);
-  if (!map || !pickMap) return <Card title="Análise das séries" icon={BarChart3}>
+  const title=view==='review'?'Análise das séries':'Picks no mapa';
+  if (!map || !pickMap) return <Card title={title} icon={BarChart3}>
     <p className="section-note">Nenhuma série ranqueada concluída com mapa identificado neste recorte.</p>
   </Card>;
-  return <>
-    <div ref={analysis} className="ranked-analysis-anchor"><Card title="Análise das séries" icon={BarChart3} className="ranked-analysis"
+  return <Card title={title} icon={BarChart3} className="ranked-analysis"
       sub="Séries ranqueadas concluídas no período e nos filtros selecionados."
-      action={<label>Mapa da análise<select value={map.id} onChange={event=>setSelected(event.target.value)}>
+      action={<label>Mapa da análise<select value={map.id} onChange={event=>onSelectMap(event.target.value)}>
         {maps.map(row=><option key={row.id} value={row.id}>{row.name} · {modeName(row.mode)}</option>)}
       </select></label>}>
       <MapComparison key={JSON.stringify([map.id,preferredBrawler])}
-        map={map} pickMap={pickMap} preferredBrawler={preferredBrawler} onOpen={onOpen}/>
-    </Card></div>
-    {review&&<ReviewDetails key={review.id} map={review} onAnalyze={()=>{
-      setSelected(review.id);
-      analysis.current?.scrollIntoView({block:'start'});
-    }} onOpen={onOpen}/>}
-  </>;
+        map={map} pickMap={pickMap} preferredBrawler={preferredBrawler} view={view} onOpen={onOpen}/>
+    </Card>;
 }
 
 export function OverviewMapReview({ matches,onReview }: { matches:MatchSeries[]; onReview:(map:string)=>void }) {

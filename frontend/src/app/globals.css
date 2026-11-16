@@ -1141,7 +1141,6 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
   .match-scoreboard-scroll table:has(th:nth-child(3)) { min-width:460px; }
 }
 
-.ranked-analysis-anchor { scroll-margin-top:88px; }
 .ranked-analysis .card-head { flex-wrap:wrap; }
 .ranked-analysis label select { display:block; width:min(100%,260px); min-width:min(200px,100%); margin-top:3px; }
 .analysis-section,.analysis-evidence { display:grid; gap:8px; min-width:0; margin:0 14px 12px; padding:11px;
@@ -1170,4 +1169,70 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
 @media (max-width:520px) {
   .analysis-section,.analysis-evidence { margin-inline:9px; padding:8px; }
   .analysis-picks { grid-template-columns:minmax(0,1fr); }
+}
+
+.performance-workspace { display:grid; gap:10px; min-width:0; }
+.performance-workspace > [hidden] { display:none; }
+.performance-filter-toggle { display:none; }
+.performance-summary-grid { display:grid; gap:10px; align-items:start; }
+@media (min-width:1150px) {
+  .performance-summary-grid:has(> :nth-child(2)) { grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr); }
+}
+.performance-tabs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px; padding:4px;
+  border:1px solid var(--border); border-radius:10px; background:var(--surface); }
+.performance-tabs button { display:flex; align-items:center; justify-content:center; gap:6px; min-width:0; min-height:38px;
+  padding:5px; border:1px solid transparent; border-radius:6px; background:none; color:var(--muted); font-size:12px; font-weight:700; }
+.performance-tabs button:hover { background:var(--surface-alt); color:var(--text); }
+.performance-tabs button[aria-selected=true] { border-color:var(--border); background:#342a4b; color:var(--text); }
+.performance-tabs button[aria-selected=true] svg { color:var(--lavender); }
+.map-results-chart { display:grid; gap:4px; padding:0 14px 12px; }
+.map-chart-legend { display:flex; flex-wrap:wrap; gap:12px; color:var(--muted); font-size:11px; }
+.map-chart-legend span::before { content:''; display:inline-block; width:8px; height:8px; margin-right:5px; border-radius:2px; background:var(--result); }
+.map-results-chart [data-result=victory],.pair-series [data-result=victory],.pair-chart [data-result=victory] { --result:var(--green); }
+.map-results-chart [data-result=defeat],.pair-series [data-result=defeat],.pair-chart [data-result=defeat] { --result:var(--danger); }
+.map-chart-row { display:grid; grid-template-columns:minmax(120px,1fr) minmax(0,2fr) auto; align-items:center; gap:10px;
+  padding:6px 7px; text-align:left; border:1px solid transparent; border-radius:6px; background:var(--surface-alt); }
+.map-chart-row:hover { border-color:var(--lavender); }
+.map-chart-name { display:flex; align-items:center; gap:7px; min-width:0; font-size:12px; }
+.map-chart-name .map-image { flex:none; width:31px; height:28px; object-fit:cover; border-radius:4px; }
+.map-chart-name small,.map-chart-count { display:block; color:var(--muted); font-size:11px; }
+.analysis-track { display:flex; height:8px; background:#332f43; border-radius:5px; overflow:hidden; }
+.analysis-track i { background:var(--result); }
+.map-chart-count { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.pick-matrix { max-height:440px; }
+.pick-matrix th,.pick-matrix td { padding:5px 6px; }
+.pick-matrix th[scope=row] { position:sticky; left:0; top:auto; z-index:1; min-width:136px; background:var(--surface); }
+.pick-matrix thead th:first-child { left:0; z-index:2; background:var(--surface); }
+.pick-matrix th small,.pick-matrix-cell small { display:block; color:var(--muted); font-size:10px; }
+.pick-matrix .portrait { width:22px; height:22px; }
+.pick-matrix td { min-width:77px; text-align:center; }
+.pick-matrix-cell { width:100%; min-height:38px; padding:3px 6px; border:1px solid var(--border); border-radius:5px;
+  background:var(--surface-alt); font-size:12px; font-variant-numeric:tabular-nums; }
+.pick-matrix-cell[data-result=victory] { background:#233a34; }
+.pick-matrix-cell[data-result=defeat] { background:#3a2634; }
+.pick-matrix-cell[data-result=small] { background:transparent; }
+.pick-matrix-cell:hover,.pick-matrix-cell[aria-pressed=true] { border-color:var(--lavender); }
+.pair-series > div > strong { color:var(--result); }
+.pair-rounds { display:flex; gap:5px; padding:0; margin:2px 0; list-style:none; }
+.pair-rounds li { display:grid; place-items:center; width:24px; height:24px; border:1px solid var(--border); border-radius:5px;
+  color:var(--result,var(--muted)); font-size:11px; font-weight:700; }
+.pair-lineup { display:flex; flex-wrap:wrap; gap:8px 12px; }
+.pair-lineup small { display:block; }
+.pair-lineup .portrait { width:22px; height:22px; margin-right:3px; }
+.pair-chart { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr)); gap:6px; }
+.pair-chart-row { display:grid; gap:3px; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:11px; }
+.pair-chart-bar { display:grid; grid-template-columns:44px minmax(0,1fr) auto; align-items:center; gap:5px; color:var(--muted); }
+.pair-chart-bar b { min-width:5ch; text-align:right; color:var(--text); font-variant-numeric:tabular-nums; }
+@media (max-width:520px) {
+  .performance-filter-toggle { display:flex; width:100%; align-items:center; gap:7px; padding:9px 12px;
+    border:0; background:none; color:var(--text); font-size:12px; font-weight:700; }
+  .performance-filter-toggle svg:last-child { margin-left:auto; }
+  .performance-filter-toggle[aria-expanded=true] svg:last-child { transform:rotate(180deg); }
+  .performance-filter-body[data-open=false],.performance-filter-body .filters-head h2 { display:none; }
+  .performance-filter-body .filters-head { justify-content:flex-end; padding-top:0; }
+  .performance-tabs button { gap:3px; font-size:11px; }
+  .performance-tabs button svg { width:13px; height:13px; }
+  .map-chart-row { gap:6px; grid-template-columns:minmax(105px,1.4fr) minmax(30px,1fr) auto; }
+  .map-chart-name .map-image { display:none; }
+  .pair-series { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
