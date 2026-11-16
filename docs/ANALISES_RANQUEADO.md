@@ -4,12 +4,14 @@
 
 | Aba | Pergunta | Conteúdo |
 | --- | --- | --- |
-| Resumo | Onde vale investigar primeiro? | Barras de vitórias e derrotas por mapa, mapa para revisar, visão por modo e mapa. |
+| Resumo | Onde vale investigar primeiro? | Indicadores do recorte, barras de vitórias e derrotas por mapa, gráfico de win rate por modo e mapa para revisar. |
 | Draft | Com quem vale jogar ou banir neste mapa? | Matriz mapa × brawler, pick frequente × efetivo, ficha por brawler, aliados e adversários. |
 | Revisão | O que mudou entre uma vitória e uma derrota parecidas? | Comparação agregada, revisão pareada, placares e estatísticas por rodada. |
-| Evolução | O que mudou ao longo do tempo e depois de um treino? | Comparação de temporadas, ficha do mapa e comparação com a referência competitiva, plano e histórico de treinos. |
+| Evolução | O que mudou ao longo do tempo e depois de um treino? | Indicadores e gráficos de win rate e volume semanal, comparação de temporadas, ficha do mapa, plano e histórico de treinos. |
 
-Os filtros no topo definem o recorte das séries e ficam recolhidos no celular até abrir **Filtros**. As comparações por temporada e as referências externas indicam suas próprias janelas. Cada aba concentra seus controles locais. Tabelas usam rolagem interna e paginação. A matriz usa cores para o saldo e deixa as amostras com menos de três séries em tom neutro. Gráficos mostram valores numéricos e dão acesso às partidas. A Visão geral conserva o atalho **Mapa para revisar**, que abre a aba **Revisão** com o mapa selecionado.
+Os filtros no topo definem o recorte das séries e ficam recolhidos no celular até abrir **Filtros**. As comparações por temporada e as referências externas indicam suas próprias janelas. Cada aba concentra seus controles locais. Tabelas usam rolagem interna e paginação. A matriz usa cores para o saldo e deixa as amostras com menos de três séries em tom neutro. Os gráficos mostram valores numéricos. Os resultados por mapa abrem a revisão, e as barras semanais abrem as partidas. A Visão geral conserva o atalho **Mapa para revisar**, que abre a aba **Revisão** com o mapa selecionado.
+
+Na largura de desktop, a matriz fica ao lado da comparação de picks, e a comparação agregada fica ao lado da revisão pareada. Em Evolução, os dois gráficos semanais usam o mesmo calendário e abrem a mesma lista de séries. As semanas começam na segunda-feira em Brasília. Os gráficos mostram até seis semanas, terminando na semana da última série do recorte. Semanas intermediárias sem jogos aparecem no gráfico.
 
 ## Draft e preparação
 

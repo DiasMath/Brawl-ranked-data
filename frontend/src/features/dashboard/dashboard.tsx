@@ -17,7 +17,7 @@ import { ModePerformance } from '@/features/analytics/mode-performance';
 import { PerformanceMapReview, RankedAnalysis } from '@/features/analytics/ranked-analysis';
 import { PerformanceTabs } from '@/features/analytics/performance-tabs';
 import type { PerformanceTab } from '@/features/analytics/performance-tabs';
-import { DraftCoverage, MapResultsChart } from '@/features/analytics/performance-visuals';
+import { DraftCoverage, EvolutionTrends, MapResultsChart, ModeWinRateChart, SummaryKpis } from '@/features/analytics/performance-visuals';
 import { profileProgress, progressSeries, Progression } from '@/features/analytics/progression';
 import { rankedSeasonIndex, seasonLabel } from '@/lib/ranked-seasons';
 import { SeasonComparison } from '@/features/analytics/season-comparison';
@@ -244,16 +244,20 @@ export default function Dashboard() {
           </p>}
           <PerformanceTabs value={performanceTab} onChange={setPerformanceTab} panels={{
             summary:<>
+              <SummaryKpis matches={performanceSeries}/>
               <div className="performance-summary-grid">
                 <MapResultsChart matches={performanceSeries} onReview={openMapAnalysis}/>
+                <ModeWinRateChart matches={performanceSeries}/>
                 <PerformanceMapReview matches={performanceSeries} onAnalyze={openMapAnalysis} onOpen={setSelected}/>
               </div>
               <ModePerformance matches={performanceSeries}/>
             </>,
             draft:<>
-              <DraftCoverage matches={performanceSeries} onOpen={setSelected}/>
-              <RankedAnalysis matches={performanceSeries} pickMatches={pickComparisonSeries} preferredBrawler={filters.player_brawler}
-                selectedMap={selectedAnalysisMap} view="draft" onSelectMap={selectAnalysisMap} onOpen={setSelected}/>
+              <div className="performance-draft-grid">
+                <DraftCoverage matches={performanceSeries} onOpen={setSelected}/>
+                <RankedAnalysis matches={performanceSeries} pickMatches={pickComparisonSeries} preferredBrawler={filters.player_brawler}
+                  selectedMap={selectedAnalysisMap} view="draft" onSelectMap={selectAnalysisMap} onOpen={setSelected}/>
+              </div>
               <BrawlerEvolution key={JSON.stringify([accountFilters.season,filters.player_brawler,filters.map_name,filters.rank_label])}
                 matches={performanceTab==='draft'?filteredSeries(performanceHistory,accountMatches,{
                   ...emptyFilters,map_name:filters.map_name,mode:filters.mode,rank_label:filters.rank_label,
@@ -266,6 +270,7 @@ export default function Dashboard() {
             review:<RankedAnalysis matches={performanceSeries} pickMatches={performanceSeries} preferredBrawler={filters.player_brawler}
               selectedMap={selectedAnalysisMap} view="review" onSelectMap={selectAnalysisMap} onOpen={setSelected}/>,
             evolution:<>
+              <EvolutionTrends matches={performanceSeries} onOpen={setSelected}/>
               <SeasonComparison matches={performanceHistory} calendar={data.ranked_seasons??[]} exportedAt={data.exported_at}
                 allowed={comparisonIds} brawler={filters.player_brawler}/>
               <MapTraining rows={performanceRows} history={performanceHistory} elo={elo} accountName={active.name}

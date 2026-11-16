@@ -7,6 +7,7 @@ import { dateTime, durationLabel, modeName, normalize, number, percent, resultNa
 import { seriesDuration } from '@/lib/match-series';
 import type { MatchSeries } from '@/lib/match-series';
 import { compareSeriesResults, mapForReview, opponentsInDefeats, pairedVictory, picksOnMap, rankedMaps } from '@/lib/ranked-analysis';
+import { PerformanceKpis } from './performance-kpis';
 
 type ReviewMap = NonNullable<ReturnType<typeof mapForReview>>;
 type RankedMap = ReturnType<typeof rankedMaps>[number];
@@ -103,7 +104,7 @@ function MapComparison({ map,pickMap,preferredBrawler,view,onOpen }: {
   const active = scoped.rows.find(row=>row.id===choice) ?? scoped.rows.find(row=>row.id===normalize(preferredBrawler))
     ?? scoped.rows.find(row=>row.wins && row.losses) ?? scoped.frequency;
   const comparison = useMemo(()=>compareSeriesResults(view==='review'?active?.matches??[]:[],map.mode),[active,map.mode,view]);
-  const withMetrics = comparison.metrics.some(row=>row.victory.readings.length||row.defeat.readings.length);
+  const measured = new Set(comparison.metrics.flatMap(metric=>[...metric.victory.readings,...metric.defeat.readings].map(row=>row.match.id))).size;
   const selectedEvidence = (() : Evidence|null => {
     if (!selection) return null;
     const {id,target} = selection;
@@ -122,7 +123,7 @@ function MapComparison({ map,pickMap,preferredBrawler,view,onOpen }: {
   }
 
   return <>
-    {view==='review'&&<><section className="analysis-section" aria-label="Vitórias × derrotas">
+    {view==='review'&&<><div className="performance-review-grid"><section className="analysis-section" aria-label="Vitórias × derrotas">
       <div className="analysis-section-head"><div><h3>Vitórias × derrotas</h3>
         <p className="muted">{active?`${active.name} · ${map.name} · ${number(active.wins)} V · ${number(active.losses)} D`:'Aguardando um brawler identificado no mapa.'}</p></div>
         {active&&<label>Brawler da comparação<select value={active.id} onChange={event=>{setChoice(event.target.value);setSelection(null);}}>
@@ -130,8 +131,13 @@ function MapComparison({ map,pickMap,preferredBrawler,view,onOpen }: {
         </select></label>}
       </div>
       {active&&<>
+        <PerformanceKpis label="Indicadores da comparação" items={[
+          {label:'Séries',value:number(active.games)},
+          {label:'Win rate',value:percent(active.rate),detail:`${number(active.wins)} V · ${number(active.losses)} D`},
+          {label:'Com métricas',value:`${number(measured)} / ${number(active.games)}`,detail:'Ao menos uma métrica exibida'},
+        ]}/>
         {(!active.wins||!active.losses)&&<p className="section-note analysis-message">A diferença aparece quando há vitórias e derrotas com a métrica registrada.</p>}
-        {!withMetrics&&<p className="section-note analysis-message">As séries deste recorte ainda não têm estatísticas completas para as métricas abaixo.</p>}
+        {!measured&&<p className="section-note analysis-message">As séries deste recorte ainda não têm estatísticas completas para as métricas abaixo.</p>}
         <div className="table-wrap analysis-metrics" role="region" aria-label="Métricas de vitórias e derrotas" tabIndex={0}><table>
           <thead><tr><th scope="col">Métrica</th>{outcomes.map(({key,label})=><th scope="col" key={key}>{label}</th>)}<th scope="col">Diferença (V − D)</th></tr></thead>
           <tbody>{comparison.metrics.map(metric=>{
@@ -151,8 +157,8 @@ function MapComparison({ map,pickMap,preferredBrawler,view,onOpen }: {
         <button className="text-button" aria-pressed={selectedEvidence?.id===`${active.id}:all`} onClick={()=>show(`${active.id}:all`,'all')}>Ver todas as séries comparadas</button>
       </>}
     </section>
-    {selectedEvidence&&<EvidenceTable evidence={selectedEvidence} onOpen={onOpen}/>}
-    {active&&<PairedReview key={active.id} matches={active.matches} mode={map.mode} onOpen={onOpen}/>}</>}
+    {active&&<PairedReview key={active.id} matches={active.matches} mode={map.mode} onOpen={onOpen}/>}</div>
+    {selectedEvidence&&<EvidenceTable evidence={selectedEvidence} onOpen={onOpen}/>}</>}
     {view==='draft'&&<><section className="analysis-section" aria-label="Pick frequente × pick efetivo">
       <h3>Pick frequente × pick efetivo</h3>
       <p className="muted">{sampleLabel(picks.known,pickMap.matches.length)} com pick identificado. A frequência usa todos os brawlers do mapa. O pick mais efetivo considera a taxa de vitória e o tamanho da amostra.</p>
