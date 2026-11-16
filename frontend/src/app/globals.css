@@ -1140,3 +1140,34 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
   .match-drawer .drawer-content { padding:14px; }
   .match-scoreboard-scroll table:has(th:nth-child(3)) { min-width:460px; }
 }
+
+.ranked-analysis-anchor { scroll-margin-top:88px; }
+.ranked-analysis .card-head { flex-wrap:wrap; }
+.ranked-analysis label select { display:block; width:min(100%,260px); min-width:min(200px,100%); margin-top:3px; }
+.analysis-section,.analysis-evidence { display:grid; gap:8px; min-width:0; margin:0 14px 12px; padding:11px;
+  border:1px solid var(--border); border-radius:9px; }
+.analysis-section h3,.analysis-evidence h3,.analysis-review-groups h3 { font-size:13px; }
+.analysis-section-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:end; gap:8px; }
+.analysis-picks { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.analysis-picks > div { display:grid; align-content:start; gap:5px; min-width:0; padding:9px;
+  border:1px solid var(--border); border-radius:7px; background:var(--surface-alt); }
+.analysis-picks .text-button,.analysis-section > .text-button { justify-self:start; }
+.analysis-picks span,.analysis-picks small,.analysis-review-map small { color:var(--muted); font-size:11px; }
+.analysis-review-map small,.analysis-review-groups small { display:block; }
+.analysis-review-groups { margin:0 14px; }
+.analysis-review-groups button { text-align:left; }
+.analysis-review-groups button span,.analysis-picks b { color:var(--text); }
+.analysis-review-map { display:flex; align-items:center; gap:9px; margin:0 14px 12px; }
+.analysis-review-map .map-image { width:53px; height:42px; object-fit:cover; flex:none; border-radius:6px; }
+.analysis-metrics { border:1px solid var(--border); border-radius:7px; max-height:400px; }
+.analysis-metrics tbody th { position:static; background:transparent; box-shadow:none; color:var(--text); font-size:11px; }
+.analysis-metrics th[scope=row] { white-space:normal; min-width:115px; }
+.analysis-metrics td,.analysis-metrics th { padding:6px 8px; }
+.analysis-message { padding:0; }
+.analysis-evidence { scroll-margin-top:88px; }
+.ranked-analysis [aria-pressed=true] { color:var(--yellow); }
+.overview-map-review .card-head { padding-bottom:7px; }
+@media (max-width:520px) {
+  .analysis-section,.analysis-evidence { margin-inline:9px; padding:8px; }
+  .analysis-picks { grid-template-columns:minmax(0,1fr); }
+}

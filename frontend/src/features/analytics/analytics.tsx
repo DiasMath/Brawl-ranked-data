@@ -7,6 +7,7 @@ import { AccountIcon, findMap, MapImage, ModeIcon, Portrait, RankArt, TrophyArt 
 import type { Account, LocalData, Progress } from '@/lib/browser-store';
 import { profileProgress, progressSeries, progressionWindow, RankGoal, rankProgress, TrendChart } from '@/features/analytics/progression';
 import { RecentForm } from './recent-form';
+import { OverviewMapReview } from './ranked-analysis';
 import { ProfileDetails } from '@/features/analytics/profile-details';
 import { byId, ordered, publicPicks, usePublicStats } from '@/lib/scouting';
 import type { PublicStats, ScoutingRow } from '@/lib/scouting';
@@ -103,10 +104,11 @@ function RankedActivity({matches,filters}:{matches:MatchSeries[];filters:Filters
   </section>;
 }
 
-export function Overview({ local, account, matches, elo, historyCount, filters, onSettings, onProgress, onDraft, onMeta, onSync, onMatch, onHistory, busy, syncing, collectorLinked, readings, latestProfile }: {
+export function Overview({ local, account, matches, elo, historyCount, filters, onSettings, onProgress, onDraft, onMeta, onSync, onMatch, onHistory, onReviewMap, busy, syncing, collectorLinked, readings, latestProfile }: {
   local: LocalData; account: Account; matches: MatchSeries[]; elo: Map<string,MatchElo>; historyCount:number; filters: Filters; onSettings:()=>void; onProgress:()=>void; onDraft:()=>void;
   readings?: Progress[]; latestProfile?: Progress|null;
   onMeta:()=>void; onSync:()=>void; onMatch:(battle:Battle)=>void; onHistory:()=>void; busy:boolean; syncing:boolean; collectorLinked:boolean;
+  onReviewMap:(map:string)=>void;
 }) {
   const rows=readings??progressSeries(local);
   const profile=local.dataset.profile;
@@ -157,6 +159,7 @@ export function Overview({ local, account, matches, elo, historyCount, filters, 
       <RankedActivity matches={matches} filters={filters}/></div>
     <div className={showElo?'two-col equal':'stack'}><TrendChart rows={trophyRows} field="trophies" label="Subida de troféus" note="Total da conta por data, independente da temporada"/>
       {showElo&&<TrendChart rows={scoreRows} field="score" label="Pontos do Ranqueado" note={filters.season||current?.season||'Leituras do Elo'}/>}</div>
+    <OverviewMapReview matches={matches} onReview={onReviewMap}/>
     <div className="two-col equal"><Ranking rows={topMaps} kind="map" title="Seus melhores mapas" short/>
       <Ranking rows={topBrawlers} kind="brawler" title="Seus melhores brawlers" short/></div>
     <PublicSpotlight onDraft={onDraft} onMeta={onMeta}/>
