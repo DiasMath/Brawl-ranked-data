@@ -17,18 +17,18 @@ Na largura de desktop, a matriz fica ao lado da comparação de picks, e a compa
 
 | Análise | Situação | Recorte e entrega |
 | --- | --- | --- |
-| Matriz de cobertura mapa × brawler | Primeira entrega | Uma célula por mapa e pick da conta. Win rate, número de séries e lista das partidas ao selecionar a célula. Mostrar opções com pelo menos três séries e sinalizar amostras menores. |
+| Matriz de cobertura mapa × brawler | Disponível | Uma célula por mapa e pick da conta. Win rate, número de séries e lista das partidas ao selecionar a célula. Mostrar opções com pelo menos três séries e sinalizar amostras menores. |
 | Pick frequente × efetivo | Disponível | Comparar frequência e taxa de vitória no mapa. Usar todas as escolhas identificadas do mapa no denominador da frequência. |
 | Melhores picks pessoais por mapa | Disponível | Ordenar pelo limite inferior de Wilson a partir de três séries decisivas. Exibir volume, pick rate, forma recente e dano ao cofre por minuto quando disponível. Abrir o mapa e a temporada no Draft Lab. |
 | Confronto contra o próprio padrão | Disponível | Na ficha do brawler, selecionar um mapa e comparar séries contra o adversário com séries contra outros adversários no mesmo mapa, modo e pick. Mostrar as duas amostras com composição identificada. |
 | Sinergia com aliados | Disponível | No mesmo mapa, modo e pick, comparar séries com e sem o aliado usando os dois aliados identificados. Mostrar dano ao cofre por minuto e sua amostra em Roubo. A comparação descreve os resultados observados. |
-| Ban pessoal × ban da meta | Implementado, coleta competitiva a validar | Comparar presença do adversário, derrotas, bans dos drafts da conta e bans dos registros competitivos no mesmo mapa e janela. Mostrar origem, denominadores e cobertura. Confirmar listas no primeiro lote real após a migração. |
+| Ban pessoal × ban da meta | Validado em teste, coleta real pendente | Comparar presença do adversário, derrotas, bans dos drafts da conta e bans dos registros competitivos no mesmo mapa e janela. Mostrar origem, denominadores e cobertura. Confirmar listas no primeiro lote real após a migração. |
 
 ## Revisão de partidas
 
 | Análise | Situação | Recorte e entrega |
 | --- | --- | --- |
-| Vitória × derrota pareada | Primeira entrega | Escolher uma derrota e encontrar uma vitória do mesmo mapa, modo e pick no recorte. Priorizar temporada e rank coincidentes quando conhecidos e, depois, proximidade pela data. Comparar a sequência de rodadas, métricas e placares com acesso aos dois detalhes. |
+| Vitória × derrota pareada | Disponível | Escolher uma derrota e encontrar uma vitória do mesmo mapa, modo e pick no recorte. Priorizar temporada e rank coincidentes quando conhecidos e, depois, proximidade pela data. Comparar a sequência de rodadas, métricas e placares com acesso aos dois detalhes. |
 | Vitórias × derrotas agregadas | Disponível | Comparar eliminações, mortes, dano causado, dano recebido, cura e objetivo para um mapa e pick. Mostrar cobertura por métrica e resultado. |
 | Conversão da primeira rodada | Disponível | Agrupar por mapa ou brawler e comparar vitórias na série após ganhar ou perder a abertura. Cada taxa abre a amostra. Empates na abertura ficam fora das duas amostras. |
 | Contribuição no objetivo × combate | Disponível | Em Roubo, comparar dano causado e dano ao cofre por minuto. Cada ponto representa uma série, mostra o resultado pela cor e abre o placar. A tabela paginada mostra os mesmos dados. |
@@ -43,6 +43,12 @@ Na largura de desktop, a matriz fica ao lado da comparação de picks, e a compa
 | Antes × depois do balanceamento | Disponível | Comparar janelas de mesma duração dentro dos dois patches, usando mapa, modo e pick. Mostrar combinações exclusivas e abrir as partidas dos dois períodos. Usar a Meta quando as janelas completas coincidirem. |
 | Início × fim de sessão | Disponível | Usar as sessões de Progressão e comparar as duas metades com séries em cada lado. Mostrar o intervalo registrado, resultados em ordem e acesso às partidas. |
 | Efeito do treino | Disponível | Salvar no plano a métrica a acompanhar e comparar antes e durante. Mostrar win rate, cobertura da métrica e dano ao cofre por minuto em Roubo. Abrir a amostra do plano ativo ou dos planos arquivados. |
+
+## Validação das entregas
+
+O build do Next.js e os testes do backend passaram. No PostgreSQL descartável, o teste conferiu repetição da coleta sem duplicatas, listas vazias, listas conflitantes e contagens de bans por janela. A validação também restaurou o banco e comparou os registros competitivos. O recorte da rodada real de Bridge Too Far confirmou os seis bans e a cobertura de um registro ao passar pelo agregador. [Validação no GitHub Actions](https://github.com/DiasMath/Brawl-ranked-data/actions/runs/43958213689)
+
+Em produção, conferir **Meta → Amostra de outros jogadores** após uma coleta agendada e selecionar o mesmo mapa e janela em **Desempenho → Draft → Bans da conta × meta**. A taxa deve usar só os registros com lista conhecida. Para uma coleta manual, usar a janela Hoje ou 7 dias.
 
 ## Critérios de dados
 
