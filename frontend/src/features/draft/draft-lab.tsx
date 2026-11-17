@@ -167,8 +167,8 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
     }:null);
   const openBans=banOrder.filter(s=>!draft[s.side][s.index]);
   const [nextBan]=openBans;
-  const voiceTarget=nextBan??nextPick;
-  const next=phase==='ban'?voiceTarget:nextPick;
+  const next=phase==='ban'?nextBan??nextPick:nextPick;
+  const voiceTarget=next;
   const query=normalize(search);
   const available=sortedRoster.filter(b=>(slot.side!=='team'||!owned||eligible.has(normalize(b.name)))&&normalize(b.name).includes(query));
   const selectable=available.filter(b=>!blocked(b.name));
@@ -406,7 +406,7 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
           action={banZone(voiceTarget.side)?'ban':'pick'} team={teamColor(voiceTarget.side)}
           position={banZone(voiceTarget.side)?voiceTarget.index+1:order.indexOf(voiceTarget)+1}
           firstPickSelected={first!==null} roster={brawlers}
-          bans={nextBan?{
+          bans={phase==='ban'&&nextBan?{
             slots:openBans.map(({side,index})=>({team:teamColor(side),position:index+1})),
             validate:names=>planBans(names)!==null,
             apply:names=>{const modified=planBans(names);if(modified)saveDraft(modified,nextBan);},

@@ -109,22 +109,28 @@ export function DraftVoice({ action, team, position, firstPickSelected, roster, 
       setStatus(phase = 'processing');
       const transcript = (await speech.request(audio, Boolean(bans && bans.slots.length > 1))).trim();
       if (signal.aborted) return;
-      const { options, opposite } = recognizeBrawler(transcript, action, roster);
+      const { opposite, ...single } = recognizeBrawler(transcript, action, roster);
+      let { options, direct } = single;
       if (bans && !opposite && transcript) {
         const recognized = recognizeBans(transcript, roster);
         if (recognized.length > bans.slots.length) {
           setMessage(`Ouvi “${transcript}”. Diga até ${bans.slots.length} nomes, na ordem do draft.`);
           return;
         }
-        if (recognized.length > 1 || recognized[0]?.heard) {
+        if (recognized.length > 1 || (recognized[0]?.heard && !options.length)) {
           setReview(bans.slots.map((_, i) => recognized[i] ?? { name: '', heard: '' }));
           setTranscription(transcript);
           return;
         }
         if (recognized[0]?.name) {
-          setOptions([recognized[0].name]);
-          return;
+          options = [recognized[0].name];
+          direct = true;
         }
+      }
+      if (direct && options.length === 1 && !isBlocked(options[0])) {
+        close();
+        onAssign(options[0]);
+        return;
       }
       setOptions(options);
       if (!options.length) setMessage(opposite ? `O próximo turno é de ${action}.`

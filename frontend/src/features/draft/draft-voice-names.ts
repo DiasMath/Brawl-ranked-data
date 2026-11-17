@@ -1,9 +1,11 @@
 type Action = 'ban' | 'pick';
+type Roster = readonly { name: string }[];
 
 const aliases = new Map([
   ['hico', 'rico'], ['shaly', 'shelly'], ['shely', 'shelly'], ['shelley', 'shelly'],
   ['xeli', 'shelly'], ['cheli', 'shelly'], ['collet', 'colette'],
   ['colete', 'colette'], ['paiper', 'piper'], ['larryelawrie', 'larrylawrie'],
+  ['bu', 'bull'], ['jack', 'jacky'],
 ]);
 
 function words(value: string) {
@@ -17,18 +19,30 @@ function nameKey(value: string) {
   return aliases.get(key) ?? key;
 }
 
-export function recognizeBrawler(transcript: string, action: Action, roster: readonly { name: string }[], allowTrailing = true) {
+function matchNames(value: string, roster: Roster) {
+  const key = nameKey(value);
+  const exact = roster.filter(brawler => nameKey(brawler.name) === key);
+  if (exact.length || key.length < 3) return exact.map(brawler => brawler.name);
+
+  const wordCount = words(value).split(' ').length;
+  const prefixes = roster.filter(brawler => nameKey(brawler.name).startsWith(key) && words(brawler.name).split(' ').length === wordCount);
+  // Keep shared beginnings for confirmation. A single candidate may be filled only when the missing ending is short.
+  if (prefixes.length === 1 && nameKey(prefixes[0].name).length - key.length > 2) return [];
+  return prefixes.map(brawler => brawler.name);
+}
+
+export function recognizeBrawler(transcript: string, action: Action, roster: Roster, allowTrailing = true) {
   const utterance = words(transcript);
   const command = /^(ban|banir|bani|bana|banimento|pick|pickar|picar|escolher|escolha|escolhe|esco|selecionar|selecione) (?:(?:o|a|um|uma) )?(.+)$/.exec(utterance);
   if (command && (command[1].startsWith('ban') ? 'ban' : 'pick') !== action) {
-    return { options: [], opposite: true };
+    return { options: [], opposite: true, direct: false };
   }
   const value = (command?.[2] ?? utterance).replace(/^brawler /, '');
-  const keys = [nameKey(value)];
+  const values = [value];
   // Whisper can split "escolher" across two words and attach its ending to the name.
-  if (command?.[1] === 'esco') keys.push(nameKey(value.replace(/^her(?=[a-z])/, '')));
-  const exact = roster.filter(brawler => keys.includes(nameKey(brawler.name)));
-  if (exact.length || !allowTrailing) return { options: exact.map(brawler => brawler.name), opposite: false };
+  if (command?.[1] === 'esco') values.push(value.replace(/^her(?=[a-z])/, ''));
+  const options = [...new Set(values.flatMap(name => matchNames(name, roster)))];
+  if (options.length || !allowTrailing) return { options, opposite: false, direct: options.length === 1 };
 
   // The verb can be misheard even when the last word is a recognizable brawler.
   const mentions = roster.filter(brawler => {
@@ -36,10 +50,10 @@ export function recognizeBrawler(transcript: string, action: Action, roster: rea
     return name.length > 2 && ` ${value} `.includes(` ${name} `);
   });
   const candidate = mentions.length === 1 && value.endsWith(` ${words(mentions[0].name)}`) ? mentions[0] : null;
-  return { options: candidate ? [candidate.name] : [], opposite: false };
+  return { options: candidate ? [candidate.name] : [], opposite: false, direct: false };
 }
 
-export function recognizeBans(transcript: string, roster: readonly { name: string }[]) {
+export function recognizeBans(transcript: string, roster: Roster) {
   const single = recognizeBrawler(transcript, 'ban', roster, false);
   if (single.opposite) return [];
   if (single.options.length === 1) return [{ name: single.options[0], heard: '' }];
@@ -47,7 +61,6 @@ export function recognizeBans(transcript: string, roster: readonly { name: strin
   const utterance = words(transcript)
     .replace(/^(?:banir|bans?|bani|bana|banimento|[pb]anei?r[oa]?) (?:os |as |o |a )?/, '');
   if (!utterance) return [];
-  const names = new Map(roster.map(({ name }) => [nameKey(name), name]));
   const tokens = utterance.split(' ');
   const result: { name: string; heard: string }[] = [];
   let unmatched: string[] = [];
@@ -60,8 +73,11 @@ export function recognizeBans(transcript: string, roster: readonly { name: strin
     let name: string | undefined;
     for (; width > 0; width--) {
       const candidate = tokens.slice(i, i + width);
-      name = names.get(nameKey(candidate.join(' ')));
-      if (name) break;
+      const options = matchNames(candidate.join(' '), roster);
+      if (options.length === 1) {
+        name = options[0];
+        break;
+      }
     }
     if (!name) {
       unmatched.push(tokens[i++]);
