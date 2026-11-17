@@ -610,6 +610,8 @@ footer span:first-child { display: flex; gap: 6px; align-items: center; }
 .draft-recommendations .tabs { margin:0; }
 .draft-recommendations .tabs button { padding:4px 3px; }
 .draft-suggestions { display:grid; gap:4px; }
+.draft-recommendation-loading { display:flex; align-items:center; gap:6px; min-height:36px; color:var(--muted); font-size:11px; }
+.draft-recommendation-loading svg { flex:none; animation:spin .8s linear infinite; }
 .draft-suggestion { display:flex; align-items:center; gap:6px; text-align:left; background:#221c33; border:1px solid #3c3252; border-radius:6px; color:var(--text); padding:4px 5px; min-width:0; }
 .draft-suggestion:hover:not(:disabled) { background:#3a2a54; border-color:#8f73bd; }
 .draft-suggestion .portrait { width:25px; height:25px; }

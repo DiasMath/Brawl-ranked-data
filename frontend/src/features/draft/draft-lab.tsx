@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Ban, Bomb, Check, ChevronDown, ChevronLeft, ChevronRight, Crosshair, Flame, HeartPulse, Map as MapIcon, Search, Shield, SlidersHorizontal, Swords, Target, Undo2, X } from 'lucide-react';
+import { Ban, Bomb, Check, ChevronDown, ChevronLeft, ChevronRight, Crosshair, Flame, HeartPulse, Loader2, Map as MapIcon, Search, Shield, SlidersHorizontal, Swords, Target, Undo2, X } from 'lucide-react';
 import type { Battle, Dataset, Filters } from '@/lib/data';
 import { dateTime, groupStats, modeName, normalize, number, orderByMatchCount, percent } from '@/lib/data';
 import { byModeId, brawlers, findMap, MapImage, maps, ModeIcon, pickableModes, Portrait, roleName } from '@/components/game';
@@ -83,6 +83,7 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
   const [accountSeason,setAccountSeason]=useState<string>();
   const [owned,setOwned]=useState(false);
   const [advice,setAdvice]=useState<Advice>(defaultSource==='account'?'picks':'bans');
+  const mapButton=useRef<HTMLButtonElement>(null);
   const input=useRef<HTMLInputElement>(null);
   const roster=useRef<HTMLElement>(null);
   const rail=useRef<HTMLDivElement>(null);
@@ -203,6 +204,14 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
   const currentMapPage=Math.min(mapPage,mapPages-1);
   const displayedMaps=distinctMaps.slice(currentMapPage*7,(currentMapPage+1)*7);
 
+  function closeMapMenu(){
+    setMapOpen(false);
+    mapButton.current?.focus();
+  }
+  function selectMap(name:string){
+    setMapName(name);
+    closeMapMenu();
+  }
   function move(to:Slot){
     setSlot(to);setPhase(banZone(to.side)?'ban':'pick');setSearch('');
     setAdvice(banZone(to.side)?'bans':'picks');setCompactView('roster');
@@ -235,6 +244,9 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
   }
   function reset(){
     setFirst(null);setDraft(fresh());setSlot({side:'blueBan',index:0});setPhase('ban');setAdvice('bans');setHistory([]);setSearch('');
+    setMapName('');setMapOpen(false);setMapSearch('');setMapPage(0);setArchived(false);
+    setSummaryOpen(false);setCompactView('roster');setSource(defaultSource);setAccountSeason('');setOwned(false);
+    if(rail.current)rail.current.scrollLeft=0;
   }
   function renderSlots(zone:Zone){
     return <div className={`arena-slots ${banZone(zone)?'arena-bans':''}`}>{draft[zone].map((name,i)=>{
@@ -254,6 +266,9 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
     const name=rosterNames.get(normalize(row.name));
     return name&&targetPick&&!blocked(name,targetPick)?[{...row,name}]:[];
   })??[];
+  const loadingRecommendations=model.loading||(source==='draftmeta'
+    ? advice!=='counters'&&!modelRows.length&&external.loading
+    : source==='public'&&!recommendations.length&&global.loading);
   const externalRows=draftMetaPicks(external.snapshot).flatMap(row=>{
     const rosterName=rosterNames.get(normalize(row.name));
     return rosterName&&externalTarget&&!blocked(rosterName,externalTarget)&&(advice!=='bans'||!banned.has(normalize(rosterName)))?[{...row,name:rosterName}]:[];
@@ -293,17 +308,23 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
     </section>
     <section className="card draft-field" aria-label="Mapa e recomendações">
       <div className="draft-map-feature">
-        <button className="draft-map-button" aria-expanded={mapOpen} onClick={()=>{setMapOpen(v=>!v);setMapSearch('');setMapPage(0);}}>
+        <button ref={mapButton} className="draft-map-button" aria-expanded={mapOpen} onClick={()=>{setMapOpen(v=>!v);setMapSearch('');setMapPage(0);}}>
           <span className="draft-map-label"><span><MapIcon size={14}/> {mapName||'Escolher mapa'}</span><ChevronDown size={16}/></span>
           <span className="draft-map-picture"><MapImage map={map}/></span>
           {mode&&<span className="image-label"><ModeIcon mode={mode}/>{modeName(mode)}</span>}
         </button>
         {mapOpen&&<div className="map-menu"><label><Search size={15}/><input autoFocus value={mapSearch} aria-label="Buscar mapa" placeholder="Buscar mapa"
-          onChange={e=>{setMapSearch(e.target.value);setMapPage(0);}} onKeyDown={e=>{if(e.key==='Escape')setMapOpen(false);}}/></label>
-          <button className="map-option" onClick={()=>{setMapName('');setMapOpen(false);}}>Todos os mapas</button>
+          onChange={e=>{setMapSearch(e.target.value);setMapPage(0);}} onKeyDown={e=>{
+            if(e.nativeEvent.isComposing)return;
+            if(e.key==='Escape'){e.preventDefault();closeMapMenu();}
+            if(e.key==='Enter'&&draftMetaMapKey(mapSearch)&&displayedMaps[0]){
+              e.preventDefault();selectMap(displayedMaps[0]);
+            }
+          }}/></label>
+          <button className="map-option" onClick={()=>selectMap('')}>Todos os mapas</button>
           {displayedMaps.map(name=>{
             const item=findMap(name)??availableMaps.find(m=>draftMetaMapKey(m.name)===draftMetaMapKey(name));
-            return <button className="map-option" key={name} onClick={()=>{setMapName(name);setMapOpen(false);}}>
+            return <button className="map-option" key={name} onClick={()=>selectMap(name)}>
               <MapImage map={item}/><span>{name}{item&&<small>{modeName(byModeId.get(item.mode)?.key??null)}</small>}</span></button>;
           })}
           {!displayedMaps.length&&<p className="section-note">Nenhum mapa encontrado.</p>}
@@ -325,6 +346,8 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
         </select>}
         <div className="tabs">{(['picks','bans','counters'] as Advice[]).map(t=><button key={t} aria-pressed={advice===t} onClick={()=>setAdvice(t)}>
           {t==='picks'?'Picks':t==='bans'?'Bans':'Counters'}</button>)}</div>
+        {loadingRecommendations&&<p className="draft-recommendation-loading" role="status"><Loader2 size={16} aria-hidden="true"/>
+          {model.loading?'Calculando projeção do draft…':source==='draftmeta'?'Carregando Meta do patch…':'Carregando recomendações…'}</p>}
         {source==='draftmeta'?<>
           <div className="draft-suggestions" aria-live="polite">
             {model.result&&modelRows.length>0?<>
@@ -338,7 +361,7 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
                 <b>{percent(row.after_pick/100)}</b>
               </button>)}
             </>:advice==='counters'?<p className="section-note">Counters por mapa indisponíveis neste snapshot. Consulte outra fonte no seletor.</p>:
-              external.loading?<p className="section-note">Carregando Meta do patch…</p>:
+              external.loading?null:
               external.failed?<p className="section-note">Não foi possível ler o snapshot do DraftMeta.</p>:
               !external.snapshot?<p className="section-note">Sem snapshot salvo para este {mapName?'mapa':'recorte'} no patch{external.patch?` de ${external.patch.split('-').reverse().join('/')}`:''}.</p>:
               !externalRows.length?<p className="section-note">Sem sugestões disponíveis para esta posição.</p>:
@@ -353,13 +376,11 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
             {' · Mestres+ · '+(external.snapshot.end?'Patch '+external.snapshot.patch_date.split('-').reverse().join('/'):'Amostra desde '+external.snapshot.start.split('-').reverse().join('/'))+' · '+dateTime(external.snapshot.fetched_at)}
             {!external.snapshot.fresh&&' · Cópia salva'}
             {advice==='bans'?' · Sugestões por força no recorte':' · Win rate observado'}</p>}
-          {model.loading&&<p className="draft-evidence" role="status">Calculando projeção do draft…</p>}
           {model.failed&&<p className="draft-evidence" role="status">Projeção do draft indisponível.</p>}
           {model.result&&!modelRows.length&&<p className="draft-evidence" role="status">Nenhuma sugestão do modelo passa pelos filtros.</p>}
         </>:<>
         <div className="draft-suggestions">
-          {!recommendations.length&&<p className="section-note">{advice==='counters'&&!enemies.length?'Adicione um pick adversário.':
-            source==='public'&&global.loading?'Carregando…':'Sem amostra neste recorte.'}</p>}
+          {!recommendations.length&&!loadingRecommendations&&<p className="section-note">{advice==='counters'&&!enemies.length?'Adicione um pick adversário.':'Sem amostra neste recorte.'}</p>}
           {recommendations.slice(0,3).map(r=>{
             const text=[...r.details,...('synergies' in r ? r.synergies as ScoutingRow['details'] : [])].map(d=>`${d.name} ${percent(d.wins/d.games)} · n=${d.games}`).join(' / ');
             return <button className="draft-suggestion" key={r.name} disabled={!applyRecommendation} title={text||`${r.games} observações decisivas`}
