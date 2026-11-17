@@ -337,7 +337,7 @@ export default function Dashboard() {
       {feedback&&<FeedbackToast key={feedback} message={feedback} onDismiss={dismissFeedback}/>}
     </div>}
     {match&&<MatchDetail key={selectedSeries?.id??match.id} match={match} seasonInfo={seasons.battle(match)} series={selectedSeries} elo={selectedSeries&&elo.get(selectedSeries.id)} onRound={setSelected}
-      raw={local.raw[match.id]} review={local.reviews?.[match.id]} onClose={()=>setSelected(null)}
+      rawByMatch={local.raw} review={local.reviews?.[match.id]} onClose={()=>setSelected(null)}
       onReview={value=>saveCoaching({review:{id:match.id,value}})}/>}
   </div></LiveMeta.Provider>;
 }
