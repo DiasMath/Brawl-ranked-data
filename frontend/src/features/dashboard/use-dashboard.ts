@@ -9,7 +9,7 @@ import type { ReplayReview, TrainingPlan } from '@/lib/coaching';
 import { updateTrainingPlan } from '@/lib/coaching';
 import type { Section } from './navigation';
 
-const historyVersion=8;
+const historyVersion=9;
 
 export function useDashboard() {
   const [section,setSection]=useState<Section>('overview');
@@ -91,14 +91,15 @@ export function useDashboard() {
     const previous=await loadLocal(tag);
     const after=previous.serverHistoryVersion===historyVersion?previous.serverRunId??0:0;
     const params=new URLSearchParams({tag,after:String(after)});
-    const history=await collectionRequest<{run_id:number;snapshot:unknown;season_windows?:boolean;player_details?:boolean}>(
+    if(previous.serverCalendarRevision)params.set('calendar_revision',previous.serverCalendarRevision);
+    const history=await collectionRequest<{run_id:number;snapshot:unknown;season_windows?:boolean;player_details?:boolean;calendar_revision?:string}>(
       '/api/collection/history?'+params,{signal},
     );
     if(signal?.aborted)return;
     const latest=await loadLocal(tag);
     const merged=fromSnapshot(history.snapshot,latest);
     if(signal?.aborted)return;
-    const next={...merged,serverRunId:history.run_id,
+    const next={...merged,serverRunId:history.run_id,serverCalendarRevision:history.calendar_revision,
       serverHistoryVersion:history.season_windows&&history.player_details?historyVersion:undefined};
     await saveLocal(next);
     if(!signal?.aborted)setLocal(next);
@@ -191,7 +192,7 @@ export function useDashboard() {
         setServer(status);
         setServerError('');
         const attempt=status.last_attempt;
-        const revision=[status.player_tag,attempt?.id,attempt?.status,attempt?.finished_at,status.last_evidence].join(':');
+        const revision=[status.player_tag,attempt?.id,attempt?.status,attempt?.finished_at,status.last_evidence,status.calendar_revision].join(':');
         if(status.player_tag!==book.active||!attempt||serverRevision.current===revision||processing.current)return;
         processing.current=true;
         try{

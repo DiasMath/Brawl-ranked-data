@@ -26,6 +26,7 @@ import { SeasonComparison } from '@/features/analytics/season-comparison';
 import { Accounts } from '@/features/collection/accounts';
 import { CollectorPanel, MetaPeriods } from '@/features/collection/collector-panel';
 import { HistoryCoverage } from '@/features/collection/history-coverage';
+import { SeasonCalendar } from '@/features/collection/season-calendar';
 import { SupercellCredential } from '@/features/collection/supercell-credential';
 import { SyncProgressCard } from '@/features/collection/sync-progress';
 import { SyncStatus } from '@/features/collection/sync-status';
@@ -324,6 +325,7 @@ export default function Dashboard() {
         {section==='sources'&&<div className="stack">
           <CollectorPanel server={server} serverError={serverError} battles={data.matches} onSync={()=>void sync()} syncing={sending} hasAccount={!!book.active}/>
           <HistoryCoverage matches={data.player_tag===book.active?rankedHistory:[]} onMatch={setSelected}/>
+          <SeasonCalendar onSaved={refreshCollection} notify={setFeedback}/>
           <SupercellCredential onSaved={()=>void refreshCollection()}/>
           <Accounts tag={book.active} accounts={book.accounts}
             revision={JSON.stringify([server?.last_attempt?.id,server?.last_attempt?.status,server?.last_attempt?.finished_at])}

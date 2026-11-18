@@ -13,7 +13,7 @@ export type MetaMatchup = {
   rank_label: string | null; season: string | null; wins: number; games: number;
   source_name: string; source_url: string; period_start: string; period_end: string;
 };
-export type LocalData = { reviews?: Record<string,ReplayReview>; training?: TrainingPlan; trainingHistory?: ArchivedTrainingPlan[]; serverRunId?: number; serverHistoryVersion?: number; dataset: Dataset; progress: Progress[]; matchups: MetaMatchup[]; raw: Record<string, unknown> };
+export type LocalData = { reviews?: Record<string,ReplayReview>; training?: TrainingPlan; trainingHistory?: ArchivedTrainingPlan[]; serverRunId?: number; serverHistoryVersion?: number; serverCalendarRevision?: string; dataset: Dataset; progress: Progress[]; matchups: MetaMatchup[]; raw: Record<string, unknown> };
 export type AccountBook = { active: string; accounts: Account[] };
 
 type StoreName = 'data';

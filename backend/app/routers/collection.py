@@ -8,6 +8,7 @@ from ..config import collection_interval
 from ..db import database
 from ..domain import iso, utc_now
 from ..repositories.history import dataset, latest_run, retry_until, update_page
+from ..repositories.seasons import calendar_revision as season_calendar_revision
 from ..services.collection import collect_account
 from ..services.credentials import credential_status
 from .accounts import require_player
@@ -39,8 +40,10 @@ def collection_status(tag: str | None = None):
         state = cursor.fetchone() or {}
         waiting = retry_until(cursor)
         credential = credential_status(cursor)
+        revision = season_calendar_revision(cursor)
     return {
         "player_tag": player, "configured": credential["configured"] and credential["encryption_configured"],
+        "calendar_revision": revision,
         "interval_seconds": collection_interval(),
         "last_attempt": {**last_attempt, "started_at": iso(last_attempt["started_at"]),
                          "finished_at": iso(last_attempt["finished_at"])} if last_attempt else None,
@@ -53,15 +56,19 @@ def collection_status(tag: str | None = None):
 
 
 @router.get("/api/collection/history")
-def collection_history(after: int = 0, tag: str | None = None):
+def collection_history(after: int = 0, tag: str | None = None,
+                       calendar_revision: str | None = Query(None, pattern=r"^[a-f0-9]{32}$")):
     with database() as (_, cursor):
         cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
         player = require_player(cursor, tag)
         latest = latest_run(cursor, player, successful=True)
         run_id = latest["id"] if latest else 0
-        snapshot = dataset(cursor, player, after_run=after if 0 < after <= run_id else 0,
+        revision = season_calendar_revision(cursor)
+        incremental = 0 < after <= run_id and calendar_revision == revision
+        snapshot = dataset(cursor, player, after_run=after if incremental else 0,
                            include_archive=True, include_updates=False)
-        return {"run_id": run_id, "snapshot": snapshot, "season_windows": True, "player_details": True}
+        return {"run_id": run_id, "snapshot": snapshot, "season_windows": True, "player_details": True,
+                "calendar_revision": revision}
 
 
 @router.get("/api/collection/updates")

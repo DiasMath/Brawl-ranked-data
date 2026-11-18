@@ -2,6 +2,7 @@ import { battleSeason, filtered, localDay, normalize, participantMetrics } from 
 import { draftMetaMapKey } from './draftmeta';
 import type { Battle, BattleElo, Filters, Participant, ParticipantStats } from './data';
 import type { Progress } from './browser-store';
+import { seasonLabel } from './ranked-seasons';
 
 export type MatchSeries = {
   id: string;
@@ -53,14 +54,17 @@ function sameLineup(first: ReturnType<typeof lineup>, second: ReturnType<typeof 
 
 function makeSeries(rounds: Battle[], wins: number, losses: number): MatchSeries {
   const latest = rounds[rounds.length-1];
-  const result = rounds.length === 1 ? latest.result : wins === 2 ? 'victory' : losses === 2 ? 'defeat' : null;
+  const result = !latest.ranked ? latest.result : wins === 2 ? 'victory' : losses === 2 ? 'defeat' : null;
   return {id:rounds[0].id, latest, rounds, result, wins, losses};
 }
 
 function sameRankedSeason(first: Battle, second: Battle) {
-  const confirmed = (battle: Battle) => normalize(battle.season_source ? null : battle.season);
+  const confirmed = (battle: Battle) => normalize(battle.season_source ? null : seasonLabel(battle.season));
   const firstSeason = confirmed(first), secondSeason = confirmed(second);
-  if (firstSeason && secondSeason && firstSeason !== secondSeason) return false;
+  if (firstSeason && secondSeason) return firstSeason === secondSeason;
+  const displayed = (battle:Battle)=>normalize(battleSeason(battle)?.replace(/ \(prevista\)$/i,''));
+  const firstDisplay=displayed(first), secondDisplay=displayed(second);
+  if(firstDisplay&&secondDisplay&&firstDisplay!==secondDisplay)return false;
 
   // Older snapshots only include the calendar label on rows without an official season.
   if (first.season_window === undefined || second.season_window === undefined) {

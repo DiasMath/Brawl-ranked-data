@@ -2,6 +2,7 @@ import { normalize, stats } from './data';
 import type { RankedSeason } from './data';
 import { draftMetaMapKey } from './draftmeta';
 import { seriesPerformance } from './match-series';
+import { seasonLabel } from './ranked-seasons';
 import type { MatchSeries } from './match-series';
 
 export type SeasonExtent = 'elapsed' | 'volume' | 'all';
@@ -22,13 +23,16 @@ export function seasonCohorts(matches: MatchSeries[], seasons: RankedSeason[], o
     const last = Date.parse(match.latest.played_at);
     if (!Number.isFinite(start) || !Number.isFinite(last) || last > observedAt) continue;
     const candidates = windows.filter(season => start >= season.start && last < season.end);
-    const window = candidates.length === 1 ? candidates[0] : undefined;
+    const byDate = candidates.length === 1 ? candidates[0] : undefined;
     const official = [...new Set(match.rounds.flatMap(round => {
-      const id = round.season_source ? '' : normalize(round.season);
+      const id = round.season_source ? '' : normalize(seasonLabel(round.season));
       return id ? [id] : [];
     }))];
     if (official.length > 1) continue;
     const id = official[0] ?? null;
+    const identity = (label:string) => normalize(seasonLabel(label)?.replace(/ \(prevista\)$/i, ''));
+    const named = id ? windows.filter(season=>identity(season.label)===id) : [];
+    const window = id ? named.length===1 ? named[0] : undefined : byDate;
     if (id && window) {
       const known = officialWindows.get(id);
       officialWindows.set(id, known === undefined || known === window.id ? window.id : null);

@@ -10,16 +10,25 @@ export function useDraftMeta(map: string, enabled: boolean) {
   useEffect(()=>{
     if(!enabled)return;
     const controller=new AbortController();
-    setIndex(null);setIndexFailed(false);setRead(null);
-    void collectionRequest<DraftMetaResponse>('/api/meta/external?rank=masters',{signal:controller.signal})
-      .then(value=>{if(!controller.signal.aborted)setIndex({...value,snapshot:value.snapshot?.rank==='masters'?value.snapshot:null});})
-      .catch(()=>{if(!controller.signal.aborted)setIndexFailed(true);});
-    return ()=>controller.abort();
+    let pending=false;
+    const refresh=async()=>{
+      if(pending||document.visibilityState==='hidden')return;
+      pending=true;
+      try{
+        const value=await collectionRequest<DraftMetaResponse>('/api/meta/external?rank=masters',{signal:controller.signal});
+        if(!controller.signal.aborted){setIndex({...value,snapshot:value.snapshot?.rank==='masters'?value.snapshot:null});setIndexFailed(false);}
+      }catch{if(!controller.signal.aborted)setIndexFailed(true);}
+      finally{pending=false;}
+    };
+    void refresh();
+    const timer=window.setInterval(()=>void refresh(),60000);
+    document.addEventListener('visibilitychange',refresh);
+    return ()=>{controller.abort();window.clearInterval(timer);document.removeEventListener('visibilitychange',refresh);};
   },[enabled]);
   const patch=index?.snapshot?.patch_date??index?.coverage?.patch_date;
   const pool=index?.coverage?.maps.map(row=>row.name)??[];
   const sourceMap=[...pool,...(index?.saved_maps??[])].find(name=>draftMetaMapKey(name)===draftMetaMapKey(map))??map;
-  const key=JSON.stringify([sourceMap,patch]);
+  const key=JSON.stringify([sourceMap,patch,index?.coverage?.updated_at,index?.snapshot?.fetched_at]);
   useEffect(()=>{
     if(!enabled||!sourceMap||!patch)return;
     const controller=new AbortController();

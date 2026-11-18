@@ -35,7 +35,7 @@ export function MatchList({ matches, elo, onOpen, compact = false }: {
       return <tr key={id}>
       <td>{dateTime(b.played_at)}</td><td><span className="image-label"><ModeIcon mode={b.mode}/><span><strong>{b.map_name ?? '—'}</strong><small>{modeName(b.mode)}</small></span></span></td>
       <td><span className="image-label"><Portrait name={b.player_brawler}/>{b.player_brawler ?? '—'}</span></td><td>
-        <Pill kind={resultTone(result)}>{rounds.length>1&&!result?'Resultado em aberto':resultName(result)}</Pill>
+        <Pill kind={resultTone(result)}>{b.ranked&&!result?'Resultado em aberto':resultName(result)}</Pill>
         {rounds.length>1&&<small title="Agrupamento inferido a partir do histórico">{wins}–{losses} · {rounds.length} rodadas</small>}
         {b.ranked&&rounds.length===1&&<small>Registro isolado · série não confirmada</small>}
         {duration!=null&&<small>{durationLabel(duration)}</small>}</td>
@@ -96,7 +96,8 @@ export function MatchDetail({ match, series, elo, onRound, rawByMatch, review, o
   }, []);
   const grouped = series && series.rounds.length>1 ? series : null;
   const summary = grouped && !roundView ? grouped : null;
-  const displayResult = summary ? summary.result : match.result;
+  const incomplete = Boolean(series?.latest.ranked && !series.result && !grouped);
+  const displayResult = summary ? summary.result : incomplete ? null : match.result;
   const duration = summary ? seriesDuration(summary) : match.duration_seconds;
   const kd = summary ? matchKd(summary) : roundKd(match);
   const roundNumber = grouped ? grouped.rounds.findIndex(round=>round.id===match.id)+1 : null;
@@ -123,13 +124,14 @@ export function MatchDetail({ match, series, elo, onRound, rawByMatch, review, o
       <h2>{match.map_name ?? 'Partida'}</h2><p>{modeName(match.mode)} · {dateTime(match.played_at)}</p></div>
       <button className="icon-button" aria-label="Fechar detalhes" onClick={onClose}><X size={21} /></button></div>
     <div className="detail-map"><MapImage map={findMap(match.map_name,match.event_id,match.mode)}/><ModeLabel mode={match.mode}/></div>
-    <div className="detail-status"><Pill kind={resultTone(displayResult)}>{summary && !summary.result?'Resultado em aberto':resultName(displayResult)}</Pill>
+    <div className="detail-status"><Pill kind={resultTone(displayResult)}>{(summary || incomplete) && !displayResult?'Resultado em aberto':resultName(displayResult)}</Pill>
       <Pill kind={match.ranked ? 'accent' : 'neutral'}>{summary ? 'Série ranqueada' : grouped ? `Rodada ${roundNumber}` : match.ranked ? 'Ranqueado' : match.api_type ?? 'Tipo indisponível'}</Pill>
       {summary&&<strong>{summary.wins}–{summary.losses}</strong>}
       {duration!=null&&<span className="image-label"><Clock3 size={15}/>{durationLabel(duration)} de jogo</span>}
       {!grouped&&<>
       {match.placement!=null&&<span>{number(match.placement)}º lugar</span>}
       {match.trophy_change!=null&&<span>{match.trophy_change>0?'+':''}{match.trophy_change} troféus</span>}</>}</div>
+    {incomplete&&<p className="section-note">Rodada coletada: {resultName(match.result)}. As demais rodadas ainda não confirmam o resultado da série.</p>}
     {grouped&&<section className="match-rounds" aria-label="Rodadas da série">
       <h3>Rodadas da série</h3>
       <p className="muted">Agrupamento inferido pela sequência, pelo mapa e pela composição das equipes.</p>

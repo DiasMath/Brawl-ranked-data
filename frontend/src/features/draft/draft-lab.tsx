@@ -109,8 +109,9 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
   const external=useDraftMeta(mapName,active);
   const global=usePublicStats(null,mapName||null);
   const mapIndex=usePublicStats(null,null);
-  const recentMaps=new Set([...external.pool,...(mapIndex.index?.contexts.flatMap(c=>c.map?[c.map]:[])??[])].map(draftMetaMapKey));
-  const availableMaps=maps.filter(m=>archived||recentMaps.has(draftMetaMapKey(m.name))||(!m.disabled&&pickableModes.some(mode=>mode.id===m.mode)));
+  const recentMaps=new Set((external.pool.length?external.pool:(mapIndex.index?.contexts.flatMap(c=>c.map?[c.map]:[])??[])).map(draftMetaMapKey));
+  const availableMaps=maps.filter(m=>archived||(external.pool.length?recentMaps.has(draftMetaMapKey(m.name))
+    :recentMaps.has(draftMetaMapKey(m.name))||(!m.disabled&&pickableModes.some(mode=>mode.id===m.mode))));
   const distinctMaps=[...new Map([...availableMaps.map(m=>m.name),...external.pool].map(name=>[draftMetaMapKey(name),name])).values()]
     .filter(name=>draftMetaMapKey(name).includes(draftMetaMapKey(mapSearch)))
     .sort((a,b)=>Number(recentMaps.has(draftMetaMapKey(b)))-Number(recentMaps.has(draftMetaMapKey(a)))||a.localeCompare(b));

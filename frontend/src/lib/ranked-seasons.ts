@@ -13,7 +13,7 @@ export function rankedSeasonIndex(data: Dataset, readings: readonly Progress[]) 
   const calendar = (data.ranked_seasons ?? []).map(window => ({
     ...window, start: Date.parse(window.starts_at), end: Date.parse(window.ends_at),
   }));
-  const byId = new Map(calendar.map(window => [window.id, window]));
+  const identity = (value:string) => normalize(seasonLabel(value)?.replace(/ \(prevista\)$/i, ''));
   function windowAt(at: string) {
     const time = Date.parse(at);
     const candidates = calendar.filter(window => time >= window.start && time < window.end);
@@ -26,6 +26,8 @@ export function rankedSeasonIndex(data: Dataset, readings: readonly Progress[]) 
     if (!key) return;
     const window = windowAt(at);
     if (!window) return;
+    // An official season on a provisional reset day must retain its own identity.
+    if (identity(window.label) !== key) return;
     const official = officialByWindow.get(window.id) ?? new Set<string>();
     official.add(key);
     officialByWindow.set(window.id, official);
@@ -51,9 +53,7 @@ export function rankedSeasonIndex(data: Dataset, readings: readonly Progress[]) 
   function resolve(at: string, season: string | null, fallback?: string) {
     const official = seasonLabel(season);
     if (official) {
-      const windowId = aliases.get(normalize(official));
-      const catalog = windowId ? byId.get(windowId) : undefined;
-      return { season: (catalog && displayWindow(catalog)) ?? official, seasonEstimated: false };
+      return { season: official, seasonEstimated: false };
     }
 
     const catalog = windowAt(at);
@@ -66,7 +66,7 @@ export function rankedSeasonIndex(data: Dataset, readings: readonly Progress[]) 
       const label = seasonLabel(value);
       if (!label) return '';
       const key = normalize(label);
-      const window = calendar.find(item => normalize(item.label) === key || item.id === value);
+      const window = calendar.find(item => normalize(item.label) === key || item.id === value || identity(item.label) === identity(value));
       return (window && displayWindow(window)) ?? resolve('', label).season ?? '';
     },
     reading: (reading: Progress): Progress => {

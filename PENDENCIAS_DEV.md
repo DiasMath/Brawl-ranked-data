@@ -27,6 +27,17 @@ O desenho das abas e a lista de novas análises estão em [Análises do Ranquead
 - Identificar o agrupamento e as variações de Elo deduzidas como estimativas. Exibir rank, K/D, bans e outras estatísticas da partida quando a fonte trouxer dados suficientes.
 - Atualizar esta lista ao concluir cada etapa e registrar aqui a validação feita.
 
+## Preparação para a temporada de novembro
+
+- Corrigida a lacuna no primeiro dia da temporada prevista, com corte estimado explícito e ajuste em **Contas e dados → Calendário de temporadas**. A temporada oficial tem precedência sobre a data.
+- Ajustes do calendário atualizam as duas pontas da transição em uma transação e ficam auditados. O frontend invalida o histórico em cache ao mudar a revisão do calendário.
+- Uma rodada ranqueada isolada permanece com resultado em aberto. Ganhos e perdas de Elo não atravessam temporadas.
+- O Draft Lab acompanha novas cópias da Meta enquanto a página está visível e prioriza o pool atual de mapas da fonte.
+- `Preparar-Temporada.ps1` reúne o registro das tarefas de partidas e DraftMeta. Ainda é preciso executar no Windows e confirmar seus logs. O horário real do reset permanece pendente de confirmação; o corte inicial é uma estimativa.
+- Continuam pendentes a conferência do histórico dentro do jogo (etapa 4) e a validação de bans competitivos em uma coleta real, descrita em `docs/ANALISES_RANQUEADO.md`.
+
+Os testes automatizados verificaram o primeiro instante da nova janela, a prioridade da temporada oficial, a virada 2–1, uma rodada isolada, a separação no reset de Elo, a auditoria e a aplicação única das migrações em PostgreSQL descartável. O teste da tela confirmou a conversão de horário de Brasília, o salvamento e a atualização do histórico. O build de produção passou. A revisão do calendário também é persistida no cache por conta: só sua alteração força uma recarga completa; as demais coletas continuam incrementais.
+
 ## Validação da etapa 1
 
 O teste da tela confirmou a contagem de uma vitória por 2–1, o filtro de uma série que atravessou a meia-noite em Brasília, a separação de sessões por intervalo e temporada e o uso de partidas decisivas no win rate sugerido. Também conferiu que as leituras de Elo entre rodadas aparecem na sessão e que uma série com resultado em aberto entra no volume de atividade. A conferência com partidas reais segue na etapa 4.

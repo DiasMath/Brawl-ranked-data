@@ -18,7 +18,7 @@ const files = [
   ['models/whisper-base', model, 'onnx/encoder_model_quantized.onnx', '5862993336bf33acd23736071aae2b32261d3b1b2f37780194460d4ef974dd46'],
   ['models/whisper-base', model, 'onnx/decoder_model_merged_quantized.onnx', 'fa3ef9902734ce5ae6f9ef2bdb2ba9a6c4b5785b09f4f420ce036573dc9d090b'],
   ['licenses', 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/', 'LICENSE', 'cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30', 'transformers.txt'],
-  ['licenses', 'https://raw.githubusercontent.com/microsoft/onnxruntime/89f8206ba4/', 'LICENSE', '2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c', 'onnxruntime.txt'],
+  ['licenses', 'https://cdn.jsdelivr.net/gh/microsoft/onnxruntime@v1.22.0/', 'LICENSE', '2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c', 'onnxruntime.txt'],
   ['licenses', 'https://raw.githubusercontent.com/openai/whisper/86098128c0b4f24f0e2aa2994de830614b474227/', 'LICENSE', 'b5d65a59060e68c4ff940e1eddfa6f94b2d68fdf58ed7f4dd57721c997e35e9d', 'whisper.txt'],
 ];
 

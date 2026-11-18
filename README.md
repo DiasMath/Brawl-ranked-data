@@ -18,6 +18,7 @@ Painel privado do Ranqueado de Brawl Stars. Use Next.js, FastAPI e PostgreSQL no
 | `Agendar-DraftMeta.ps1` | Atualiza a Meta geral e todos os mapas do pool ranqueado do DraftMeta |
 | `Agendar-Partidas.ps1` | Testa ou registra a coleta pessoal de contas escolhidas no Windows |
 | `Agendar-Meta.ps1` | Registra e inicia a coleta competitiva no Agendador de Tarefas do Windows |
+| `Preparar-Temporada.ps1` | Registra ou atualiza as tarefas de partidas e DraftMeta e solicita as primeiras coletas |
 | `Preparar-Ambiente.ps1` | Gera as credenciais próprias do painel e preenche os arquivos locais de ambiente |
 | `Iniciar-Backend.ps1` | Executa o FastAPI no Windows com o arquivo do ambiente selecionado |
 | `Iniciar-Dev.ps1` | Abre o FastAPI e o Next.js com um comando na raiz |
@@ -97,6 +98,24 @@ Get-Content .\backend\.venv\partidas-coleta-development.log -Tail 20
 ```
 
 A tela **Contas e dados** mostra a última coleta agendada bem-sucedida. Uma execução com zero novas partidas pode indicar que o histórico da API ainda não mudou. Se houver uma possível lacuna, o painel sinaliza a data em que ela foi detectada. A coleta agendada consulta apenas as tags escolhidas. O botão manual continua consultando somente a conta selecionada.
+
+### Preparar a virada de temporada
+
+Depois de atualizar o código, reinicie o ambiente com `npm.cmd run dev`. As migrações são aplicadas na inicialização do FastAPI e também pelos coletores. A migração `009_ranked_season_transition` cobre o primeiro dia da temporada prevista, sem apagar partidas ou reiniciar os históricos. O corte inicial é **19/11/2026 às 00:00 UTC (18/11 às 21:00 em Brasília)**, marcado como estimado: ele não confirma o horário da manutenção. A temporada publicada pela API sempre tem precedência sobre esse corte.
+
+Em **Contas e dados → Calendário de temporadas**, confira as datas e, quando souber o horário real, ajuste o início e a fonte. Salvar também ajusta o fim da temporada anterior na mesma transação e registra a alteração no banco. Os filtros e o histórico são recarregados quando o calendário muda. Essa configuração é compartilhada pelas contas e pelos ambientes que usam o mesmo banco.
+
+Para registrar ou atualizar as duas tarefas existentes e solicitar as primeiras coletas:
+
+```powershell
+.\Preparar-Temporada.ps1 -Tags 'LJPJJULG8'
+```
+
+Isso agenda partidas a cada cinco minutos e o pool completo do DraftMeta a cada hora, sem duplicar os nomes das tarefas. Confira os logs de ambas para confirmar o sucesso. O Windows precisa estar ligado e o usuário conectado. Em produção com cron do Render, mantenha os cron jobs existentes com seus comandos de coleta.
+
+Uma rodada ranqueada isolada ou uma série ainda sem duas vitórias ou duas derrotas fica com resultado em aberto e não entra no denominador do win rate. O reset de Elo entre temporadas não vira ganho ou perda de uma partida. No Draft Lab, a consulta à cópia salva da Meta se renova a cada minuto enquanto a página estiver visível. Isso acompanha os snapshots e o pool publicados pelo coletor; a janela do provedor continua sendo exibida, pois patch e temporada podem ter períodos diferentes.
+
+Validações locais: `npm.cmd --prefix frontend test`, `npm.cmd --prefix frontend run build` e `python -m unittest discover -s tests -v` dentro de `backend`. Os testes PostgreSQL exigem `BRAWL_TEST_DATABASE_URL` apontando para um banco descartável vazio, nunca para o Supabase de uso diário.
 
 ## Produção na Vercel e no Render
 

@@ -6,6 +6,7 @@ export const maxDuration = 60;
 
 const routes = new Set([
   'GET /api/accounts', 'POST /api/accounts', 'GET /api/collection/status',
+  'GET /api/seasons', 'POST /api/seasons',
   'GET /api/collection/history', 'GET /api/collection/updates', 'POST /api/sync', 'POST /api/evidence',
   'GET /api/supercell/credential', 'POST /api/supercell/credential',
   'GET /api/meta/sample', 'POST /api/meta/sample',
@@ -51,7 +52,7 @@ async function forward(request: NextRequest) {
     if (!request.headers.get('content-type')?.includes('application/json')) {
       return Response.json({ detail: 'Envie dados em JSON.' }, { status: 415, headers });
     }
-    body = path === '/api/accounts' || credential || metaSample || externalMeta || draftSuggestion || evidence ? await request.text() : '{}';
+    body = path === '/api/accounts' || path === '/api/seasons' || credential || metaSample || externalMeta || draftSuggestion || evidence ? await request.text() : '{}';
     if (body.length > (credential || evidence ? 8192 : 2048)) {
       return Response.json({ detail: 'Dados muito extensos.' }, { status: 413, headers });
     }
@@ -87,6 +88,11 @@ async function forward(request: NextRequest) {
       const after = request.nextUrl.searchParams.get('after') ?? '0';
       if (!/^\d{1,15}$/.test(after)) return Response.json({ detail: 'Cursor inválido.' }, { status: 400, headers });
       target.searchParams.set('after', after);
+      const revision = request.nextUrl.searchParams.get('calendar_revision');
+      if (revision !== null) {
+        if (!/^[a-f0-9]{32}$/.test(revision)) return Response.json({ detail: 'Revisão inválida.' }, { status: 400, headers });
+        target.searchParams.set('calendar_revision', revision);
+      }
     }
     if (path === '/api/collection/updates') {
       const before = request.nextUrl.searchParams.get('before');
