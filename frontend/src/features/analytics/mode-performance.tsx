@@ -56,7 +56,7 @@ function SeriesPerformance({ sample }: { sample:ReturnType<typeof seriesPerforma
         value.average!==null&&<div key={kind} data-result={kind}>
           <small><Clock3 size={14}/>{title}</small>
           <strong>{durationLabel(value.average)}</strong>
-          <small>{number(value.count)} de {number(value.total)} séries com duração registrada</small>
+          <small>{number(value.count)} de {number(value.total)} partidas com duração registrada</small>
         </div>)}
       {sample.comebackRate!==null&&<div data-result="comeback">
         <small><RotateCcw size={14}/> Vitória após perder a primeira rodada</small>
@@ -64,7 +64,7 @@ function SeriesPerformance({ sample }: { sample:ReturnType<typeof seriesPerforma
         <small>{number(sample.comebacks)} {sample.comebacks===1?'virada':'viradas'} em {number(sample.lostOpening)} {sample.lostOpening===1?'série':'séries'}</small>
       </div>}
     </div>
-    <p className="muted">Séries ranqueadas agrupadas pelo histórico com placar final 2–0 ou 2–1, de qualquer lado. O tempo soma as rodadas registradas.</p>
+    <p className="muted">Duração de partidas concluídas: séries com duas vitórias ou derrotas, ou partidas únicas com formato identificado pelo rank. Viradas usam apenas séries melhor de três. O tempo soma as rodadas registradas.</p>
   </section>;
 }
 

@@ -5,11 +5,11 @@ const ts = require('typescript');
 
 // Compile the domain modules with the project's TypeScript version; no DOM or API fixtures are required.
 require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop:true },
 }).outputText, filename);
 const { emptyData, stats } = require('../src/lib/data.ts');
 const { rankedSeasonIndex } = require('../src/lib/ranked-seasons.ts');
-const { matchSeries, matchEloChanges, completedRankedSeries } = require('../src/lib/match-series.ts');
+const { matchSeries, matchEloChanges, completedRankedSeries, completedRankedMatch, eloByScore, eloContext, seriesPerformance } = require('../src/lib/match-series.ts');
 const { seasonCohorts } = require('../src/lib/season-comparison.ts');
 
 const boundary = '2026-11-19T00:00:00.000Z';
@@ -79,4 +79,46 @@ test('the Elo reset cannot become a match loss or gain', () => {
     { at: '2026-11-19T09:04:00Z', score: 4500, season: '51' },
   ].map(reading => ({ ...reading, method: 'api', id: `server:${reading.at}` }));
   assert.equal(matchEloChanges(matches, readings).size, 0);
+});
+
+test('confirmed lower-rank single games count individually without merging rematches', () => {
+  const first = row('first', '2026-11-19T09:00:00Z', 'victory', '51', { rank_label: 'Diamante III', rank_score: 4100 });
+  const second = { ...first, id: 'second', played_at: '2026-11-19T09:02:00Z', result: 'defeat' };
+  const games = matchSeries([first, second]);
+  assert.equal(games.length, 2);
+  assert.deepEqual(stats(games), { wins: 1, losses: 1, draws: 0, decided: 2, games: 2, rate: .5 });
+  assert.ok(games.every(completedRankedMatch));
+  assert.ok(games.every(game => !completedRankedSeries(game)));
+  const performance = seriesPerformance(games);
+  assert.equal(performance.victories.count, 1);
+  assert.equal(performance.defeats.count, 1);
+  assert.equal(performance.lostOpening, 0);
+  assert.equal(matchSeries([{ ...first, rank_label: 'Mítico I', rank_score: 4500 }])[0].result, null);
+  assert.equal(matchSeries([{ ...first, rank_label: null, rank_score: null }])[0].result, null);
+  assert.equal(matchSeries([{ ...first, rank_source: 'evidência', score_source: 'evidência' }])[0].result, null);
+  assert.equal(matchSeries([{ ...first, played_at: '2026-10-19T09:00:00Z' }])[0].result, null);
+  assert.equal(matchSeries([{ ...first, rank_score: 5500 }])[0].result, null);
+});
+
+test('Elo averages separate scorelines, missing deltas, seasons and divisions', () => {
+  const make = (id, results, season='51', rank='Mítico III') => matchSeries(results.map((result, i) =>
+    row(`${id}${i}`, `2026-11-19T10:0${i*2}:00Z`, result, season, { rank_label: rank, rank_score: null })))[0];
+  const epic = make('epic', ['victory', 'victory']);
+  const close = make('close', ['victory', 'defeat', 'victory']);
+  const closeLoss = make('loss', ['victory', 'defeat', 'defeat']);
+  const noReading = make('unknown', ['defeat', 'defeat']);
+  const previous = make('old', ['victory', 'victory'], '50');
+  const otherRank = make('rank', ['victory', 'victory'], '51', 'Lendário I');
+  const elo = new Map([[epic.id,{before:5500,after:5600,rank:'Mítico III'}],
+    [close.id,{before:5500,after:5560,rank:'Mítico III'}], [closeLoss.id,{before:5500,after:5470,rank:'Mítico III'}],
+    [previous.id,{before:7500,after:7700}], [otherRank.id,{before:6000,after:6200}]]);
+  const scope = eloContext([epic,close,closeLoss,noReading,previous,otherRank],elo,'Temporada 51','Mítico III');
+  assert.equal(scope.length,4);
+  assert.equal(eloContext(scope,elo,null).length,0);
+  const rows=eloByScore(scope,elo);
+  assert.deepEqual(rows.find(row=>row.score==='2–0'),{score:'2–0',result:'victory',count:1,points:100,total:1});
+  assert.equal(rows.find(row=>row.score==='2–1').points,60);
+  assert.equal(rows.find(row=>row.score==='1–2').points,30);
+  assert.equal(rows.find(row=>row.score==='0–2').points,null);
+  assert.equal(rows.find(row=>row.score==='0–2').total,1);
 });

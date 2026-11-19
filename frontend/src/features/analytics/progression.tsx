@@ -5,7 +5,7 @@ import { rankedSessions } from '@/lib/coaching';
 import type { LocalData, Progress } from '@/lib/browser-store';
 import { dateTime, localDay, normalize, number, percent, stats } from '@/lib/data';
 import type { Dataset, Filters } from '@/lib/data';
-import { summarizeMatchElo } from '@/lib/match-series';
+import { eloByScore, eloContext, summarizeMatchElo } from '@/lib/match-series';
 import type { MatchElo, MatchSeries } from '@/lib/match-series';
 import { gameRank, nextRank, RankArt, referenceRank, TrophyArt } from '@/components/game';
 import { useDataTooltip } from '@/components/data-tooltip';
@@ -172,12 +172,17 @@ export function Progression({ local, filters, matches, elo, readings }: {
   const [gain, setGain] = useState('');
   const [loss, setLoss] = useState('');
   const [winRate, setWinRate] = useState('');
-  const recent = matches.filter(match=>match.result==='victory'||match.result==='defeat').slice(0,30);
+  const [eloScope,setEloScope]=useState<'season'|'rank'>('season');
+  const eloSeason=filters.season||current?.season||null;
+  const contextualElo=eloContext(matches,elo,eloSeason,eloScope==='rank'?currentRank:null);
+  const recent = contextualElo.filter(match=>match.result==='victory'||match.result==='defeat').slice(0,30);
   const sample = stats(recent);
-  const historicalElo = summarizeMatchElo(matches,elo);
+  const historicalElo = summarizeMatchElo(contextualElo,elo);
+  const scoreElo=eloByScore(contextualElo,elo);
   const activity = observedPace(matches);
   const paceRounded=activity.perDay===null?null:Number(activity.perDay.toPrecision(2));
-  const decisivePace=activity.span?stats(matches).decided/activity.span:0;
+  const plannerActivity=observedPace(contextualElo);
+  const decisivePace=plannerActivity.span?stats(contextualElo).decided/plannerActivity.span:0;
   const plannerPace=decisivePace>0?Number(decisivePace.toPrecision(2)):null;
   const goal = target ? Number(target) : (suggested?.floor ?? null);
   const p = winRate.trim() && Number(winRate) >= 0 && Number(winRate) <= 100 ? Number(winRate) / 100 : null;
@@ -235,7 +240,11 @@ export function Progression({ local, filters, matches, elo, readings }: {
           Usar {percent(sample.rate)} do histórico ({number(sample.decided)} {sample.decided===1?'partida decisiva':'partidas decisivas'})</button>}
       </div>
       <div className="planner-elo-suggestions">
-        <p>Variações de Elo estimadas a partir das leituras do perfil no recorte</p>
+        <p>Variações de Elo estimadas pelas leituras do perfil · {eloSeason||'Temporada ainda não identificada'}</p>
+        <label>Contexto das médias<select value={eloScope} onChange={event=>setEloScope(event.target.value as typeof eloScope)}>
+          <option value="season">Mesma temporada, no recorte</option>
+          <option value="rank" disabled={!currentRank}>Mesma temporada e divisão atual</option>
+        </select></label>
         <div className="planner-elo-options">
           {([{ direction:'Ganho médio', result:'vitória', estimate:historicalElo.gain, setValue:setGain },
             { direction:'Perda média', result:'derrota', estimate:historicalElo.loss, setValue:setLoss }]).map(({direction,result,estimate,setValue})=>
@@ -250,6 +259,12 @@ export function Progression({ local, filters, matches, elo, readings }: {
                   </button></>}
             </div>)}
         </div>
+        <PagedTable label="Elo por placar" rows={scoreElo} pageSize={6} headings={<><th>Placar</th><th>Partidas</th><th>Com variação isolada</th><th>Média de Elo</th><th>Aplicar ao plano</th></>}
+          renderRow={row=><tr key={row.score}><th scope="row">{row.score}</th><td>{number(row.total)}</td><td>{number(row.count)}</td>
+            <td>{row.points===null?'—':`${row.result==='victory'?'+':'−'}${number(row.points)}`}</td>
+            <td><button type="button" className="text-button" disabled={row.points===null}
+              onClick={()=>row.points!==null&&(row.result==='victory'?setGain:setLoss)(String(row.points))}>Usar média</button></td></tr>}/>
+        <p className="section-note">Cada média exige uma variação isolada na mesma temporada. O placar afeta o Elo; adversários, divisão e bônus também podem afetar. As médias não são valores fixos do jogo.</p>
       </div>
       <div className="planner-grid">
         {[[Target,'Pontos restantes',remaining],[Flag,'Partidas estimadas',games],[CalendarClock,'Dias no seu ritmo',days],[TrendingUp,'Partidas/dia no prazo',required]].map(([item,title,value]) => {

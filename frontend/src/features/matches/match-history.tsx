@@ -5,6 +5,7 @@ import { PagedTable } from '@/components/data-table';
 import { findMap, MapImage, ModeIcon, ModeLabel, Portrait, RankArt } from '@/components/game';
 import { dateTime, durationLabel, modeName, number, resultName, safeLink } from '@/lib/data';
 import { seasonLabel } from '@/lib/ranked-seasons';
+import { rankedFormat } from '@/lib/ranked-format';
 import { ReplayAnnotation } from '@/features/analytics/replay-annotation';
 import type { ReplayReview } from '@/lib/coaching';
 import type { Battle } from '@/lib/data';
@@ -37,7 +38,7 @@ export function MatchList({ matches, elo, onOpen, compact = false }: {
       <td><span className="image-label"><Portrait name={b.player_brawler}/>{b.player_brawler ?? '—'}</span></td><td>
         <Pill kind={resultTone(result)}>{b.ranked&&!result?'Resultado em aberto':resultName(result)}</Pill>
         {rounds.length>1&&<small title="Agrupamento inferido a partir do histórico">{wins}–{losses} · {rounds.length} rodadas</small>}
-        {b.ranked&&rounds.length===1&&<small>Registro isolado · série não confirmada</small>}
+        {b.ranked&&rounds.length===1&&<small>{rankedFormat(b)==='single'?'Partida única · rank da partida':'Registro isolado · série não confirmada'}</small>}
         {duration!=null&&<small>{durationLabel(duration)}</small>}</td>
       {showKd&&<td>{kd?`${number(kd.kills)} / ${number(kd.deaths)}`:null}</td>}
       {showRank&&<td>{rankLabel&&<span className="image-label inline-rank">

@@ -2,6 +2,7 @@ from calendar import month_abbr
 from contextlib import contextmanager
 from datetime import date
 import re
+from time import monotonic, sleep
 from urllib.parse import urlparse
 
 import httpx
@@ -163,9 +164,17 @@ def format_snapshot(tier_list, changes, map_name=None, map_info=None, *, rank="m
 
 
 @contextmanager
-def draftmeta_session():
+def draftmeta_session(*, minimum_interval=0):
     try:
-        with httpx.Client(timeout=9, follow_redirects=False) as http:
+        last_request = None
+
+        def pace(_request):
+            nonlocal last_request
+            if last_request is not None and minimum_interval:
+                sleep(max(0, minimum_interval - (monotonic() - last_request)))
+            last_request = monotonic()
+
+        with httpx.Client(timeout=9, follow_redirects=False, event_hooks={"request": [pace]}) as http:
             client = DraftMetaClient(http)
             client.initialize()
             yield client
@@ -205,14 +214,14 @@ def fetch_snapshot(map_name=None, *, rank="masters"):
         return read_tier(client, changes, map_name, rank=rank, include_map_info=True)
 
 
-def fetch_draft_suggestions(map_name, our_picks, enemy_picks, bans, first_pick):
+def fetch_draft_suggestions(map_name, our_picks, enemy_picks, bans, first_pick, *, rank="masters"):
     pick_number = len(our_picks) + len(enemy_picks) + 1
     unavailable = {name.casefold() for name in our_picks + enemy_picks + bans}
     with draftmeta_session() as client:
         data = client.call("draft_suggest", map=map_name, our_picks=our_picks, enemy_picks=enemy_picks,
-                           bans=bans, first_pick=first_pick, rank="all", limit=10)
+                           bans=bans, first_pick=first_pick, rank=rank, limit=10)
         if (data["map"] != map_name or data["toMove"] != "us" or data["pickNumber"] != pick_number
-                or data["population"] != "soloRanked" or data["band"] != "all"):
+                or data["population"] != "soloRanked" or data["band"] not in {"all","masters","masters-plus","legendary","mythic","diamond"}):
             raise ValueError("Composição retornada é diferente da solicitada")
         suggestions = []
         seen = set(unavailable)
@@ -230,5 +239,7 @@ def fetch_draft_suggestions(map_name, our_picks, enemy_picks, bans, first_pick):
                 "after_reply": rate(row["winChanceAfterBestReply"]) if reply else None, "reply": reply,
             })
             seen.add(name.casefold())
+        band = "masters" if data["band"] == "masters-plus" else data["band"]
         return {"source_url": source_link(data["link"]), "current_chance": rate(data["ourWinChanceNow"]),
+                "rank_scope": band, "requested_rank": rank, "rank_honored": band == rank,
                 "suggestions": suggestions}

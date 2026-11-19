@@ -11,6 +11,7 @@ const routes = new Set([
   'GET /api/supercell/credential', 'POST /api/supercell/credential',
   'GET /api/meta/sample', 'POST /api/meta/sample',
   'GET /api/meta/external', 'POST /api/meta/external', 'POST /api/meta/draft-suggest',
+  'GET /api/meta/bans', 'POST /api/meta/bans',
 ]);
 const headers = { 'Cache-Control': 'private, no-store' };
 
@@ -44,7 +45,7 @@ async function forward(request: NextRequest) {
 
   const credential = path === '/api/supercell/credential';
   const metaSample = path === '/api/meta/sample';
-  const externalMeta = path === '/api/meta/external';
+  const externalMeta = path === '/api/meta/external' || path === '/api/meta/bans';
   const draftSuggestion = path === '/api/meta/draft-suggest';
   const evidence = path === '/api/evidence';
   let body: string | undefined;

@@ -70,3 +70,26 @@ def save_current_snapshot(cursor, scope, payload, previous):
         return False
     save_snapshot(cursor, scope, payload)
     return True
+
+
+def latest_bans(cursor, scope, patch=None, *, rank="masters"):
+    cursor.execute("""
+        SELECT payload, fetched_at, fetched_at >= clock_timestamp() - INTERVAL '1 hour' AS fresh
+        FROM external_ban_snapshots WHERE provider=%s AND scope=%s AND rank_scope=%s
+          AND (%s::date IS NULL OR patch_date=%s)
+        ORDER BY patch_date DESC, period_end DESC LIMIT 1
+    """, (PROVIDER, scope, rank, patch, patch))
+    row = cursor.fetchone()
+    return {**row["payload"], "fetched_at": row["fetched_at"].isoformat(), "fresh": row["fresh"]} if row else None
+
+
+def save_bans(cursor, scope, payload):
+    previous = latest_bans(cursor, scope, rank=payload["rank"])
+    if previous and (payload["patch_date"], payload["end"]) < (previous["patch_date"], previous["end"]):
+        raise ValueError("O provedor retornou um período anterior de bans")
+    cursor.execute("""
+        INSERT INTO external_ban_snapshots (provider,scope,rank_scope,patch_date,period_end,payload)
+        VALUES (%s,%s,%s,%s,%s,%s)
+        ON CONFLICT (provider,scope,rank_scope,patch_date,period_end) DO UPDATE
+        SET fetched_at=clock_timestamp(), payload=EXCLUDED.payload
+    """, (PROVIDER, scope, payload["rank"], payload["patch_date"], payload["end"], Jsonb(payload)))

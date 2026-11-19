@@ -42,7 +42,7 @@ import { SampleCollection } from '@/features/meta/sample-collection';
 import publicIndex from '@public/scouting/index.json';
 import { columnFilters, navigation, subtitles } from './navigation';
 import { useDashboard } from './use-dashboard';
-import { completedRankedSeries, filteredSeries, matchEloChanges, matchSeries, seriesBattle } from '@/lib/match-series';
+import { completedRankedMatch, filteredSeries, matchEloChanges, matchSeries, seriesBattle } from '@/lib/match-series';
 
 export default function Dashboard() {
   const {section, filters, setFilters, book, local, period, setPeriod, server, serverError,
@@ -126,8 +126,8 @@ export default function Dashboard() {
   const elo=useMemo(()=>matchEloChanges(series,local.progress),[series,local.progress]);
   const historySeries=section==='matches'?filteredSeries(series,accountMatches,accountFilters,rankedOnly,elo):[];
   const rankedSeries=section==='overview'||section==='performance'?filteredSeries(series,accountMatches,accountFilters,true,elo):[];
-  const performanceHistory=useMemo(()=>rankedHistory.filter(completedRankedSeries),[rankedHistory]);
-  const performanceSeries=section==='performance'?rankedSeries.filter(completedRankedSeries):[];
+  const performanceHistory=useMemo(()=>rankedHistory.filter(completedRankedMatch),[rankedHistory]);
+  const performanceSeries=section==='performance'?rankedSeries.filter(completedRankedMatch):[];
   const pickComparisonSeries=section==='performance'&&filters.player_brawler
     ?filteredSeries(performanceHistory,accountMatches,{...accountFilters,player_brawler:''},true,elo):performanceSeries;
   const selectedAnalysisMap=analysisTarget?.tag===book.active?analysisTarget.map:'';

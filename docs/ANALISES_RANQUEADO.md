@@ -23,6 +23,7 @@ Na largura de desktop, a matriz fica ao lado da comparação de picks, e a compa
 | Confronto contra o próprio padrão | Disponível | Na ficha do brawler, selecionar um mapa e comparar séries contra o adversário com séries contra outros adversários no mesmo mapa, modo e pick. Mostrar as duas amostras com composição identificada. |
 | Sinergia com aliados | Disponível | No mesmo mapa, modo e pick, comparar séries com e sem o aliado usando os dois aliados identificados. Mostrar dano ao cofre por minuto e sua amostra em Roubo. A comparação descreve os resultados observados. |
 | Ban pessoal × ban da meta | Validado em teste, coleta real pendente | Comparar presença do adversário, derrotas, bans dos drafts da conta e bans dos registros competitivos no mesmo mapa e janela. Mostrar origem, denominadores e cobertura. Confirmar listas no primeiro lote real após a migração. |
+| Bans consolidados externos | Disponível | Tabela completa do DraftMeta por mapa ou geral, Mestres+ por padrão. Preservar a janela e a classificação pelo rank médio do lobby. Ban rate usa os drafts com lista conhecida; presença usa todas as partidas. Mostrar cobertura e taxas de vitória publicada e bruta separadamente. |
 
 ## Revisão de partidas
 
@@ -43,6 +44,7 @@ Na largura de desktop, a matriz fica ao lado da comparação de picks, e a compa
 | Antes × depois do balanceamento | Disponível | Comparar janelas de mesma duração dentro dos dois patches, usando mapa, modo e pick. Mostrar combinações exclusivas e abrir as partidas dos dois períodos. Usar a Meta quando as janelas completas coincidirem. |
 | Início × fim de sessão | Disponível | Usar as sessões de Progressão e comparar as duas metades com séries em cada lado. Mostrar o intervalo registrado, resultados em ordem e acesso às partidas. |
 | Efeito do treino | Disponível | Salvar no plano a métrica a acompanhar e comparar antes e durante. Mostrar win rate, cobertura da métrica e dano ao cofre por minuto em Roubo. Abrir a amostra do plano ativo ou dos planos arquivados. |
+| Elo por placar | Disponível | Separar médias de 2–0, 2–1, 1–2, 0–2 e partidas únicas. Exigir variações isoladas, mesma temporada e opcionalmente a divisão atual. Mostrar cobertura e aplicar uma média editável ao plano de subida. |
 
 ## Validação das entregas
 
@@ -52,7 +54,7 @@ Em produção, conferir **Meta → Amostra de outros jogadores** após uma colet
 
 ## Critérios de dados
 
-- Contar séries concluídas uma vez nas comparações de vitória e derrota. O detalhe mostra a ordem das rodadas registradas e conserva o acesso às estatísticas da API.
+- Contar cada partida concluída uma vez nas comparações de vitória e derrota. Nas regras de novembro, um rank ou pontos oficiais da própria partida podem identificar formato de partida única. Sem essa informação, uma rodada isolada permanece com resultado em aberto. Nas séries, duas vitórias ou derrotas confirmam o resultado; o detalhe conserva as rodadas e suas estatísticas.
 - Usar vitórias e derrotas como denominador do win rate. Exibir valores ausentes como `—` e conservar o zero observado.
 - Calcular taxas por minuto com as durações registradas. Exigir dados completos das métricas somadas e dos integrantes usados para calcular a participação da equipe. Só somar métricas de objetivo quando a unidade e o tipo forem compatíveis.
 - Exibir origem, período, filtros e tamanho das amostras. Rank e temporada ausentes podem reduzir a comparabilidade. Resultados observados, incluindo os de treinos e balanceamentos, são descritivos.

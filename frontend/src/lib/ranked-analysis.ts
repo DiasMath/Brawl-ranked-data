@@ -1,7 +1,7 @@
 import { normalize, orderByMatchCount, stats } from './data';
 import { recentFormWindows } from './coaching';
 import { mapKey } from './external-comparison';
-import { completedRankedSeries, seriesBattle, seriesDuration, seriesPlayers, seriesRank, seriesSeason, sumRecorded } from './match-series';
+import { completedRankedMatch, completedRankedSeries, seriesBattle, seriesDuration, seriesPlayers, seriesRank, seriesSeason, sumRecorded } from './match-series';
 import type { MatchSeries } from './match-series';
 import { ordered } from './scouting';
 
@@ -12,7 +12,7 @@ export function rankedMaps(matches: MatchSeries[]) {
   for (const match of matches) {
     const { map_name:name, mode } = match.latest;
     const key = mapKey(name);
-    if (!name || !key || !completedRankedSeries(match)) continue;
+    if (!name || !key || !completedRankedMatch(match)) continue;
     const id = JSON.stringify([normalize(mode),key]);
     const group = groups.get(id) ?? { id,name,mode,matches:[] };
     group.matches.push(match);
@@ -114,7 +114,7 @@ export function compareSeriesResults(matches: MatchSeries[], mode: string|null) 
   const measurements = { victory:[] as ReturnType<typeof seriesMeasurements>[], defeat:[] as ReturnType<typeof seriesMeasurements>[] };
   for (const match of matches) {
     const {result} = match;
-    if (!completedRankedSeries(match) || (result!=='victory' && result!=='defeat')) continue;
+    if (!completedRankedMatch(match) || (result!=='victory' && result!=='defeat')) continue;
     series[result].push(match);
     measurements[result].push(seriesMeasurements(match));
   }
@@ -158,7 +158,7 @@ export function heistObjectivePoints(matches: MatchSeries[]) {
   const points: { match:MatchSeries; damage:number; objective:number }[] = [];
   let eligible = 0;
   for (const match of matches) {
-    if (normalize(match.latest.mode)!=='heist' || !completedRankedSeries(match)) continue;
+    if (normalize(match.latest.mode)!=='heist' || !completedRankedMatch(match)) continue;
     eligible++;
     const { damageDealt, safePerMinute } = seriesMeasurements(match);
     if (damageDealt!==undefined && safePerMinute!==undefined) {
@@ -174,7 +174,7 @@ export function opponentCompositions(matches: MatchSeries[], size:1|2|3) {
   let coveredLosses = 0;
   let losses = 0;
   for (const match of matches) {
-    if (!completedRankedSeries(match)) continue;
+    if (!completedRankedMatch(match)) continue;
     const lost = match.result==='defeat';
     if (lost) losses++;
     const opponents = match.latest.players.filter(player=>player.side==='opponent').map(player=>player.brawler?.trim()??'');
@@ -228,7 +228,7 @@ export function matchupBaseline(matches:MatchSeries[], brawler:string, side:'all
   const own:MatchSeries[] = [];
   for (const match of matches) {
     const battle = seriesBattle(match);
-    if (normalize(battle.player_brawler)!==brawler || !completedRankedSeries(match)) continue;
+    if (normalize(battle.player_brawler)!==brawler || !completedRankedMatch(match)) continue;
     if (!battle.map_name || !battle.mode) return null;
     const current = JSON.stringify([mapKey(battle.map_name),normalize(battle.mode)]);
     if (context && current!==context) return null;

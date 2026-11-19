@@ -9,7 +9,8 @@ import type { ScoutingRow } from '@/lib/scouting';
 import type { MetaMatchup } from '@/lib/browser-store';
 import { LiveMeta, metaPeriods } from '@/lib/live';
 import type { LivePeriod } from '@/lib/live';
-import { draftMetaMapKey, draftMetaPicks } from '@/lib/draftmeta';
+import { draftMetaMapKey, draftMetaPicks, draftRankLabel } from '@/lib/draftmeta';
+import { useExternalBans } from '@/features/meta/use-external-bans';
 import { seriesBattle, seriesSeason } from '@/lib/match-series';
 import type { MatchSeries } from '@/lib/match-series';
 import { useDraftMeta, useDraftSuggestions } from './use-draftmeta';
@@ -107,6 +108,7 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
   const map=findMap(mapName)??maps.find(item=>draftMetaMapKey(item.name)===draftMetaMapKey(mapName)&&!item.disabled);
   const mode=map?byModeId.get(map.mode)?.key??null:null;
   const external=useDraftMeta(mapName,active);
+  const externalBans=useExternalBans(external.sourceMap,'masters','',active&&source==='draftmeta'&&advice==='bans'&&!!mapName);
   const global=usePublicStats(null,mapName||null);
   const mapIndex=usePublicStats(null,null);
   const recentMaps=new Set((external.pool.length?external.pool:(mapIndex.index?.contexts.flatMap(c=>c.map?[c.map]:[])??[])).map(draftMetaMapKey));
@@ -164,7 +166,7 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
   const model=useDraftSuggestions(active&&source==='draftmeta'&&advice==='picks'&&phase==='pick'&&
     external.sourceMap&&!external.resolvingMap&&inOrder&&nextPick?.side==='team'&&targetPick?.index===nextPick.index?{
       map:external.sourceMap,our_picks:allies,enemy_picks:enemies,
-      bans:[...new Set([...draft.blueBan,...draft.redBan].filter(Boolean))],first_pick:firstSide==='team',
+      bans:[...new Set([...draft.blueBan,...draft.redBan].filter(Boolean))],first_pick:firstSide==='team',rank:'masters',
     }:null);
   const openBans=banOrder.filter(s=>!draft[s.side][s.index]);
   const [nextBan]=openBans;
@@ -267,13 +269,18 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
     const name=rosterNames.get(normalize(row.name));
     return name&&targetPick&&!blocked(name,targetPick)?[{...row,name}]:[];
   })??[];
-  const loadingRecommendations=model.loading||(source==='draftmeta'
+  const loadingRecommendations=model.loading||(source==='draftmeta'&&advice==='bans'&&externalBans.loading)||(source==='draftmeta'
     ? advice!=='counters'&&!modelRows.length&&external.loading
     : source==='public'&&!recommendations.length&&global.loading);
   const externalRows=draftMetaPicks(external.snapshot).flatMap(row=>{
     const rosterName=rosterNames.get(normalize(row.name));
     return rosterName&&externalTarget&&!blocked(rosterName,externalTarget)&&(advice!=='bans'||!banned.has(normalize(rosterName)))?[{...row,name:rosterName}]:[];
   });
+  const banRows=externalBans.snapshot?.recommendations.flatMap(row=>{
+    const name=rosterNames.get(normalize(row.name));
+    const measured=externalBans.snapshot?.rows.find(item=>normalize(item.name)===normalize(row.name));
+    return name&&targetBan&&measured&&!blocked(name,targetBan)&&!banned.has(normalize(name))?[{...row,...measured,name}]:[];
+  })??[];
   if(advice==='bans')externalRows.sort((a,b)=>(b.presence??0)*Math.max(0,b.winRate-.5)-(a.presence??0)*Math.max(0,a.winRate-.5)||b.winRate-a.winRate);
   const applyRecommendation:((name:string)=>void)|undefined=advice==='bans'?(targetBan?name=>assign(name,targetBan):undefined):
     (targetPick?name=>assign(name,targetPick):undefined);
@@ -351,9 +358,16 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
           {model.loading?'Calculando projeção do draft…':source==='draftmeta'?'Carregando Meta do patch…':'Carregando recomendações…'}</p>}
         {source==='draftmeta'?<>
           <div className="draft-suggestions" aria-live="polite">
-            {model.result&&modelRows.length>0?<>
+            {advice==='bans'&&externalBans.snapshot?<>
+              <p className="draft-evidence">Bans sugeridos pela fonte · Impacto estimado · Rank médio do lobby: Mestres+</p>
+              {banRows.slice(0,3).map((row,index)=><button type="button" className="draft-suggestion" key={row.name}
+                disabled={!applyRecommendation} onClick={()=>applyRecommendation?.(row.name)}>
+                <Portrait name={row.name}/><span><strong>{row.name}</strong><small>{percent(row.ban_rate)} ban rate · {number(row.games)} partidas</small></span><b>#{index+1}</b>
+              </button>)}
+              {!banRows.length&&<p className="section-note">Nenhuma sugestão de ban disponível após os filtros.</p>}
+            </>:advice==='bans'&&externalBans.loading?null:model.result&&modelRows.length>0?<>
               <p className="draft-evidence"><a href={model.result.source_url} target="_blank" rel="noreferrer">Projeção DraftMeta</a>
-                {' · Agora '+percent(model.result.current_chance/100)+' · Todos os ranks'}</p>
+                {' · Agora '+percent(model.result.current_chance/100)+' · '+draftRankLabel(model.result.rank_scope)}</p>
               {modelRows.slice(0,3).map(row=><button type="button" className="draft-suggestion" key={row.name}
                 disabled={!applyRecommendation} onClick={()=>applyRecommendation?.(row.name)}
                 title={row.reply?`${percent(row.after_pick/100)} após o pick · ${percent(row.after_reply===null?null:row.after_reply/100)} após resposta com ${row.reply}`:`${percent(row.after_pick/100)} após o pick`}>
@@ -373,8 +387,13 @@ export function DraftLab({ matches,profile,defaultMap,defaultSeason='',defaultSo
                 <b>{percent(row.winRate)}</b>
               </button>)}
           </div>
-          {!modelRows.length&&external.snapshot&&advice!=='counters'&&<p className="draft-evidence"><a href={external.snapshot.source_url} target="_blank" rel="noreferrer">DraftMeta</a>
-            {' · Mestres+ · '+(external.snapshot.end?'Patch '+external.snapshot.patch_date.split('-').reverse().join('/'):'Amostra desde '+external.snapshot.start.split('-').reverse().join('/'))+' · '+dateTime(external.snapshot.fetched_at)}
+          {advice==='bans'&&externalBans.snapshot&&<p className="draft-evidence"><a href={externalBans.snapshot.source_url} target="_blank" rel="noreferrer">Bans observados · DraftMeta</a>
+            {' · '+number(externalBans.snapshot.drafts)+' drafts · '+externalBans.snapshot.start.split('-').reverse().join('/')+' a '+externalBans.snapshot.end.split('-').reverse().join('/')+' UTC · '+dateTime(externalBans.snapshot.fetched_at)}
+            {!externalBans.snapshot.fresh&&' · Cópia anterior'} · Ban rate é frequência, não a chance de vitória.</p>}
+          {externalBans.error&&advice==='bans'&&<p className="draft-evidence" role="status">{externalBans.error}{!externalBans.snapshot?' Referência alternativa pela tier list, quando disponível.':''}</p>}
+          {model.result?.rank_honored===false&&<p className="draft-evidence">Solicitado Mestres+; a fonte respondeu {draftRankLabel(model.result.rank_scope)}. Projeção identificada pela população retornada.</p>}
+          {!modelRows.length&&!(advice==='bans'&&externalBans.snapshot)&&external.snapshot&&advice!=='counters'&&<p className="draft-evidence"><a href={external.snapshot.source_url} target="_blank" rel="noreferrer">DraftMeta</a>
+            {' · Mestres+ · Amostra desde '+external.snapshot.start.split('-').reverse().join('/')+(external.snapshot.end?' até '+external.snapshot.end.split('-').reverse().join('/'):'')+' UTC · '+dateTime(external.snapshot.fetched_at)}
             {!external.snapshot.fresh&&' · Cópia salva'}
             {advice==='bans'?' · Sugestões por força no recorte':' · Win rate observado'}</p>}
           {model.failed&&<p className="draft-evidence" role="status">Projeção do draft indisponível.</p>}

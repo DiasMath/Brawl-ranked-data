@@ -31,12 +31,27 @@ O desenho das abas e a lista de novas análises estão em [Análises do Ranquead
 
 - Corrigida a lacuna no primeiro dia da temporada prevista, com corte estimado explícito e ajuste em **Contas e dados → Calendário de temporadas**. A temporada oficial tem precedência sobre a data.
 - Ajustes do calendário atualizam as duas pontas da transição em uma transação e ficam auditados. O frontend invalida o histórico em cache ao mudar a revisão do calendário.
-- Uma rodada ranqueada isolada permanece com resultado em aberto. Ganhos e perdas de Elo não atravessam temporadas.
+- Uma rodada isolada de melhor de três, ou sem formato conhecido, permanece com resultado em aberto. Ganhos e perdas de Elo não atravessam temporadas.
 - O Draft Lab acompanha novas cópias da Meta enquanto a página está visível e prioriza o pool atual de mapas da fonte.
 - `Preparar-Temporada.ps1` reúne o registro das tarefas de partidas e DraftMeta. Ainda é preciso executar no Windows e confirmar seus logs. O horário real do reset permanece pendente de confirmação; o corte inicial é uma estimativa.
 - Continuam pendentes a conferência do histórico dentro do jogo (etapa 4) e a validação de bans competitivos em uma coleta real, descrita em `docs/ANALISES_RANQUEADO.md`.
 
 Os testes automatizados verificaram o primeiro instante da nova janela, a prioridade da temporada oficial, a virada 2–1, uma rodada isolada, a separação no reset de Elo, a auditoria e a aplicação única das migrações em PostgreSQL descartável. O teste da tela confirmou a conversão de horário de Brasília, o salvamento e a atualização do histórico. O build de produção passou. A revisão do calendário também é persistida no cache por conta: só sua alteração força uma recarga completa; as demais coletas continuam incrementais.
+
+## Início da temporada em 19/11/2026
+
+| Entrega | Situação |
+| --- | --- |
+| Formato por rank da própria partida | Implementado. Rank ou pontos oficiais identificam partidas únicas nas divisões inferiores sob a regra de novembro. Sem essa informação, um registro isolado continua em aberto. O perfil atual não reclassifica partidas antigas. |
+| Bans consolidados do DraftMeta | Implementado. Lista completa, padrão Mestres+, mapas e todos os mapas, cache de uma hora, snapshots diários por patch e coleta pelo agendador existente. Ban rate usa drafts com lista; presença usa partidas. |
+| Elo por placar | Implementado. Médias de 2–0, 2–1, 1–2, 0–2 e partidas únicas, com amostras e aplicação ao plano. O padrão usa a temporada selecionada ou atual; permite restringir à divisão atual. |
+| Escopo das fontes | Implementado. Modelo informa a faixa realmente retornada e avisa quando difere de Mestres+. Janelas da Meta podem atravessar temporadas; bans usam rank médio do lobby. |
+| Brawlers temporários maximizados | Pendente de lista confirmada e indicação confiável de disponibilidade. Não deduzir quais são os seis nem substituir os equipamentos da conta por dados presumidos. |
+| Conferir coleta da nova temporada | Pendente no ambiente do usuário. Confirmar leitura inicial, logs das tarefas e partidas completas, sem duplicação. |
+
+O teste com a tabela pública de Center Stage retornou os 108 brawlers. A taxa de vitória publicada e a divisão bruta de vitórias por partidas apresentaram diferenças; ambas ficam preservadas e identificadas. A causa dessas diferenças ainda não foi confirmada. A validação ao vivo também cobriu todos os ranks, com total de partidas diferente da cobertura de bans. Não agregar essas taxas com a conta como se compartilhassem população e denominadores.
+
+Os testes desta entrega verificaram cache, persistência diária, falhas de fonte, denominadores distintos, formato por rank e médias por placar. As verificações de interface cobriram paginação e conservação da última cópia.
 
 ## Validação da etapa 1
 

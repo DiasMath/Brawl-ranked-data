@@ -10,8 +10,9 @@ import httpx
 import psycopg
 
 from ..db import database, prepare_collection
-from ..repositories.external_meta import latest_snapshot, save_coverage, save_current_snapshot
+from ..repositories.external_meta import latest_bans, latest_snapshot, save_bans, save_coverage, save_current_snapshot
 from ..services.draftmeta import draftmeta_session, ranked_pool, read_tier
+from ..services.external_bans import read_bans
 from ..services.supercell import CollectionError
 
 
@@ -68,8 +69,35 @@ def log_database_failure(failure, *, retrying=False):
             " Nova tentativa em 5 segundos." if retrying else "")
 
 
+def collect_bans(client, changes, scope, cursor, connection):
+    try:
+        previous = latest_bans(cursor, scope)
+        if previous and previous["fresh"] and previous["patch_date"].replace("-", "") == changes["updatesWithData"][0]["id"].replace("-", ""):
+            connection.commit()
+            return True
+        cursor.execute("SELECT pg_try_advisory_xact_lock(hashtextextended(%s,0)) AS acquired",
+                       (f"brawl:external-bans:masters:{scope}",))
+        if not cursor.fetchone()["acquired"]:
+            connection.commit()
+            return False
+        payload = read_bans(client, changes, scope or None)
+        with database_step(f"gravação dos bans de {scope or 'todos os mapas'}"):
+            save_bans(cursor, scope, payload)
+            connection.commit()
+        return True
+    except httpx.HTTPStatusError as error:
+        connection.rollback()
+        LOG.warning("Bans %s: HTTP %s.", scope or "geral", error.response.status_code)
+        if error.response.status_code == 429:
+            raise
+    except (httpx.RequestError, ValueError, KeyError, TypeError, AttributeError) as error:
+        connection.rollback()
+        LOG.warning("Bans %s: dados indisponíveis (%s). Última cópia preservada.", scope or "geral", type(error).__name__)
+    return False
+
+
 def collect_pool(cursor, connection):
-    with draftmeta_session() as client:
+    with draftmeta_session(minimum_interval=1.25) as client:
         maps = ranked_pool(client)
         changes = client.call("meta_changes", update="latest")
         general = read_tier(client, changes)
@@ -80,10 +108,11 @@ def collect_pool(cursor, connection):
                 raise CollectionError(502, "O DraftMeta retornou um patch ou período anterior ao salvo.")
             save_coverage(cursor, patch, results)
             connection.commit()
+        bans_updated = int(collect_bans(client, changes, "", cursor, connection))
         limited = None
         for entry in results:
             name = entry["name"]
-            sleep(1.25)
+            sleep(2.5)
             snapshot = None
             try:
                 snapshot = read_tier(client, changes, name, include_map_info=True)
@@ -102,11 +131,17 @@ def collect_pool(cursor, connection):
                 connection.commit()
             if limited:
                 break
+            entry["ban_status"] = "updated" if collect_bans(client, changes, name, cursor, connection) else "unavailable"
+            bans_updated += int(entry["ban_status"] == "updated")
+            with database_step(f"cobertura dos bans de {name}"):
+                save_coverage(cursor, patch, results)
+                connection.commit()
         if limited:
             raise limited
     updated = sum(entry["status"] == "updated" for entry in results)
     LOG.info("Patch %s · geral atualizado · %s de %s mapas atualizados.", patch, updated, len(results))
-    return int(updated != len(results))
+    LOG.info("Bans observados · %s de %s recortes atualizados (geral e mapas).", bans_updated, len(results)+1)
+    return int(updated != len(results) or bans_updated != len(results)+1)
 
 
 def main():

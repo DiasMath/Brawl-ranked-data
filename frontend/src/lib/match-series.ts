@@ -3,6 +3,7 @@ import { draftMetaMapKey } from './draftmeta';
 import type { Battle, BattleElo, Filters, Participant, ParticipantStats } from './data';
 import type { Progress } from './browser-store';
 import { seasonLabel } from './ranked-seasons';
+import { rankedFormat } from './ranked-format';
 
 export type MatchSeries = {
   id: string;
@@ -54,7 +55,7 @@ function sameLineup(first: ReturnType<typeof lineup>, second: ReturnType<typeof 
 
 function makeSeries(rounds: Battle[], wins: number, losses: number): MatchSeries {
   const latest = rounds[rounds.length-1];
-  const result = !latest.ranked ? latest.result : wins === 2 ? 'victory' : losses === 2 ? 'defeat' : null;
+  const result = rankedFormat(latest)==='single' ? latest.result : wins === 2 ? 'victory' : losses === 2 ? 'defeat' : null;
   return {id:rounds[0].id, latest, rounds, result, wins, losses};
 }
 
@@ -78,6 +79,11 @@ export function completedRankedSeries(match: MatchSeries) {
     ((match.result === 'victory' && match.wins === 2) || (match.result === 'defeat' && match.losses === 2));
 }
 
+export function completedRankedMatch(match:MatchSeries) {
+  return completedRankedSeries(match)||(match.latest.ranked&&match.rounds.length===1&&
+    rankedFormat(match.latest)==='single'&&match.result!==null);
+}
+
 export function matchSeries(battles: Battle[]): MatchSeries[] {
   const sorted = [...battles].sort((a,b)=>Date.parse(a.played_at)-Date.parse(b.played_at));
   const series: MatchSeries[] = [];
@@ -88,7 +94,8 @@ export function matchSeries(battles: Battle[]): MatchSeries[] {
     const gap = previous ? (Date.parse(battle.played_at)-Date.parse(previous.played_at))/1000 : 0;
     // Allow a long round plus the break. Without durations use a bounded time window.
     const limit = Math.min(360,Math.max(240,(previous?.duration_seconds??0)+60,(battle.duration_seconds??0)+60));
-    if (previous && (previous.api_type!==battle.api_type || normalize(previous.mode)!==normalize(battle.mode)
+    if (previous && (rankedFormat(previous)==='single'||rankedFormat(battle)==='single'
+        || previous.api_type!==battle.api_type || normalize(previous.mode)!==normalize(battle.mode)
         || !sameMap(previous,battle) || !sameLineup(signature,key)
         || !sameRankedSeason(previous,battle)
         || !(gap > 0 && gap <= limit) || wins === 2 || losses === 2)) {
@@ -120,10 +127,10 @@ export function seriesPerformance(matches: MatchSeries[]) {
     const {rounds,result}=match;
     const winnerCount=rounds.filter(round=>round.result===result).length;
     const loserCount=rounds.filter(round=>round.result===(result==='victory'?'defeat':'victory')).length;
-    if(winnerCount!==2||loserCount>1||rounds.some(round=>round.result===null)||rounds.at(-1)?.result!==result)continue;
+    if(!completedRankedMatch(match)||loserCount>1||rounds.some(round=>round.result===null)||rounds.at(-1)?.result!==result)continue;
 
     results[result]++;
-    if(rounds[0].result==='defeat'){
+    if(winnerCount===2&&rounds[0].result==='defeat'){
       lostOpening++;
       if(result==='victory')comebacks++;
     }
@@ -205,7 +212,7 @@ export function summarizeMatchElo(matches: MatchSeries[], elo: ReadonlyMap<strin
   const losses = {sum:0, count:0};
   for (const match of matches) {
     const reading = elo.get(match.id);
-    if (!match.latest.ranked || !reading) continue;
+    if (!completedRankedMatch(match) || !reading) continue;
     const delta = reading.after-reading.before;
     if (!Number.isFinite(delta)) continue;
     if (match.result==='victory' && delta>0) {
@@ -219,6 +226,24 @@ export function summarizeMatchElo(matches: MatchSeries[], elo: ReadonlyMap<strin
   }
   const average = ({sum,count}:typeof wins) => ({count, points:count?Math.round(sum/count*10)/10:null});
   return { gain:average(wins), loss:average(losses) };
+}
+
+export function eloByScore(matches:MatchSeries[],elo:ReadonlyMap<string,MatchElo>) {
+  const definitions=[['2–0','victory'],['2–1','victory'],['1–2','defeat'],['0–2','defeat'],
+    ['Única · vitória','victory'],['Única · derrota','defeat']] as const;
+  return definitions.map(([score,result])=>{
+    const rows=matches.filter(match=>completedRankedMatch(match)&&match.result===result&&
+      (match.rounds.length===1?score.startsWith('Única'):score===`${match.wins}–${match.losses}`));
+    const estimate=summarizeMatchElo(rows,elo)[result==='victory'?'gain':'loss'];
+    return {score,result,...estimate,total:rows.length};
+  });
+}
+
+export function eloContext(matches:MatchSeries[],elo:ReadonlyMap<string,MatchElo>,season:string|null,rank?:string|null) {
+  const seasonKey=normalize(seasonLabel(season)?.replace(/ \(prevista\)$/i,''));
+  if(!seasonKey)return [];
+  return matches.filter(match=>normalize(seasonLabel(seriesSeason(match))?.replace(/ \(prevista\)$/i,''))===seasonKey&&
+    (!rank||normalize(seriesRank(match)?.rank_label??elo.get(match.id)?.rank)===normalize(rank)));
 }
 
 export function seriesRank(match: MatchSeries, round=match.latest) {

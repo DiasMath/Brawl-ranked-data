@@ -23,13 +23,25 @@ export type DraftMetaResponse = {
 };
 
 export type DraftSuggestionRequest = {
-  map: string; our_picks: string[]; enemy_picks: string[]; bans: string[]; first_pick: boolean;
+  map: string; our_picks: string[]; enemy_picks: string[]; bans: string[]; first_pick: boolean; rank?:DraftMetaRank;
 };
 export type DraftSuggestionResponse = {
   source_url: string;
+  rank_scope?: string; requested_rank?:string; rank_honored?:boolean;
   current_chance: number;
   suggestions: { name: string; after_pick: number; after_reply: number|null; reply: string|null }[];
 };
+
+export type ExternalBanSnapshot = {
+  provider:string; map:string|null; rank:DraftMetaRank; rank_method:'lobby_average'; patch_date:string;
+  start:string; end:string; fetched_at:string; fresh:boolean; drafts:number; battles:number;
+  rows:{name:string;banned:number;games:number;wins:number;both_teams:number;
+    ban_rate:number|null;pick_rate:number|null;win_rate:number|null;raw_win_rate:number|null}[];
+  recommendations:{name:string;score:number}[]; recommendation_drafts:number; source_url:string;
+};
+
+export const draftRankLabel=(scope?:string)=>({masters:'Mestres+','masters-plus':'Mestres+',all:'Todos os ranks',
+  legendary:'Lendário',mythic:'Mítico',diamond:'Diamante'}[scope??'all']??'Rank não identificado');
 
 export function draftMetaMapKey(name: string) {
   return name.trim().toLowerCase().replace(/['’‘]/g, '');

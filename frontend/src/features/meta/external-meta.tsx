@@ -5,6 +5,7 @@ import { dateTime, number, percent } from '@/lib/data';
 import type { Battle } from '@/lib/data';
 import { accountInExternalScope } from '@/lib/external-comparison';
 import { AccountBans, AccountComparison } from './external-account';
+import { ExternalBans } from './external-bans';
 import { collectionRequest } from '@/lib/live';
 
 import { draftMetaRanks } from '@/lib/draftmeta';
@@ -113,7 +114,9 @@ export function ExternalMeta({matches,accountName}: {matches:Battle[]; accountNa
       {message&&<p className="section-note" role="status">{message}</p>}
       {current?<p className="section-note">{current.end?`Patch de ${dateLabel(current.patch_date)} · ${dateLabel(current.start)} a ${dateLabel(current.end)}`:`Amostra desde ${dateLabel(current.start)}`} · {number(current.battles)} partidas · Consultado em {dateTime(current.fetched_at)}{!current.fresh?' · Última cópia salva':''}</p>:
         <p className="section-note">{loading?'Carregando cópia salva…':'Sem consulta salva para este recorte. Atualize para carregar os indicadores.'}</p>}
+      {current&&<p className="section-note">Datas da amostra em UTC. O patch identifica o balanceamento; a janela pode incluir mais de uma temporada. Mestres+ segue a classificação da fonte, diferente do rank médio usado nos bans.</p>}
     </section>
+    <ExternalBans map={map} rank={rank} patch={patch}/>
     {current?.end&&<AccountComparison matches={accountMatches} accountName={accountName}
       tiers={current.tiers} pickRates={pickRates} sourceUrl={current.source_url}/>}
     {current&&<section className="card meta-tier-list">
